@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Elastic Configuration Form View -->
+    <record id="view_elastic_config_form" model="ir.ui.view">
+        <field name="name">elastic.config.form</field>
+        <field name="model">elastic.config</field>
+        <field name="arch" type="xml">
+            <form string="Elastic Configuration">
+                <header>
+                    <button name="action_test_connection" type="object" string="Test Connection" class="oe_highlight"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Configuration Name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="active"/>
+                            <field name="connection_status" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <!-- SFTP Connection Settings -->
+                        <page string="SFTP Connection" name="sftp_connection">
+                            <group>
+                                <group string="Server Settings">
+                                    <field name="sftp_host"/>
+                                    <field name="sftp_port"/>
+                                    <field name="sftp_username"/>
+                                </group>
+                                <group string="Directory Paths">
+                                    <field name="sftp_export_path"/>
+                                    <field name="sftp_import_path"/>
+                                    <field name="sftp_archive_path"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Authentication">
+                                    <field name="sftp_use_key_auth"/>
+                                    <field name="sftp_password" password="True" invisible="sftp_use_key_auth"/>
+                                    <field name="sftp_private_key" widget="text" invisible="not sftp_use_key_auth"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- Export Settings -->
+                        <page string="Export Settings" name="export_settings">
+                            <group>
+                                <group string="File Format">
+                                    <field name="export_delimiter"/>
+                                    <field name="export_encoding"/>
+                                    <field name="export_include_header"/>
+                                </group>
+                                <group string="Date/Time Formatting">
+                                    <field name="date_format"/>
+                                    <field name="datetime_format"/>
+                                </group>
+                            </group>
+                            <separator string="Enabled Exports"/>
+                            <group>
+                                <group>
+                                    <field name="enable_product_export"/>
+                                    <field name="enable_catalog_export"/>
+                                    <field name="enable_catalog_mapping_export"/>
+                                    <field name="enable_feature_export"/>
+                                    <field name="enable_customer_export"/>
+                                </group>
+                                <group>
+                                    <field name="enable_location_export"/>
+                                    <field name="enable_rep_export"/>
+                                    <field name="enable_rep_mapping_export"/>
+                                    <field name="enable_inventory_export"/>
+                                </group>
+                            </group>
+                            <separator string="Export Filters"/>
+                            <group>
+                                <group>
+                                    <field name="export_only_synced_products"/>
+                                    <field name="export_only_synced_customers"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- Import Settings -->
+                        <page string="Import Settings" name="import_settings">
+                            <group>
+                                <group string="Order Import">
+                                    <field name="enable_order_import"/>
+                                    <field name="order_import_auto_confirm"/>
+                                    <field name="order_import_archive_processed"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- Business Logic -->
+                        <page string="Business Logic" name="business_logic">
+                            <group>
+                                <group string="Customer Settings">
+                                    <field name="use_legacy_account_number"/>
+                                </group>
+                            </group>
+                            <div class="alert alert-info" role="alert" style="margin-top: 10px;">
+                                <strong>Legacy Account Number:</strong> When enabled, the system will use the "Legacy Account Number" field on customers for the SoldToID in exports before falling back to the Odoo Contact ID.
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Elastic Configuration Tree View -->
+    <record id="view_elastic_config_tree" model="ir.ui.view">
+        <field name="name">elastic.config.tree</field>
+        <field name="model">elastic.config</field>
+        <field name="arch" type="xml">
+            <tree string="Elastic Configurations">
+                <field name="name"/>
+                <field name="active"/>
+                <field name="sftp_host"/>
+                <field name="connection_status"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Elastic Configuration Action -->
+    <record id="action_elastic_config" model="ir.actions.act_window">
+        <field name="name">Configuration</field>
+        <field name="res_model">elastic.config</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Configure Elastic Integration Settings
+            </p>
+            <p>
+                Set up your SFTP connection, export/import settings, and business logic preferences.
+            </p>
+        </field>
+    </record>
+</odoo>
