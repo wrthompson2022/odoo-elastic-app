@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Partner Form - Add Elastic Tab -->
+    <record id="view_partner_elastic_form" model="ir.ui.view">
+        <field name="name">res.partner.elastic.form</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Elastic" name="elastic">
+                    <group>
+                        <group string="Sync Settings">
+                            <field name="elastic_sync_enabled"/>
+                            <field name="elastic_last_sync" readonly="1"/>
+                            <field name="elastic_customer_id"/>
+                        </group>
+                        <group string="Legacy Integration">
+                            <field name="legacy_account_number"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Sales & Pricing">
+                            <field name="elastic_rep_id"/>
+                            <field name="elastic_price_level"/>
+                            <field name="elastic_credit_limit"/>
+                        </group>
+                        <group string="Terms">
+                            <field name="elastic_payment_terms"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Catalog Assignment">
+                            <field name="elastic_catalog_ids" widget="many2many_tags"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="elastic_notes" widget="text" placeholder="Additional notes for Elastic integration"/>
+                    </group>
+                    <div class="mt-3">
+                        <button name="action_sync_to_elastic" type="object" string="Sync to Elastic" class="btn-primary" invisible="not elastic_sync_enabled"/>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
