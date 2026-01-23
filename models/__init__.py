@@ -1,3 +1,4 @@
+from . import elastic_connection
 from . import elastic_config
 from . import elastic_catalog
 from . import elastic_export_log

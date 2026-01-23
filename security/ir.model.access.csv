@@ -1,4 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_elastic_connection_user,elastic.connection.user,model_elastic_connection,base.group_user,1,1,1,0
+access_elastic_connection_manager,elastic.connection.manager,model_elastic_connection,base.group_system,1,1,1,1
 access_elastic_config_user,elastic.config.user,model_elastic_config,base.group_user,1,1,1,0
 access_elastic_config_manager,elastic.config.manager,model_elastic_config,base.group_system,1,1,1,1
 access_elastic_catalog_user,elastic.catalog.user,model_elastic_catalog,base.group_user,1,0,0,0

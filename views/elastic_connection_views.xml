@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Elastic Connection Form View -->
+    <record id="view_elastic_connection_form" model="ir.ui.view">
+        <field name="name">elastic.connection.form</field>
+        <field name="model">elastic.connection</field>
+        <field name="arch" type="xml">
+            <form string="SFTP Connection">
+                <header>
+                    <button name="action_test_connection" type="object" string="Test Connection" class="oe_highlight"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="toggle_active" type="object" class="oe_stat_button" icon="fa-archive">
+                            <field name="active" widget="boolean_button" options='{"terminology": "archive"}'/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Connection Name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="environment" widget="radio" options="{'horizontal': true}"/>
+                        </group>
+                        <group>
+                            <field name="connection_status" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <!-- Server Settings -->
+                        <page string="Server Settings" name="server_settings">
+                            <group>
+                                <group string="SFTP Server">
+                                    <field name="sftp_host" placeholder="sftp.elastic.com"/>
+                                    <field name="sftp_port"/>
+                                    <field name="sftp_username"/>
+                                </group>
+                                <group string="Authentication">
+                                    <field name="sftp_use_key_auth"/>
+                                    <field name="sftp_password" password="True" invisible="sftp_use_key_auth"/>
+                                    <field name="sftp_private_key" widget="text" invisible="not sftp_use_key_auth" placeholder="-----BEGIN RSA PRIVATE KEY-----..."/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- Directory Paths -->
+                        <page string="Directory Paths" name="directory_paths">
+                            <group>
+                                <group string="Remote Directories">
+                                    <field name="sftp_export_path" placeholder="/outbound"/>
+                                    <field name="sftp_import_path" placeholder="/inbound"/>
+                                    <field name="sftp_archive_path" placeholder="/archive"/>
+                                </group>
+                            </group>
+                            <div class="alert alert-info" role="alert">
+                                <strong>Directory Paths:</strong>
+                                <ul>
+                                    <li><strong>Export Directory:</strong> Where Odoo uploads files for Elastic to process</li>
+                                    <li><strong>Import Directory:</strong> Where Elastic places files for Odoo to download (e.g., orders)</li>
+                                    <li><strong>Archive Directory:</strong> Where processed files are moved after import</li>
+                                </ul>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Elastic Connection Tree View -->
+    <record id="view_elastic_connection_tree" model="ir.ui.view">
+        <field name="name">elastic.connection.tree</field>
+        <field name="model">elastic.connection</field>
+        <field name="arch" type="xml">
+            <tree string="SFTP Connections" decoration-info="environment == 'beta'" decoration-success="environment == 'production'">
+                <field name="name"/>
+                <field name="environment" widget="badge" decoration-info="environment == 'beta'" decoration-success="environment == 'production'"/>
+                <field name="sftp_host"/>
+                <field name="sftp_username"/>
+                <field name="connection_status"/>
+                <field name="active" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Elastic Connection Search View -->
+    <record id="view_elastic_connection_search" model="ir.ui.view">
+        <field name="name">elastic.connection.search</field>
+        <field name="model">elastic.connection</field>
+        <field name="arch" type="xml">
+            <search string="Search Connections">
+                <field name="name"/>
+                <field name="sftp_host"/>
+                <separator/>
+                <filter string="Beta" name="filter_beta" domain="[('environment', '=', 'beta')]"/>
+                <filter string="Production" name="filter_production" domain="[('environment', '=', 'production')]"/>
+                <separator/>
+                <filter string="Archived" name="filter_archived" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Environment" name="group_environment" context="{'group_by': 'environment'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Elastic Connection Action -->
+    <record id="action_elastic_connection" model="ir.actions.act_window">
+        <field name="name">SFTP Connections</field>
+        <field name="res_model">elastic.connection</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first SFTP connection
+            </p>
+            <p>
+                Set up separate connections for Beta (sandbox) and Production environments.
+                This allows you to test integrations safely before going live.
+            </p>
+        </field>
+    </record>
+</odoo>

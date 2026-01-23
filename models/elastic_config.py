@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -15,37 +15,50 @@ class ElasticConfig(models.Model):
     active = fields.Boolean(string='Active', default=True, tracking=True)
 
     # ============================================
-    # SFTP Connection Settings
+    # Environment Selection
     # ============================================
-    sftp_host = fields.Char(string='SFTP Host', required=True, tracking=True, help='SFTP server hostname or IP address')
-    sftp_port = fields.Integer(string='SFTP Port', default=22, required=True, tracking=True)
-    sftp_username = fields.Char(string='SFTP Username', required=True, tracking=True)
-    sftp_password = fields.Char(string='SFTP Password', tracking=True, help='Leave empty if using SSH key')
-    sftp_private_key = fields.Text(string='SSH Private Key', tracking=True, help='SSH private key for authentication')
-    sftp_use_key_auth = fields.Boolean(string='Use SSH Key Authentication', default=False, tracking=True)
+    active_environment = fields.Selection(
+        [('beta', 'Beta / Sandbox'), ('production', 'Production')],
+        string='Active Environment',
+        default='beta',
+        required=True,
+        tracking=True,
+        help='Select which environment to use for SFTP operations. '
+             'Use Beta for testing, Production for live data.'
+    )
 
     # ============================================
-    # SFTP Directory Settings
+    # Connection Profiles
     # ============================================
-    sftp_export_path = fields.Char(
-        string='Export Directory',
-        default='/outbound',
-        required=True,
+    beta_connection_id = fields.Many2one(
+        'elastic.connection',
+        string='Beta Connection',
+        domain=[('environment', '=', 'beta')],
         tracking=True,
-        help='Remote directory for uploading export files to Elastic'
+        help='SFTP connection profile for Beta/Sandbox environment'
     )
-    sftp_import_path = fields.Char(
-        string='Import Directory',
-        default='/inbound',
-        required=True,
+    production_connection_id = fields.Many2one(
+        'elastic.connection',
+        string='Production Connection',
+        domain=[('environment', '=', 'production')],
         tracking=True,
-        help='Remote directory for downloading import files from Elastic'
+        help='SFTP connection profile for Production environment'
     )
-    sftp_archive_path = fields.Char(
-        string='Archive Directory',
-        default='/archive',
-        tracking=True,
-        help='Remote directory for archiving processed files'
+
+    # ============================================
+    # Computed: Active Connection
+    # ============================================
+    active_connection_id = fields.Many2one(
+        'elastic.connection',
+        string='Active Connection',
+        compute='_compute_active_connection',
+        store=False,
+        help='Currently active SFTP connection based on selected environment'
+    )
+    connection_status = fields.Char(
+        string='Connection Status',
+        compute='_compute_connection_status',
+        store=False
     )
 
     # ============================================
@@ -139,37 +152,27 @@ class ElasticConfig(models.Model):
     )
 
     # ============================================
-    # Computed Fields
-    # ============================================
-    connection_status = fields.Char(string='Connection Status', compute='_compute_connection_status', store=False)
-
-    # ============================================
-    # Constraints
-    # ============================================
-    @api.constrains('sftp_port')
-    def _check_sftp_port(self):
-        for record in self:
-            if record.sftp_port < 1 or record.sftp_port > 65535:
-                raise ValidationError('SFTP port must be between 1 and 65535')
-
-    @api.constrains('sftp_password', 'sftp_private_key', 'sftp_use_key_auth')
-    def _check_auth_method(self):
-        for record in self:
-            if record.sftp_use_key_auth and not record.sftp_private_key:
-                raise ValidationError('SSH Private Key is required when using key authentication')
-            if not record.sftp_use_key_auth and not record.sftp_password:
-                raise ValidationError('SFTP Password is required when not using key authentication')
-
-    # ============================================
     # Computed Methods
     # ============================================
-    @api.depends('sftp_host', 'sftp_port', 'sftp_username')
+    @api.depends('active_environment', 'beta_connection_id', 'production_connection_id')
+    def _compute_active_connection(self):
+        for record in self:
+            if record.active_environment == 'beta':
+                record.active_connection_id = record.beta_connection_id
+            else:
+                record.active_connection_id = record.production_connection_id
+
+    @api.depends('active_connection_id', 'active_environment')
     def _compute_connection_status(self):
         for record in self:
-            if record.sftp_host and record.sftp_username:
-                record.connection_status = 'Configured'
+            conn = record.active_connection_id
+            env_label = 'Beta' if record.active_environment == 'beta' else 'Production'
+            if conn and conn.sftp_host and conn.sftp_username:
+                record.connection_status = f'{env_label}: {conn.sftp_host}'
+            elif not conn:
+                record.connection_status = f'{env_label}: No connection configured'
             else:
-                record.connection_status = 'Not Configured'
+                record.connection_status = f'{env_label}: Not fully configured'
 
     # ============================================
     # Singleton Pattern
@@ -181,86 +184,159 @@ class ElasticConfig(models.Model):
         if not config:
             config = self.create({
                 'name': 'Elastic Configuration',
-                'sftp_host': 'sftp.example.com',
-                'sftp_username': 'elastic_user',
             })
         return config
+
+    # ============================================
+    # Connection Helper Methods
+    # ============================================
+    def _get_active_connection(self):
+        """Get the active connection based on selected environment"""
+        self.ensure_one()
+        conn = self.active_connection_id
+        if not conn:
+            env_label = 'Beta' if self.active_environment == 'beta' else 'Production'
+            raise UserError(
+                f'No {env_label} connection is configured. '
+                f'Please set up a {env_label} SFTP connection in Configuration > Connections.'
+            )
+        return conn
+
+    def get_connection_for_environment(self, environment):
+        """Get the connection for a specific environment (beta or production)"""
+        self.ensure_one()
+        if environment == 'beta':
+            conn = self.beta_connection_id
+        elif environment == 'production':
+            conn = self.production_connection_id
+        else:
+            raise UserError(f'Invalid environment: {environment}. Use "beta" or "production".')
+
+        if not conn:
+            env_label = 'Beta' if environment == 'beta' else 'Production'
+            raise UserError(
+                f'No {env_label} connection is configured. '
+                f'Please set up a {env_label} SFTP connection in Configuration > Connections.'
+            )
+        return conn
 
     # ============================================
     # Action Methods
     # ============================================
     def action_test_connection(self):
-        """Test SFTP connection"""
+        """Test SFTP connection for the active environment"""
         self.ensure_one()
 
         try:
-            from ..services.sftp_service import SFTPService
-
-            sftp_service = SFTPService(
-                host=self.sftp_host,
-                port=self.sftp_port,
-                username=self.sftp_username,
-                password=self.sftp_password if not self.sftp_use_key_auth else None,
-                private_key=self.sftp_private_key if self.sftp_use_key_auth else None,
-                remote_path=self.sftp_export_path
-            )
-
-            success, message = sftp_service.test_connection()
-
-            if success:
-                self.message_post(body=f"✓ {message}")
-                return {
-                    'type': 'ir.actions.client',
-                    'tag': 'display_notification',
-                    'params': {
-                        'title': 'Connection Successful',
-                        'message': message,
-                        'type': 'success',
-                        'sticky': False,
-                    }
-                }
-            else:
-                self.message_post(body=f"✗ {message}")
-                return {
-                    'type': 'ir.actions.client',
-                    'tag': 'display_notification',
-                    'params': {
-                        'title': 'Connection Failed',
-                        'message': message,
-                        'type': 'danger',
-                        'sticky': True,
-                    }
-                }
-
-        except Exception as e:
-            error_msg = f"Connection test error: {str(e)}"
-            _logger.error(error_msg)
-            self.message_post(body=f"✗ {error_msg}")
+            conn = self._get_active_connection()
+            return conn.action_test_connection()
+        except UserError as e:
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
                 'params': {
-                    'title': 'Connection Error',
-                    'message': error_msg,
-                    'type': 'danger',
+                    'title': 'Connection Not Configured',
+                    'message': str(e),
+                    'type': 'warning',
                     'sticky': True,
                 }
             }
 
-    def get_sftp_service(self):
-        """Get configured SFTP service instance"""
+    def action_test_beta_connection(self):
+        """Test Beta SFTP connection"""
+        self.ensure_one()
+        if not self.beta_connection_id:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'No Beta Connection',
+                    'message': 'Please configure a Beta connection first.',
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+        return self.beta_connection_id.action_test_connection()
+
+    def action_test_production_connection(self):
+        """Test Production SFTP connection"""
+        self.ensure_one()
+        if not self.production_connection_id:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'No Production Connection',
+                    'message': 'Please configure a Production connection first.',
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+        return self.production_connection_id.action_test_connection()
+
+    def action_open_connections(self):
+        """Open the connections list view"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'SFTP Connections',
+            'res_model': 'elastic.connection',
+            'view_mode': 'tree,form',
+            'target': 'current',
+        }
+
+    def action_create_beta_connection(self):
+        """Create a new Beta connection"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Create Beta Connection',
+            'res_model': 'elastic.connection',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_environment': 'beta',
+                'default_name': 'Elastic Beta',
+            }
+        }
+
+    def action_create_production_connection(self):
+        """Create a new Production connection"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Create Production Connection',
+            'res_model': 'elastic.connection',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_environment': 'production',
+                'default_name': 'Elastic Production',
+            }
+        }
+
+    # ============================================
+    # Service Factory Methods
+    # ============================================
+    def get_sftp_service(self, environment=None):
+        """
+        Get configured SFTP service instance.
+
+        Args:
+            environment: Optional. Specify 'beta' or 'production' to override
+                        the active environment setting.
+
+        Returns:
+            SFTPService instance for the specified or active environment.
+        """
         self.ensure_one()
 
-        from ..services.sftp_service import SFTPService
+        if environment:
+            conn = self.get_connection_for_environment(environment)
+        else:
+            conn = self._get_active_connection()
 
-        return SFTPService(
-            host=self.sftp_host,
-            port=self.sftp_port,
-            username=self.sftp_username,
-            password=self.sftp_password if not self.sftp_use_key_auth else None,
-            private_key=self.sftp_private_key if self.sftp_use_key_auth else None,
-            remote_path=self.sftp_export_path
-        )
+        return conn.get_sftp_service()
 
     def get_file_generator(self):
         """Get configured file generator instance"""
@@ -273,3 +349,24 @@ class ElasticConfig(models.Model):
             encoding=self.export_encoding,
             include_header=self.export_include_header
         )
+
+    # ============================================
+    # Convenience Properties for Active Connection
+    # ============================================
+    @property
+    def sftp_export_path(self):
+        """Get export path from active connection"""
+        conn = self.active_connection_id
+        return conn.sftp_export_path if conn else '/outbound'
+
+    @property
+    def sftp_import_path(self):
+        """Get import path from active connection"""
+        conn = self.active_connection_id
+        return conn.sftp_import_path if conn else '/inbound'
+
+    @property
+    def sftp_archive_path(self):
+        """Get archive path from active connection"""
+        conn = self.active_connection_id
+        return conn.sftp_archive_path if conn else '/archive'
