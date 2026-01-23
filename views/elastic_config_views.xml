@@ -94,6 +94,44 @@
                                     <field name="enable_rep_export"/>
                                     <field name="enable_rep_mapping_export"/>
                                     <field name="enable_inventory_export"/>
+                                    <field name="enable_price_export"/>
+                                </group>
+                            </group>
+                            <separator string="Manual Export Actions"/>
+                            <div class="alert alert-info" role="alert" style="margin-bottom: 15px;">
+                                <strong>Manual Exports:</strong> Click buttons below to run exports immediately.
+                                For automated scheduled exports, configure cron jobs.
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <button name="action_export_all" type="object" string="Export All Enabled" class="btn-primary me-2" icon="fa-upload"/>
+                            </div>
+                            <group>
+                                <group string="Customer Exports">
+                                    <div>
+                                        <button name="action_export_customers" type="object" string="Export Customers" class="btn-secondary me-1" icon="fa-users"/>
+                                        <button name="action_export_customer_custom_fields" type="object" string="Export Custom Fields" class="btn-secondary" icon="fa-tags"/>
+                                    </div>
+                                </group>
+                                <group string="Product Exports">
+                                    <div>
+                                        <button name="action_export_products" type="object" string="Export Products" class="btn-secondary me-1" icon="fa-cube"/>
+                                        <button name="action_export_prices" type="object" string="Export Prices" class="btn-secondary me-1" icon="fa-usd"/>
+                                        <button name="action_export_inventory" type="object" string="Export Inventory" class="btn-secondary" icon="fa-cubes"/>
+                                    </div>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Catalog Exports">
+                                    <div>
+                                        <button name="action_export_catalogs" type="object" string="Export Catalogs" class="btn-secondary me-1" icon="fa-book"/>
+                                        <button name="action_export_catalog_mappings" type="object" string="Export Mappings" class="btn-secondary" icon="fa-link"/>
+                                    </div>
+                                </group>
+                                <group string="Sales Rep Exports">
+                                    <div>
+                                        <button name="action_export_reps" type="object" string="Export Reps" class="btn-secondary me-1" icon="fa-user-tie"/>
+                                        <button name="action_export_rep_mappings" type="object" string="Export Rep Mappings" class="btn-secondary" icon="fa-handshake-o"/>
+                                    </div>
                                 </group>
                             </group>
                             <separator string="Export Filters"/>

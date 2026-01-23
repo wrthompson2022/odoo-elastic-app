@@ -68,6 +68,12 @@ class ResPartner(models.Model):
         string='Elastic Notes',
         help='Additional notes or special instructions for Elastic integration'
     )
+    elastic_drop_ship_approved = fields.Boolean(
+        string='Drop Ship Approved',
+        default=False,
+        help='Customer is approved for drop ship orders',
+        tracking=True
+    )
 
     # ============================================
     # Helper Methods
