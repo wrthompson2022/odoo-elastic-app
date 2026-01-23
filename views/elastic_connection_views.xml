@@ -80,14 +80,14 @@
         <field name="name">elastic.connection.tree</field>
         <field name="model">elastic.connection</field>
         <field name="arch" type="xml">
-            <tree string="SFTP Connections" decoration-info="environment == 'beta'" decoration-success="environment == 'production'">
+            <list string="SFTP Connections" decoration-info="environment == 'beta'" decoration-success="environment == 'production'">
                 <field name="name"/>
                 <field name="environment" widget="badge" decoration-info="environment == 'beta'" decoration-success="environment == 'production'"/>
                 <field name="sftp_host"/>
                 <field name="sftp_username"/>
                 <field name="connection_status"/>
                 <field name="active" optional="hide"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -115,7 +115,7 @@
     <record id="action_elastic_connection" model="ir.actions.act_window">
         <field name="name">SFTP Connections</field>
         <field name="res_model">elastic.connection</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first SFTP connection

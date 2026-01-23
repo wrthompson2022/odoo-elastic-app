@@ -28,20 +28,20 @@
                     <notebook>
                         <page string="Products" name="products">
                             <field name="product_ids" widget="many2many" domain="[('elastic_sync_enabled', '=', True)]">
-                                <tree>
+                                <list>
                                     <field name="name"/>
                                     <field name="default_code"/>
                                     <field name="list_price"/>
-                                </tree>
+                                </list>
                             </field>
                         </page>
                         <page string="Customers" name="customers">
                             <field name="partner_ids" widget="many2many" domain="[('elastic_sync_enabled', '=', True)]">
-                                <tree>
+                                <list>
                                     <field name="name"/>
                                     <field name="email"/>
                                     <field name="phone"/>
-                                </tree>
+                                </list>
                             </field>
                         </page>
                     </notebook>
@@ -55,13 +55,13 @@
         <field name="name">elastic.catalog.tree</field>
         <field name="model">elastic.catalog</field>
         <field name="arch" type="xml">
-            <tree string="Elastic Catalogs">
+            <list string="Elastic Catalogs">
                 <field name="name"/>
                 <field name="code"/>
                 <field name="product_count"/>
                 <field name="partner_count"/>
                 <field name="active"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -69,7 +69,7 @@
     <record id="action_elastic_catalog" model="ir.actions.act_window">
         <field name="name">Catalogs</field>
         <field name="res_model">elastic.catalog</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first Elastic Catalog
