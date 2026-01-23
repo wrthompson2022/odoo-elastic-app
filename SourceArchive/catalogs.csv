@@ -1,0 +1,3 @@
+CatalogKey,CatalogName,CatalogPermissionGroup,CatalogType,CatalogPosition,StartDate,EndDate,ReviewFlag,FirstShipDate,LastShipDate,LastCancelDate,DefaultCancelDays,SeasonCode,ShipMinDays,ShipDefaultDays,ShipMaxDays,MaxCancelDays,MinCancelDays,Warehouse,ShipDate1,ShipDate2,ShipDate3,ShipDate4,ShipDate5,Brand,CatalogClassification,PriceGroup
+ALL,Bajio Catalog,DEFAULT,nonblocking,1,20220101,20261231,N,20220101,20261231,,30,ALL,,,,,,,,,,,,,ATS,
+DUCKS,Bajio Ducks Unlimited Catalog,DEFAULT,nonblocking,2,20220101,20250606,N,20220101,20251231,20241231,30,ALL,,,,,,,,,,,,,ATS,
