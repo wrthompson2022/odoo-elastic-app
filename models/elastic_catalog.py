@@ -5,7 +5,6 @@ from odoo import models, fields, api
 class ElasticCatalog(models.Model):
     _name = 'elastic.catalog'
     _description = 'Elastic Catalog'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'name'
 
     name = fields.Char(string='Catalog Name', required=True)
