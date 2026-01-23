@@ -24,8 +24,9 @@
                             <field name="elastic_price_level"/>
                             <field name="elastic_credit_limit"/>
                         </group>
-                        <group string="Terms">
+                        <group string="Terms &amp; Order Settings">
                             <field name="elastic_payment_terms"/>
+                            <field name="elastic_drop_ship_approved"/>
                         </group>
                     </group>
                     <group>

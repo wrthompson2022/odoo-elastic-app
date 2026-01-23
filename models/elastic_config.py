@@ -91,6 +91,7 @@ class ElasticConfig(models.Model):
     enable_rep_export = fields.Boolean(string='Enable Sales Rep Export', default=False)
     enable_rep_mapping_export = fields.Boolean(string='Enable Rep Mapping Export', default=False)
     enable_inventory_export = fields.Boolean(string='Enable Inventory Export', default=False)
+    enable_price_export = fields.Boolean(string='Enable Price Export', default=False)
 
     # ============================================
     # Import Settings
@@ -369,3 +370,158 @@ class ElasticConfig(models.Model):
         """Get archive path from active connection"""
         conn = self.active_connection_id
         return conn.sftp_archive_path if conn else '/archive'
+
+    # ============================================
+    # Export Action Methods
+    # ============================================
+    def _run_export(self, exporter_class, export_name):
+        """
+        Helper method to run an export and return notification.
+
+        Args:
+            exporter_class: The exporter class to instantiate
+            export_name: Human-readable name for notifications
+
+        Returns:
+            Odoo notification action dict
+        """
+        self.ensure_one()
+
+        try:
+            exporter = exporter_class(self.env, self)
+            result = exporter.export()
+
+            if result['success']:
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': f'{export_name} Export Complete',
+                        'message': result['message'],
+                        'type': 'success',
+                        'sticky': False,
+                    }
+                }
+            else:
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': f'{export_name} Export Failed',
+                        'message': result['message'],
+                        'type': 'warning',
+                        'sticky': True,
+                    }
+                }
+        except Exception as e:
+            _logger.error(f"{export_name} export failed: {str(e)}", exc_info=True)
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': f'{export_name} Export Error',
+                    'message': str(e),
+                    'type': 'danger',
+                    'sticky': True,
+                }
+            }
+
+    def action_export_customers(self):
+        """Export customers to Elastic SFTP"""
+        from ..exporters.customer_exporter import CustomerExporter
+        return self._run_export(CustomerExporter, 'Customer')
+
+    def action_export_customer_custom_fields(self):
+        """Export customer custom fields (including drop_ship) to Elastic SFTP"""
+        from ..exporters.customer_custom_fields_exporter import CustomerCustomFieldsExporter
+        return self._run_export(CustomerCustomFieldsExporter, 'Customer Custom Fields')
+
+    def action_export_products(self):
+        """Export products to Elastic SFTP"""
+        from ..exporters.product_exporter import ProductExporter
+        return self._run_export(ProductExporter, 'Product')
+
+    def action_export_inventory(self):
+        """Export inventory to Elastic SFTP"""
+        from ..exporters.inventory_exporter import InventoryExporter
+        return self._run_export(InventoryExporter, 'Inventory')
+
+    def action_export_prices(self):
+        """Export prices to Elastic SFTP"""
+        from ..exporters.price_exporter import PriceExporter
+        return self._run_export(PriceExporter, 'Price')
+
+    def action_export_catalogs(self):
+        """Export catalogs to Elastic SFTP"""
+        from ..exporters.catalog_exporter import CatalogExporter
+        return self._run_export(CatalogExporter, 'Catalog')
+
+    def action_export_catalog_mappings(self):
+        """Export catalog-product mappings to Elastic SFTP"""
+        from ..exporters.catalog_exporter import CatalogMappingExporter
+        return self._run_export(CatalogMappingExporter, 'Catalog Mapping')
+
+    def action_export_reps(self):
+        """Export sales reps to Elastic SFTP"""
+        from ..exporters.rep_exporter import RepExporter
+        return self._run_export(RepExporter, 'Sales Rep')
+
+    def action_export_rep_mappings(self):
+        """Export rep-customer mappings to Elastic SFTP"""
+        from ..exporters.rep_exporter import RepMappingExporter
+        return self._run_export(RepMappingExporter, 'Rep Mapping')
+
+    def action_export_all(self):
+        """Run all enabled exports"""
+        self.ensure_one()
+
+        results = []
+
+        if self.enable_customer_export:
+            self.action_export_customers()
+            self.action_export_customer_custom_fields()
+            results.append('Customers')
+
+        if self.enable_product_export:
+            self.action_export_products()
+            results.append('Products')
+
+        if self.enable_inventory_export:
+            self.action_export_inventory()
+            results.append('Inventory')
+
+        if self.enable_catalog_export:
+            self.action_export_catalogs()
+            results.append('Catalogs')
+
+        if self.enable_catalog_mapping_export:
+            self.action_export_catalog_mappings()
+            results.append('Catalog Mappings')
+
+        if self.enable_rep_export:
+            self.action_export_reps()
+            results.append('Reps')
+
+        if self.enable_rep_mapping_export:
+            self.action_export_rep_mappings()
+            results.append('Rep Mappings')
+
+        if self.enable_price_export:
+            self.action_export_prices()
+            results.append('Prices')
+
+        if results:
+            message = f"Exported: {', '.join(results)}"
+        else:
+            message = "No exports are enabled. Enable exports in the configuration."
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Export Complete',
+                'message': message,
+                'type': 'success' if results else 'warning',
+                'sticky': False,
+            }
+        }
