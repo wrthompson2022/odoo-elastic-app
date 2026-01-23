@@ -54,6 +54,9 @@
                                     <field name="sftp_import_path" placeholder="/inbound"/>
                                     <field name="sftp_archive_path" placeholder="/archive"/>
                                 </group>
+                                <group>
+                                    <!-- Empty group for balanced two-column layout -->
+                                </group>
                             </group>
                             <div class="alert alert-info" role="alert">
                                 <strong>Directory Paths:</strong>

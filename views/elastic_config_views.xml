@@ -31,6 +31,9 @@
                                 <group string="Active Environment">
                                     <field name="active_environment" widget="radio" options="{'horizontal': true}"/>
                                 </group>
+                                <group>
+                                    <!-- Empty group for balanced two-column layout -->
+                                </group>
                             </group>
 
                             <div class="alert alert-info" role="alert" style="margin-bottom: 20px;">
@@ -99,6 +102,9 @@
                                     <field name="export_only_synced_products"/>
                                     <field name="export_only_synced_customers"/>
                                 </group>
+                                <group>
+                                    <!-- Empty group for balanced two-column layout -->
+                                </group>
                             </group>
                         </page>
 
@@ -110,6 +116,9 @@
                                     <field name="order_import_auto_confirm"/>
                                     <field name="order_import_archive_processed"/>
                                 </group>
+                                <group>
+                                    <!-- Empty group for balanced two-column layout -->
+                                </group>
                             </group>
                         </page>
 
@@ -118,6 +127,9 @@
                             <group>
                                 <group string="Customer Settings">
                                     <field name="use_legacy_account_number"/>
+                                </group>
+                                <group>
+                                    <!-- Empty group for balanced two-column layout -->
                                 </group>
                             </group>
                             <div class="alert alert-info" role="alert" style="margin-top: 10px;">
