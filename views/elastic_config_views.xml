@@ -140,12 +140,12 @@
         <field name="name">elastic.config.tree</field>
         <field name="model">elastic.config</field>
         <field name="arch" type="xml">
-            <tree string="Elastic Configurations">
+            <list string="Elastic Configurations">
                 <field name="name"/>
                 <field name="active"/>
                 <field name="active_environment" widget="badge" decoration-info="active_environment == 'beta'" decoration-success="active_environment == 'production'"/>
                 <field name="connection_status"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -153,7 +153,7 @@
     <record id="action_elastic_config" model="ir.actions.act_window">
         <field name="name">Settings</field>
         <field name="res_model">elastic.config</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Configure Elastic Integration Settings
