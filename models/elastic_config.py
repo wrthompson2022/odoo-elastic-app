@@ -9,10 +9,9 @@ _logger = logging.getLogger(__name__)
 class ElasticConfig(models.Model):
     _name = 'elastic.config'
     _description = 'Elastic Integration Configuration'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
 
-    name = fields.Char(string='Configuration Name', required=True, default='Elastic Configuration', tracking=True)
-    active = fields.Boolean(string='Active', default=True, tracking=True)
+    name = fields.Char(string='Configuration Name', required=True, default='Elastic Configuration')
+    active = fields.Boolean(string='Active', default=True)
 
     # ============================================
     # Environment Selection
@@ -22,7 +21,7 @@ class ElasticConfig(models.Model):
         string='Active Environment',
         default='beta',
         required=True,
-        tracking=True,
+
         help='Select which environment to use for SFTP operations. '
              'Use Beta for testing, Production for live data.'
     )
@@ -34,14 +33,14 @@ class ElasticConfig(models.Model):
         'elastic.connection',
         string='Beta Connection',
         domain=[('environment', '=', 'beta')],
-        tracking=True,
+
         help='SFTP connection profile for Beta/Sandbox environment'
     )
     production_connection_id = fields.Many2one(
         'elastic.connection',
         string='Production Connection',
         domain=[('environment', '=', 'production')],
-        tracking=True,
+
         help='SFTP connection profile for Production environment'
     )
 
@@ -78,35 +77,35 @@ class ElasticConfig(models.Model):
         required=True,
         tracking=True
     )
-    export_include_header = fields.Boolean(string='Include Header Row', default=True, tracking=True)
+    export_include_header = fields.Boolean(string='Include Header Row', default=True)
 
     # ============================================
     # Export Scheduling - Enable/Disable
     # ============================================
-    enable_product_export = fields.Boolean(string='Enable Product Export', default=False, tracking=True)
-    enable_catalog_export = fields.Boolean(string='Enable Catalog Export', default=False, tracking=True)
-    enable_catalog_mapping_export = fields.Boolean(string='Enable Catalog Mapping Export', default=False, tracking=True)
-    enable_feature_export = fields.Boolean(string='Enable Feature Export', default=False, tracking=True)
-    enable_customer_export = fields.Boolean(string='Enable Customer Export', default=False, tracking=True)
-    enable_location_export = fields.Boolean(string='Enable Location Export', default=False, tracking=True)
-    enable_rep_export = fields.Boolean(string='Enable Sales Rep Export', default=False, tracking=True)
-    enable_rep_mapping_export = fields.Boolean(string='Enable Rep Mapping Export', default=False, tracking=True)
-    enable_inventory_export = fields.Boolean(string='Enable Inventory Export', default=False, tracking=True)
+    enable_product_export = fields.Boolean(string='Enable Product Export', default=False)
+    enable_catalog_export = fields.Boolean(string='Enable Catalog Export', default=False)
+    enable_catalog_mapping_export = fields.Boolean(string='Enable Catalog Mapping Export', default=False)
+    enable_feature_export = fields.Boolean(string='Enable Feature Export', default=False)
+    enable_customer_export = fields.Boolean(string='Enable Customer Export', default=False)
+    enable_location_export = fields.Boolean(string='Enable Location Export', default=False)
+    enable_rep_export = fields.Boolean(string='Enable Sales Rep Export', default=False)
+    enable_rep_mapping_export = fields.Boolean(string='Enable Rep Mapping Export', default=False)
+    enable_inventory_export = fields.Boolean(string='Enable Inventory Export', default=False)
 
     # ============================================
     # Import Settings
     # ============================================
-    enable_order_import = fields.Boolean(string='Enable Order Import', default=False, tracking=True)
+    enable_order_import = fields.Boolean(string='Enable Order Import', default=False)
     order_import_auto_confirm = fields.Boolean(
         string='Auto-Confirm Orders',
         default=False,
-        tracking=True,
+
         help='Automatically confirm imported orders if validation passes'
     )
     order_import_archive_processed = fields.Boolean(
         string='Archive Processed Files',
         default=True,
-        tracking=True,
+
         help='Move processed order files to archive directory'
     )
 
@@ -116,7 +115,7 @@ class ElasticConfig(models.Model):
     use_legacy_account_number = fields.Boolean(
         string='Use Legacy Account Number for SoldToID',
         default=False,
-        tracking=True,
+
         help='When enabled, use the Legacy Account Number field on customers for SoldToID before falling back to Odoo Contact ID'
     )
 
@@ -124,14 +123,14 @@ class ElasticConfig(models.Model):
         string='Date Format',
         default='%Y-%m-%d',
         required=True,
-        tracking=True,
+
         help='Python strftime format for dates (e.g., %Y-%m-%d for 2024-01-31)'
     )
     datetime_format = fields.Char(
         string='DateTime Format',
         default='%Y-%m-%d %H:%M:%S',
         required=True,
-        tracking=True,
+
         help='Python strftime format for datetimes'
     )
 
@@ -141,13 +140,13 @@ class ElasticConfig(models.Model):
     export_only_synced_products = fields.Boolean(
         string='Export Only Synced Products',
         default=False,
-        tracking=True,
+
         help='Only export products where "Push to Elastic" is enabled'
     )
     export_only_synced_customers = fields.Boolean(
         string='Export Only Synced Customers',
         default=False,
-        tracking=True,
+
         help='Only export customers where "Push to Elastic" is enabled'
     )
 
