@@ -8,8 +8,8 @@ class ElasticCatalog(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'name'
 
-    name = fields.Char(string='Catalog Name', required=True, tracking=True)
-    code = fields.Char(string='Catalog Code', required=True, tracking=True, help='Unique code for this catalog')
+    name = fields.Char(string='Catalog Name', required=True)
+    code = fields.Char(string='Catalog Code', required=True, help='Unique code for this catalog')
     description = fields.Text(string='Description')
     active = fields.Boolean(string='Active', default=True)
 
