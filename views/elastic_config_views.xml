@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <form string="Elastic Configuration">
                 <header>
-                    <button name="action_test_connection" type="object" string="Test Connection" class="oe_highlight"/>
+                    <button name="action_test_connection" type="object" string="Test Active Connection" class="oe_highlight"/>
                 </header>
                 <sheet>
                     <div class="oe_title">
@@ -18,32 +18,50 @@
                     <group>
                         <group>
                             <field name="active"/>
+                        </group>
+                        <group>
                             <field name="connection_status" readonly="1"/>
                         </group>
                     </group>
 
                     <notebook>
-                        <!-- SFTP Connection Settings -->
-                        <page string="SFTP Connection" name="sftp_connection">
+                        <!-- Environment & Connections -->
+                        <page string="SFTP Connections" name="sftp_connections">
                             <group>
-                                <group string="Server Settings">
-                                    <field name="sftp_host"/>
-                                    <field name="sftp_port"/>
-                                    <field name="sftp_username"/>
-                                </group>
-                                <group string="Directory Paths">
-                                    <field name="sftp_export_path"/>
-                                    <field name="sftp_import_path"/>
-                                    <field name="sftp_archive_path"/>
+                                <group string="Active Environment">
+                                    <field name="active_environment" widget="radio" options="{'horizontal': true}"/>
                                 </group>
                             </group>
+
+                            <div class="alert alert-info" role="alert" style="margin-bottom: 20px;">
+                                <strong>Environment Selection:</strong> Choose which SFTP environment to use for all operations.
+                                Use <strong>Beta</strong> for testing and development, <strong>Production</strong> for live data.
+                            </div>
+
                             <group>
-                                <group string="Authentication">
-                                    <field name="sftp_use_key_auth"/>
-                                    <field name="sftp_password" password="True" invisible="sftp_use_key_auth"/>
-                                    <field name="sftp_private_key" widget="text" invisible="not sftp_use_key_auth"/>
+                                <!-- Beta Connection -->
+                                <group string="Beta / Sandbox Connection">
+                                    <field name="beta_connection_id" options="{'no_create': True}"/>
+                                    <div colspan="2">
+                                        <button name="action_test_beta_connection" type="object" string="Test Beta" class="btn-secondary" icon="fa-plug" invisible="not beta_connection_id"/>
+                                        <button name="action_create_beta_connection" type="object" string="Create Beta Connection" class="btn-link" icon="fa-plus" invisible="beta_connection_id"/>
+                                    </div>
+                                </group>
+
+                                <!-- Production Connection -->
+                                <group string="Production Connection">
+                                    <field name="production_connection_id" options="{'no_create': True}"/>
+                                    <div colspan="2">
+                                        <button name="action_test_production_connection" type="object" string="Test Production" class="btn-secondary" icon="fa-plug" invisible="not production_connection_id"/>
+                                        <button name="action_create_production_connection" type="object" string="Create Production Connection" class="btn-link" icon="fa-plus" invisible="production_connection_id"/>
+                                    </div>
                                 </group>
                             </group>
+
+                            <separator string="Connection Management"/>
+                            <div>
+                                <button name="action_open_connections" type="object" string="Manage All Connections" class="btn-primary" icon="fa-cogs"/>
+                            </div>
                         </page>
 
                         <!-- Export Settings -->
@@ -125,7 +143,7 @@
             <tree string="Elastic Configurations">
                 <field name="name"/>
                 <field name="active"/>
-                <field name="sftp_host"/>
+                <field name="active_environment" widget="badge" decoration-info="active_environment == 'beta'" decoration-success="active_environment == 'production'"/>
                 <field name="connection_status"/>
             </tree>
         </field>
@@ -133,7 +151,7 @@
 
     <!-- Elastic Configuration Action -->
     <record id="action_elastic_config" model="ir.actions.act_window">
-        <field name="name">Configuration</field>
+        <field name="name">Settings</field>
         <field name="res_model">elastic.config</field>
         <field name="view_mode">tree,form</field>
         <field name="help" type="html">
@@ -141,7 +159,8 @@
                 Configure Elastic Integration Settings
             </p>
             <p>
-                Set up your SFTP connection, export/import settings, and business logic preferences.
+                Set up your SFTP connections for Beta and Production environments,
+                configure export/import settings, and business logic preferences.
             </p>
         </field>
     </record>

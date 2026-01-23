@@ -23,8 +23,16 @@ This Odoo 18.0 module provides comprehensive integration with Elastic B2B throug
 - Field mapping support
 - Automatic data type handling and formatting
 
-#### 3. Configuration Model (`models/elastic_config.py`)
-- **SFTP Settings**: Host, port, credentials, directory paths
+#### 3. Multi-Environment SFTP Connections (`models/elastic_connection.py`)
+- **Separate connection profiles** for Beta (sandbox) and Production environments
+- **Per-connection settings**: Host, port, credentials, directory paths
+- **Environment switching**: Easily toggle between Beta and Production
+- **Independent testing**: Test each connection separately before use
+- **SSH Key or Password authentication** supported per connection
+
+#### 4. Configuration Model (`models/elastic_config.py`)
+- **Environment Selection**: Choose active environment (Beta/Production)
+- **Connection References**: Link to Beta and Production connection profiles
 - **Export Settings**: File format, encoding, delimiter configuration
 - **Export Toggles**: Enable/disable per entity type (products, catalogs, customers, etc.)
 - **Import Settings**: Order import configuration, auto-confirmation, archiving
@@ -32,7 +40,7 @@ This Odoo 18.0 module provides comprehensive integration with Elastic B2B throug
   - ✅ **Use Legacy Account Number for SoldToID** - Priority field for customer identification
   - Date/time formatting preferences
 - **Singleton pattern** for easy configuration access
-- Built-in connection test functionality
+- Built-in connection test functionality for active environment
 
 #### 4. Custom Fields on Products
 **Product Template (`product.template`):**
@@ -121,6 +129,7 @@ def _get_sold_to_id(self):
 ```
 odoo-elastic-app/
 ├── models/
+│   ├── elastic_connection.py       # SFTP connection profiles (Beta/Production)
 │   ├── elastic_config.py           # Main configuration
 │   ├── elastic_catalog.py          # Catalog management
 │   ├── elastic_export_log.py       # Export logging
@@ -137,6 +146,7 @@ odoo-elastic-app/
 │   └── base_importer.py            # Base import class
 ├── views/
 │   ├── menu.xml                    # Navigation menu
+│   ├── elastic_connection_views.xml # Connection profile UI
 │   ├── elastic_config_views.xml    # Configuration UI
 │   ├── elastic_log_views.xml       # Log views
 │   ├── elastic_catalog_views.xml   # Catalog UI
@@ -152,23 +162,61 @@ odoo-elastic-app/
 ## Configuration Steps
 
 1. **Install the module** in Odoo 18.0
-2. Navigate to **Elastic > Configuration > Settings**
-3. Configure **SFTP Connection**:
-   - Enter host, port, username
+2. Navigate to **Elastic > Configuration > SFTP Connections**
+3. **Create Beta Connection** (for testing):
+   - Click "Create" and select "Beta / Sandbox" environment
+   - Enter SFTP host, port, username for your Elastic Beta environment
    - Choose password or SSH key authentication
    - Set directory paths (export, import, archive)
-4. Configure **Export Settings**:
+   - Click "Test Connection" to verify
+4. **Create Production Connection** (for live data):
+   - Click "Create" and select "Production" environment
+   - Enter SFTP host, port, username for your Elastic Production environment
+   - Configure authentication and directory paths
+   - Click "Test Connection" to verify
+5. Navigate to **Elastic > Configuration > Settings**
+6. **Link Connections**:
+   - Select your Beta connection in the "Beta Connection" field
+   - Select your Production connection in the "Production Connection" field
+   - Choose your **Active Environment** (Beta for testing, Production for live)
+7. Configure **Export Settings**:
    - Set file delimiter (pipe, comma, tab)
    - Choose encoding
    - Enable/disable specific export types
-5. Configure **Business Logic**:
+8. Configure **Business Logic**:
    - Enable "Use Legacy Account Number for SoldToID" if needed
    - Set date/time formats
-6. Click **Test Connection** to verify SFTP setup
-7. Set up **Catalogs** if needed
-8. Add **Legacy Account Numbers** to customers as needed
+9. Set up **Catalogs** if needed
+10. Add **Legacy Account Numbers** to customers as needed
+
+### Switching Environments
+
+To switch between Beta and Production:
+1. Go to **Elastic > Configuration > Settings**
+2. Change the **Active Environment** selection
+3. All exports/imports will now use the selected environment's SFTP connection
 
 ## Key Features
+
+### Multi-Environment Support (Beta / Production)
+The module supports separate SFTP connection profiles for Beta (sandbox) and Production environments:
+
+1. **Separate Connections**: Store different credentials for each environment
+2. **Easy Switching**: Toggle between environments from the Settings page
+3. **Independent Testing**: Test each connection before use
+4. **Safe Development**: Test integrations in Beta before going live
+5. **Environment-Specific Paths**: Each connection can have different directory paths
+
+**Usage in Code:**
+```python
+# Use active environment (based on configuration)
+config = self.env['elastic.config'].get_config()
+sftp = config.get_sftp_service()
+
+# Override to specific environment
+sftp_beta = config.get_sftp_service(environment='beta')
+sftp_prod = config.get_sftp_service(environment='production')
+```
 
 ### Legacy Account Number Priority
 When enabled in configuration, the system will:

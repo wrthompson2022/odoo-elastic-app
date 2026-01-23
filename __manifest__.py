@@ -17,6 +17,7 @@
     "data": [
         "security/ir.model.access.csv",
         "views/menu.xml",
+        "views/elastic_connection_views.xml",
         "views/elastic_config_views.xml",
         "views/elastic_log_views.xml",
         "views/elastic_catalog_views.xml",
