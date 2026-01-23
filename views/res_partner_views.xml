@@ -19,7 +19,7 @@
                         </group>
                     </group>
                     <group>
-                        <group string="Sales & Pricing">
+                        <group string="Sales &amp; Pricing">
                             <field name="elastic_rep_id"/>
                             <field name="elastic_price_level"/>
                             <field name="elastic_credit_limit"/>
