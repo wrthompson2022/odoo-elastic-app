@@ -9,23 +9,22 @@ _logger = logging.getLogger(__name__)
 class ElasticConnection(models.Model):
     _name = 'elastic.connection'
     _description = 'Elastic SFTP Connection Profile'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'environment, name'
 
     name = fields.Char(
         string='Connection Name',
         required=True,
-        tracking=True,
+
         help='Descriptive name for this connection (e.g., "Elastic Beta", "Elastic Production")'
     )
-    active = fields.Boolean(string='Active', default=True, tracking=True)
+    active = fields.Boolean(string='Active', default=True)
 
     environment = fields.Selection(
         [('beta', 'Beta / Sandbox'), ('production', 'Production')],
         string='Environment',
         required=True,
         default='beta',
-        tracking=True,
+
         help='Specify whether this is a beta/sandbox or production connection'
     )
 
@@ -35,34 +34,31 @@ class ElasticConnection(models.Model):
     sftp_host = fields.Char(
         string='SFTP Host',
         required=True,
-        tracking=True,
+
         help='SFTP server hostname or IP address'
     )
     sftp_port = fields.Integer(
         string='SFTP Port',
         default=22,
-        required=True,
-        tracking=True
+        required=True
     )
     sftp_username = fields.Char(
         string='SFTP Username',
-        required=True,
-        tracking=True
+        required=True
     )
     sftp_password = fields.Char(
         string='SFTP Password',
-        tracking=True,
+
         help='Leave empty if using SSH key'
     )
     sftp_private_key = fields.Text(
         string='SSH Private Key',
-        tracking=True,
+
         help='SSH private key for authentication'
     )
     sftp_use_key_auth = fields.Boolean(
         string='Use SSH Key Authentication',
-        default=False,
-        tracking=True
+        default=False
     )
 
     # ============================================
@@ -72,20 +68,20 @@ class ElasticConnection(models.Model):
         string='Export Directory',
         default='/outbound',
         required=True,
-        tracking=True,
+
         help='Remote directory for uploading export files to Elastic'
     )
     sftp_import_path = fields.Char(
         string='Import Directory',
         default='/inbound',
         required=True,
-        tracking=True,
+
         help='Remote directory for downloading import files from Elastic'
     )
     sftp_archive_path = fields.Char(
         string='Archive Directory',
         default='/archive',
-        tracking=True,
+
         help='Remote directory for archiving processed files'
     )
 
@@ -161,7 +157,6 @@ class ElasticConnection(models.Model):
             env_label = 'Beta' if self.environment == 'beta' else 'Production'
 
             if success:
-                self.message_post(body=f"[{env_label}] Connection test: {message}")
                 return {
                     'type': 'ir.actions.client',
                     'tag': 'display_notification',
@@ -173,7 +168,6 @@ class ElasticConnection(models.Model):
                     }
                 }
             else:
-                self.message_post(body=f"[{env_label}] Connection test failed: {message}")
                 return {
                     'type': 'ir.actions.client',
                     'tag': 'display_notification',
@@ -188,7 +182,6 @@ class ElasticConnection(models.Model):
         except Exception as e:
             error_msg = f"Connection test error: {str(e)}"
             _logger.error(error_msg)
-            self.message_post(body=f"Connection test error: {error_msg}")
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
