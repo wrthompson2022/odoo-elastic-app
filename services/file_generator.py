@@ -10,11 +10,11 @@ _logger = logging.getLogger(__name__)
 class FileGenerator:
     """Service class for generating flat files (CSV, pipe-delimited, etc.)"""
 
-    def __init__(self, delimiter='|', encoding='utf-8', include_header=True):
+    def __init__(self, delimiter=',', encoding='utf-8', include_header=True):
         """
         Initialize file generator
 
-        :param delimiter: Field delimiter (default: |)
+        :param delimiter: Field delimiter (default: ,)
         :param encoding: File encoding (default: utf-8)
         :param include_header: Include header row (default: True)
         """
