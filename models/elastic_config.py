@@ -64,9 +64,9 @@ class ElasticConfig(models.Model):
     # Export Settings
     # ============================================
     export_delimiter = fields.Selection(
-        [('|', 'Pipe (|)'), (',', 'Comma (,)'), ('\t', 'Tab')],
+        [(',', 'Comma (,)'), ('|', 'Pipe (|)'), ('\t', 'Tab')],
         string='Export File Delimiter',
-        default='|',
+        default=',',
         required=True,
         tracking=True
     )

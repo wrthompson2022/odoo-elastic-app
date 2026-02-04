@@ -100,8 +100,8 @@ class CatalogExporter(BaseExporter):
             'ShipDate3': lambda r: '',
             'ShipDate4': lambda r: '',
             'ShipDate5': lambda r: '',
-            'Brand': lambda r: 'ATS',  # Default brand code
-            'CatalogClassification': lambda r: '',
+            'Brand': lambda r: '',
+            'CatalogClassification': lambda r: 'ATS',
             'PriceGroup': lambda r: '',
         }
 
