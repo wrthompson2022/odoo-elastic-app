@@ -279,7 +279,7 @@ class ElasticConfig(models.Model):
             'type': 'ir.actions.act_window',
             'name': 'SFTP Connections',
             'res_model': 'elastic.connection',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'target': 'current',
         }
 
@@ -295,6 +295,7 @@ class ElasticConfig(models.Model):
             'context': {
                 'default_environment': 'beta',
                 'default_name': 'Elastic Beta',
+                'elastic_config_id': self.id,
             }
         }
 
@@ -310,6 +311,7 @@ class ElasticConfig(models.Model):
             'context': {
                 'default_environment': 'production',
                 'default_name': 'Elastic Production',
+                'elastic_config_id': self.id,
             }
         }
 
