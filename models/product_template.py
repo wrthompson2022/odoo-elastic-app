@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields, api
+from odoo import models, fields
 
 
 class ProductTemplate(models.Model):
@@ -11,8 +11,7 @@ class ProductTemplate(models.Model):
     elastic_sync_enabled = fields.Boolean(
         string='Push to Elastic',
         default=True,
-        help='Enable to include this product in Elastic exports',
-        tracking=True
+        help='Enable to include this product in Elastic exports'
     )
     elastic_last_sync = fields.Datetime(
         string='Last Synced to Elastic',
@@ -21,8 +20,7 @@ class ProductTemplate(models.Model):
     )
     elastic_product_id = fields.Char(
         string='Elastic Product ID',
-        help='External product identifier in Elastic system',
-        tracking=True
+        help='External product identifier in Elastic system'
     )
     elastic_catalog_ids = fields.Many2many(
         'elastic.catalog',
