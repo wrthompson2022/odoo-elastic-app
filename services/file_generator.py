@@ -112,7 +112,7 @@ class FileGenerator:
             value = record
             for field in field_path.split('.'):
                 value = getattr(value, field, '')
-                if not value:
+                if value is None or value is False:
                     return ''
             return value
         except Exception:
@@ -125,8 +125,12 @@ class FileGenerator:
         :param value: Raw value
         :return: Cleaned string value
         """
-        if value is None or value == False:
+        if value is None or value is False:
             return ''
+
+        # Handle boolean (must check before int since bool is subclass of int)
+        if isinstance(value, bool):
+            return '1' if value else '0'
 
         # Handle datetime
         if isinstance(value, datetime):
@@ -135,10 +139,6 @@ class FileGenerator:
         # Handle float
         if isinstance(value, float):
             return f"{value:.2f}"
-
-        # Handle boolean
-        if isinstance(value, bool):
-            return '1' if value else '0'
 
         # Convert to string and strip whitespace
         return str(value).strip()

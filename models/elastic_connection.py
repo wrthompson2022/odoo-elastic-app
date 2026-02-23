@@ -93,10 +93,6 @@ class ElasticConnection(models.Model):
         compute='_compute_connection_status',
         store=False
     )
-    display_name = fields.Char(
-        compute='_compute_display_name',
-        store=True
-    )
 
     # ============================================
     # Constraints

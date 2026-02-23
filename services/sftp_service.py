@@ -46,7 +46,7 @@ class SFTPService:
             # Connect using password or key
             if self.private_key:
                 key_file = StringIO(self.private_key)
-                pkey = paramiko.RSAKey.from_private_key(key_file)
+                pkey = self._load_private_key(key_file)
                 self._client.connect(
                     hostname=self.host,
                     port=self.port,
@@ -77,6 +77,26 @@ class SFTPService:
             if self._client:
                 self._client.close()
             _logger.info("SFTP connection closed")
+
+    @staticmethod
+    def _load_private_key(key_file):
+        """
+        Load a private key from a file-like object, trying multiple key types.
+
+        :param key_file: StringIO containing the private key
+        :return: paramiko PKey instance
+        :raises paramiko.SSHException: If the key cannot be loaded
+        """
+        key_classes = [paramiko.RSAKey, paramiko.Ed25519Key, paramiko.ECDSAKey, paramiko.DSSKey]
+        for key_class in key_classes:
+            try:
+                key_file.seek(0)
+                return key_class.from_private_key(key_file)
+            except (paramiko.SSHException, ValueError):
+                continue
+        raise paramiko.SSHException(
+            "Unable to load private key. Supported types: RSA, Ed25519, ECDSA, DSS."
+        )
 
     def test_connection(self):
         """
@@ -241,7 +261,7 @@ class SFTPService:
         except FileNotFoundError:
             # Directory doesn't exist, create it
             parent_dir = '/'.join(directory_path.rstrip('/').split('/')[:-1])
-            if parent_dir:
+            if parent_dir and parent_dir != directory_path:
                 self._ensure_remote_directory(sftp, parent_dir)
             sftp.mkdir(directory_path)
             _logger.info(f"Created remote directory: {directory_path}")

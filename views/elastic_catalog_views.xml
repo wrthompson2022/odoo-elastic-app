@@ -27,7 +27,7 @@
                     </group>
                     <notebook>
                         <page string="Products" name="products">
-                            <field name="product_ids" widget="many2many" domain="[('elastic_sync_enabled', '=', True)]">
+                            <field name="product_ids" domain="[('elastic_sync_enabled', '=', True)]">
                                 <list>
                                     <field name="name"/>
                                     <field name="default_code"/>
@@ -36,7 +36,7 @@
                             </field>
                         </page>
                         <page string="Customers" name="customers">
-                            <field name="partner_ids" widget="many2many" domain="[('elastic_sync_enabled', '=', True)]">
+                            <field name="partner_ids" domain="[('elastic_sync_enabled', '=', True)]">
                                 <list>
                                     <field name="name"/>
                                     <field name="email"/>
