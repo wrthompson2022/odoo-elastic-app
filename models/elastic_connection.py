@@ -129,6 +129,25 @@ class ElasticConnection(models.Model):
             env_label = env_labels.get(record.environment, '')
             record.display_name = f"{record.name} [{env_label}]" if record.name else ''
 
+
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Create connection(s) and optionally auto-link to a config when launched from settings."""
+        records = super().create(vals_list)
+
+        config_id = self.env.context.get('elastic_config_id')
+        if config_id:
+            config = self.env['elastic.config'].browse(config_id).exists()
+            if config:
+                for record in records:
+                    if record.environment == 'beta':
+                        config.beta_connection_id = record.id
+                    elif record.environment == 'production':
+                        config.production_connection_id = record.id
+
+        return records
+
     # ============================================
     # Action Methods
     # ============================================

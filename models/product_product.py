@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields, api
+from odoo import models, fields
 
 
 class ProductProduct(models.Model):
@@ -11,8 +11,7 @@ class ProductProduct(models.Model):
     elastic_sync_enabled = fields.Boolean(
         string='Push Variant to Elastic',
         default=True,
-        help='Enable to include this product variant in Elastic exports',
-        tracking=True
+        help='Enable to include this product variant in Elastic exports'
     )
     elastic_last_sync = fields.Datetime(
         string='Last Synced to Elastic',
@@ -21,13 +20,11 @@ class ProductProduct(models.Model):
     )
     elastic_variant_id = fields.Char(
         string='Elastic Variant ID',
-        help='External variant identifier in Elastic system',
-        tracking=True
+        help='External variant identifier in Elastic system'
     )
     elastic_sku = fields.Char(
         string='Elastic SKU',
-        help='SKU used for Elastic (if different from internal reference)',
-        tracking=True
+        help='SKU used for Elastic (if different from internal reference)'
     )
     elastic_variant_attributes = fields.Text(
         string='Elastic Variant Attributes',
