@@ -470,48 +470,66 @@ class ElasticConfig(models.Model):
         return self._run_export(RepMappingExporter, 'Rep Mapping')
 
     def action_export_all(self):
-        """Run all enabled exports"""
+        """Run all enabled exports."""
         self.ensure_one()
 
-        results = []
+        successful_exports = []
+        failed_exports = []
+
+        def _is_failed_notification(action_result):
+            """Return True when action result indicates warning/error status."""
+            if not isinstance(action_result, dict):
+                return True
+
+            if action_result.get('tag') != 'display_notification':
+                return False
+
+            result_type = action_result.get('params', {}).get('type')
+            return result_type in {'warning', 'danger'}
+
+        def _run_and_track(label, export_callable):
+            """Run export action and track success/failure for summary notification."""
+            result = export_callable()
+            if _is_failed_notification(result):
+                failed_exports.append(label)
+            else:
+                successful_exports.append(label)
 
         if self.enable_customer_export:
-            self.action_export_customers()
-            self.action_export_customer_custom_fields()
-            results.append('Customers')
+            _run_and_track('Customers', self.action_export_customers)
+            _run_and_track('Customer Custom Fields', self.action_export_customer_custom_fields)
 
         if self.enable_product_export:
-            self.action_export_products()
-            results.append('Products')
+            _run_and_track('Products', self.action_export_products)
 
         if self.enable_inventory_export:
-            self.action_export_inventory()
-            results.append('Inventory')
+            _run_and_track('Inventory', self.action_export_inventory)
 
         if self.enable_catalog_export:
-            self.action_export_catalogs()
-            results.append('Catalogs')
+            _run_and_track('Catalogs', self.action_export_catalogs)
 
         if self.enable_catalog_mapping_export:
-            self.action_export_catalog_mappings()
-            results.append('Catalog Mappings')
+            _run_and_track('Catalog Mappings', self.action_export_catalog_mappings)
 
         if self.enable_rep_export:
-            self.action_export_reps()
-            results.append('Reps')
+            _run_and_track('Reps', self.action_export_reps)
 
         if self.enable_rep_mapping_export:
-            self.action_export_rep_mappings()
-            results.append('Rep Mappings')
+            _run_and_track('Rep Mappings', self.action_export_rep_mappings)
 
         if self.enable_price_export:
-            self.action_export_prices()
-            results.append('Prices')
+            _run_and_track('Prices', self.action_export_prices)
 
-        if results:
-            message = f"Exported: {', '.join(results)}"
+        if failed_exports:
+            successful_message = f"Successful: {', '.join(successful_exports)}. " if successful_exports else ''
+            message = f"Completed with issues. {successful_message}Failed: {', '.join(failed_exports)}"
+            notification_type = 'warning'
+        elif successful_exports:
+            message = f"Exported: {', '.join(successful_exports)}"
+            notification_type = 'success'
         else:
             message = "No exports are enabled. Enable exports in the configuration."
+            notification_type = 'warning'
 
         return {
             'type': 'ir.actions.client',
@@ -519,7 +537,7 @@ class ElasticConfig(models.Model):
             'params': {
                 'title': 'Export Complete',
                 'message': message,
-                'type': 'success' if results else 'warning',
+                'type': notification_type,
                 'sticky': False,
             }
         }
