@@ -58,7 +58,6 @@ class ProductProduct(models.Model):
             }
         }
 
-    @api.model
     def _get_elastic_sku(self):
         """Get the SKU to use for Elastic export"""
         self.ensure_one()

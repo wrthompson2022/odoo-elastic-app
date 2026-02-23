@@ -68,14 +68,12 @@ class ElasticConfig(models.Model):
         string='Export File Delimiter',
         default=',',
         required=True,
-        tracking=True
     )
     export_encoding = fields.Selection(
         [('utf-8', 'UTF-8'), ('latin-1', 'Latin-1'), ('ascii', 'ASCII')],
         string='Export File Encoding',
         default='utf-8',
         required=True,
-        tracking=True
     )
     export_include_header = fields.Boolean(string='Include Header Row', default=True)
 

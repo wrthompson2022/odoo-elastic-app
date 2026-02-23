@@ -31,7 +31,7 @@ class InventoryExporter(BaseExporter):
     def get_export_domain(self):
         """Get domain for filtering products to export inventory for"""
         domain = [
-            ('type', '=', 'product'),  # Only stockable products
+            ('is_storable', '=', True),  # Only storable products (v18: replaces type='product')
             ('active', '=', True),
         ]
 
@@ -64,8 +64,8 @@ class InventoryExporter(BaseExporter):
 
     def _get_available_qty(self, product, warehouse=None):
         """
-        Get available quantity for a product.
-        Uses free_qty which accounts for reservations.
+        Get on-hand quantity for a product.
+        Uses qty_available (total on-hand stock) for consistency.
         """
         if warehouse:
             # Get quantity for specific warehouse
@@ -74,10 +74,10 @@ class InventoryExporter(BaseExporter):
                 ('location_id.warehouse_id', '=', warehouse.id),
                 ('location_id.usage', '=', 'internal'),
             ])
-            return sum(q.available_quantity for q in quants)
+            return sum(q.quantity for q in quants)
         else:
-            # Get total free quantity across all warehouses
-            return product.free_qty
+            # Get total on-hand quantity across all warehouses
+            return product.qty_available
 
     def _get_warehouse_code(self, warehouse):
         """Get warehouse code for Elastic"""

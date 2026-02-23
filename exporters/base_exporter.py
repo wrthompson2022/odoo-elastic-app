@@ -185,10 +185,12 @@ class BaseExporter:
                     'record_count': len(transformed_records)
                 }
 
-            # Update last sync timestamp on records
-            for record in transformed_records:
-                if hasattr(record, 'elastic_last_sync'):
-                    record.elastic_last_sync = fields.Datetime.now()
+            # Update last sync timestamp on records (bulk write)
+            sync_records = self.env[model_name].browse(
+                [r.id for r in transformed_records if hasattr(r, 'elastic_last_sync')]
+            )
+            if sync_records:
+                sync_records.write({'elastic_last_sync': fields.Datetime.now()})
 
             success_message = f"Successfully exported {len(transformed_records)} {export_type} record(s) to {filename}"
             _logger.info(success_message)
