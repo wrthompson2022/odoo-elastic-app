@@ -153,11 +153,26 @@
                                     <field name="enable_order_import"/>
                                     <field name="order_import_auto_confirm"/>
                                     <field name="order_import_archive_processed"/>
+                                    <field name="order_import_file_pattern"/>
+                                    <field name="order_import_interval_hours"/>
                                 </group>
-                                <group>
-                                    <!-- Empty group for balanced two-column layout -->
+                                <group string="Product Matching">
+                                    <field name="order_stock_item_key_field"/>
                                 </group>
                             </group>
+                            <separator string="Manual Import Actions"/>
+                            <div class="alert alert-info" role="alert" style="margin-bottom: 15px;">
+                                <strong>Manual Import:</strong> Click "Import Orders Now" to poll SFTP immediately.
+                                Failed rows are staged for review under <strong>Orders &gt; Staged Orders</strong>.
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <button name="action_import_orders" type="object"
+                                        string="Import Orders Now" class="btn-primary me-2"
+                                        icon="fa-download" invisible="not enable_order_import"/>
+                                <button name="action_view_staged_orders" type="object"
+                                        string="View Staged Orders" class="btn-secondary"
+                                        icon="fa-list"/>
+                            </div>
                         </page>
 
                         <!-- Business Logic -->

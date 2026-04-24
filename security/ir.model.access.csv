@@ -9,3 +9,7 @@ access_elastic_export_log_user,elastic.export.log.user,model_elastic_export_log,
 access_elastic_export_log_manager,elastic.export.log.manager,model_elastic_export_log,base.group_system,1,1,1,1
 access_elastic_import_log_user,elastic.import.log.user,model_elastic_import_log,base.group_user,1,0,0,0
 access_elastic_import_log_manager,elastic.import.log.manager,model_elastic_import_log,base.group_system,1,1,1,1
+access_elastic_customer_xref_user,elastic.customer.xref.user,model_elastic_customer_xref,base.group_user,1,1,1,0
+access_elastic_customer_xref_manager,elastic.customer.xref.manager,model_elastic_customer_xref,base.group_system,1,1,1,1
+access_elastic_order_staging_user,elastic.order.staging.user,model_elastic_order_staging,base.group_user,1,1,1,0
+access_elastic_order_staging_manager,elastic.order.staging.manager,model_elastic_order_staging,base.group_system,1,1,1,1
