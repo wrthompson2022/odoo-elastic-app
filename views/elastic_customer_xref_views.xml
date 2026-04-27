@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_elastic_customer_xref_tree" model="ir.ui.view">
+        <field name="name">elastic.customer.xref.tree</field>
+        <field name="model">elastic.customer.xref</field>
+        <field name="arch" type="xml">
+            <list string="Customer Cross-References" editable="bottom">
+                <field name="external_id"/>
+                <field name="partner_id"/>
+                <field name="connection_id" options="{'no_create': True}"/>
+                <field name="is_ship_to"/>
+                <field name="notes"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_elastic_customer_xref_form" model="ir.ui.view">
+        <field name="name">elastic.customer.xref.form</field>
+        <field name="model">elastic.customer.xref</field>
+        <field name="arch" type="xml">
+            <form string="Customer Cross-Reference">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="external_id"/>
+                            <field name="partner_id"/>
+                            <field name="is_ship_to"/>
+                        </group>
+                        <group>
+                            <field name="connection_id" options="{'no_create': True}"/>
+                            <field name="notes"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_elastic_customer_xref_search" model="ir.ui.view">
+        <field name="name">elastic.customer.xref.search</field>
+        <field name="model">elastic.customer.xref</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="external_id"/>
+                <field name="partner_id"/>
+                <field name="connection_id"/>
+                <filter string="Sold-To" name="filter_sold_to" domain="[('is_ship_to', '=', False)]"/>
+                <filter string="Ship-To" name="filter_ship_to" domain="[('is_ship_to', '=', True)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Connection" name="group_connection" context="{'group_by': 'connection_id'}"/>
+                    <filter string="Partner" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_elastic_customer_xref" model="ir.actions.act_window">
+        <field name="name">Customer Cross-References</field>
+        <field name="res_model">elastic.customer.xref</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No customer cross-references yet</p>
+            <p>Cross-references map Elastic Sold To IDs (and optionally Ship To IDs) to Odoo customers.
+               Entries are created automatically on successful order import, and can be maintained manually.</p>
+        </field>
+    </record>
+</odoo>

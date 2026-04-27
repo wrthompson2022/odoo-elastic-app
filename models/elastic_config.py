@@ -107,6 +107,37 @@ class ElasticConfig(models.Model):
 
         help='Move processed order files to archive directory'
     )
+    order_import_file_pattern = fields.Char(
+        string='Order File Pattern',
+        default='*.csv',
+
+        help='Glob pattern used to match order files on the SFTP import directory (e.g. "*.csv", "ORDER_*.csv")'
+    )
+    order_import_interval_hours = fields.Integer(
+        string='Order Import Interval (hours)',
+        default=1,
+
+        help='How often the scheduled action should poll SFTP for new order files (in hours)'
+    )
+    order_stock_item_key_field = fields.Selection(
+        [
+            ('upc', 'UPC / Barcode'),
+            ('sku', 'SKU (default_code, full variant SKU)'),
+            ('product_variation_combo', 'Product Number + Variation Code + Size'),
+        ],
+        string='Stock Item Key Field',
+        default='sku',
+        required=True,
+
+        help=(
+            'Which field on the order file identifies the Odoo product variant.\n'
+            '- UPC / Barcode: match the UPC column against product.barcode.\n'
+            '- SKU: match the SKU column against product.default_code.\n'
+            '- Product Number + Variation Code + Size: find the template by Product Number '
+            '(default_code) then the variant whose Color/Size attribute values match '
+            'Variation Code and Size Name.'
+        )
+    )
 
     # ============================================
     # Business Logic Settings
@@ -470,6 +501,65 @@ class ElasticConfig(models.Model):
         """Export rep-customer mappings to Elastic SFTP"""
         from ..exporters.rep_exporter import RepMappingExporter
         return self._run_export(RepMappingExporter, 'Rep Mapping')
+
+    # ============================================
+    # Import Action Methods
+    # ============================================
+    def action_import_orders(self):
+        """Download and process orders from Elastic SFTP."""
+        self.ensure_one()
+        from ..importers.order_importer import OrderImporter
+
+        try:
+            importer = OrderImporter(self.env, self)
+            result = importer.import_files()
+        except Exception as e:  # pragma: no cover - surfaced to user
+            _logger.error('Order import failed: %s', e, exc_info=True)
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Order Import Error',
+                    'message': str(e),
+                    'type': 'danger',
+                    'sticky': True,
+                }
+            }
+
+        notification_type = 'success' if result.get('success') and not result.get('error_count') else 'warning'
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Order Import',
+                'message': result.get('message', 'Import complete.'),
+                'type': notification_type,
+                'sticky': notification_type != 'success',
+            }
+        }
+
+    def action_view_staged_orders(self):
+        """Open the staged orders list filtered to this config."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Staged Orders',
+            'res_model': 'elastic.order.staging',
+            'view_mode': 'list,form',
+            'domain': [('config_id', '=', self.id)],
+            'context': {'default_config_id': self.id},
+        }
+
+    @api.model
+    def cron_import_orders(self):
+        """Scheduled action: run order import for every config with it enabled."""
+        configs = self.search([('active', '=', True), ('enable_order_import', '=', True)])
+        for config in configs:
+            try:
+                from ..importers.order_importer import OrderImporter
+                OrderImporter(self.env, config).import_files()
+            except Exception as e:  # pragma: no cover
+                _logger.error('Scheduled order import failed for config %s: %s', config.name, e, exc_info=True)
 
     def action_export_all(self):
         """Run all enabled exports."""

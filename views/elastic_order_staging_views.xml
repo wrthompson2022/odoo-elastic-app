@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- List View -->
+    <record id="view_elastic_order_staging_tree" model="ir.ui.view">
+        <field name="name">elastic.order.staging.tree</field>
+        <field name="model">elastic.order.staging</field>
+        <field name="arch" type="xml">
+            <list string="Staged Orders"
+                  decoration-success="state == 'processed'"
+                  decoration-danger="state == 'error'"
+                  decoration-muted="state == 'duplicate'"
+                  decoration-warning="state == 'pending'">
+                <field name="create_date"/>
+                <field name="elastic_order_number"/>
+                <field name="shipment_number"/>
+                <field name="customer_po"/>
+                <field name="sold_to_id"/>
+                <field name="order_type"/>
+                <field name="line_count"/>
+                <field name="source_filename"/>
+                <field name="state"/>
+                <field name="sale_order_id"/>
+                <button name="action_retry" type="object" string="Retry"
+                        icon="fa-refresh" invisible="state != 'error'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_elastic_order_staging_form" model="ir.ui.view">
+        <field name="name">elastic.order.staging.form</field>
+        <field name="model">elastic.order.staging</field>
+        <field name="arch" type="xml">
+            <form string="Staged Order">
+                <header>
+                    <button name="action_retry" type="object" string="Retry"
+                            class="btn-primary" invisible="state not in ('error', 'pending')"/>
+                    <button name="action_view_sale_order" type="object" string="Open Sale Order"
+                            class="btn-secondary" invisible="not sale_order_id"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="pending,processed,error"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="display_name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="elastic_order_number" readonly="1"/>
+                            <field name="shipment_number" readonly="1"/>
+                            <field name="customer_po" readonly="1"/>
+                            <field name="order_name" readonly="1"/>
+                            <field name="order_type" readonly="1"/>
+                            <field name="currency_code" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="sold_to_id" readonly="1"/>
+                            <field name="ship_to_id" readonly="1"/>
+                            <field name="submission_state" readonly="1"/>
+                            <field name="line_count" readonly="1"/>
+                            <field name="source_filename" readonly="1"/>
+                            <field name="config_id" readonly="1"/>
+                            <field name="import_log_id" readonly="1"/>
+                            <field name="sale_order_id" readonly="1"/>
+                            <field name="processed_on" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Error" invisible="not error_message">
+                        <field name="error_message" readonly="1" nolabel="1"/>
+                    </group>
+                    <group string="Raw Rows (JSON)">
+                        <field name="raw_data" readonly="1" nolabel="1" widget="text"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_elastic_order_staging_search" model="ir.ui.view">
+        <field name="name">elastic.order.staging.search</field>
+        <field name="model">elastic.order.staging</field>
+        <field name="arch" type="xml">
+            <search string="Staged Orders">
+                <field name="elastic_order_number"/>
+                <field name="shipment_number"/>
+                <field name="customer_po"/>
+                <field name="sold_to_id"/>
+                <field name="source_filename"/>
+                <filter string="Pending" name="filter_pending" domain="[('state', '=', 'pending')]"/>
+                <filter string="Processed" name="filter_processed" domain="[('state', '=', 'processed')]"/>
+                <filter string="Error" name="filter_error" domain="[('state', '=', 'error')]"/>
+                <filter string="Duplicate" name="filter_duplicate" domain="[('state', '=', 'duplicate')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Source File" name="group_file" context="{'group_by': 'source_filename'}"/>
+                    <filter string="Configuration" name="group_config" context="{'group_by': 'config_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_elastic_order_staging" model="ir.actions.act_window">
+        <field name="name">Staged Orders</field>
+        <field name="res_model">elastic.order.staging</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_filter_error': 1, 'search_default_filter_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No staged orders yet</p>
+            <p>Order files pulled from Elastic SFTP appear here. Errored rows can be retried after fixing the underlying data.</p>
+        </field>
+    </record>
+</odoo>

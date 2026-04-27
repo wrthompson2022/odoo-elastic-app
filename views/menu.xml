@@ -30,6 +30,24 @@
               action="action_elastic_catalog"
               sequence="3"/>
 
+    <!-- Orders Menu -->
+    <menuitem id="menu_elastic_orders"
+              name="Orders"
+              parent="menu_elastic_root"
+              sequence="15"/>
+
+    <menuitem id="menu_elastic_order_staging"
+              name="Staged Orders"
+              parent="menu_elastic_orders"
+              action="action_elastic_order_staging"
+              sequence="1"/>
+
+    <menuitem id="menu_elastic_customer_xref"
+              name="Customer Cross-References"
+              parent="menu_elastic_configuration"
+              action="action_elastic_customer_xref"
+              sequence="4"/>
+
     <!-- Logs Menu -->
     <menuitem id="menu_elastic_logs"
               name="Logs"
