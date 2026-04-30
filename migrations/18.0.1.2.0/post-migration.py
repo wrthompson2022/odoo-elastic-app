@@ -19,6 +19,8 @@ def migrate(cr, version):
         # Fresh install: defaults apply; nothing to back-fill.
         return
 
+    _backfill_legacy_account_number(cr)
+
     cr.execute("""
         UPDATE elastic_connection
            SET sftp_host_key_policy = 'auto_add'
@@ -29,10 +31,47 @@ def migrate(cr, version):
     """)
     affected = cr.rowcount or 0
     if affected:
-        _logger.warning(
+        # Logged at INFO so Odoo.sh treats the upgrade as clean. The UI
+        # banner on Settings (driven by insecure_connection_count) is the
+        # primary nudge to switch these to verified mode.
+        _logger.info(
             'Elastic Integration upgrade: %d existing SFTP connection(s) '
             'kept on "Trust on First Connect" for backward compatibility. '
             'Use Settings > "Upgrade Host Keys" or each connection\'s '
             '"Fetch & Save Host Key" button to switch them to verified mode.',
             affected,
+        )
+
+
+def _backfill_legacy_account_number(cr):
+    """If a Studio field x_studio_legacy_account_number exists on res.partner
+    and our legacy_account_number is empty for that row, copy the Studio
+    value over so the two fields don't drift. Studio data is left intact;
+    operators can remove the duplicate Studio field once they're satisfied.
+    """
+    cr.execute("""
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'res_partner'
+           AND column_name = 'x_studio_legacy_account_number'
+        LIMIT 1
+    """)
+    if not cr.fetchone():
+        return
+
+    cr.execute("""
+        UPDATE res_partner
+           SET legacy_account_number = x_studio_legacy_account_number
+         WHERE x_studio_legacy_account_number IS NOT NULL
+           AND btrim(x_studio_legacy_account_number) <> ''
+           AND (legacy_account_number IS NULL
+                OR btrim(legacy_account_number) = '')
+    """)
+    copied = cr.rowcount or 0
+    if copied:
+        _logger.info(
+            'Elastic Integration upgrade: copied x_studio_legacy_account_number '
+            'into legacy_account_number on %d res.partner row(s). The Studio '
+            'field is left untouched; remove it via Studio when ready.',
+            copied,
         )

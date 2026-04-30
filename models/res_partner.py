@@ -29,7 +29,7 @@ class ResPartner(models.Model):
     # Legacy Account Number - KEY FIELD for SoldToID Logic
     # ============================================
     legacy_account_number = fields.Char(
-        string='Legacy Account Number',
+        string='Elastic Legacy Account #',
         help='Legacy account number from previous system. Used for SoldToID in Elastic when configured.',
         tracking=True,
         index=True
