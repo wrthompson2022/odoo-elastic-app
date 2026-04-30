@@ -11,6 +11,7 @@ class ElasticExportLog(models.Model):
     export_type = fields.Selection(
         [
             ('product', 'Products'),
+            ('product_tags', 'Product Tags'),
             ('catalog', 'Catalogs'),
             ('catalog_mapping', 'Catalog Mappings'),
             ('feature', 'Features'),

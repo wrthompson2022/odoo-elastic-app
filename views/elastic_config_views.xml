@@ -63,7 +63,21 @@
 
                             <separator string="Connection Management"/>
                             <div>
-                                <button name="action_open_connections" type="object" string="Manage All Connections" class="btn-primary" icon="fa-cogs"/>
+                                <button name="action_open_connections" type="object" string="Manage All Connections" class="btn-primary me-2" icon="fa-cogs"/>
+                                <button name="action_upgrade_host_keys" type="object"
+                                        string="Upgrade Host Keys" class="btn-warning"
+                                        icon="fa-shield"
+                                        invisible="insecure_connection_count == 0"
+                                        confirm="This will fetch and store the live host key for every connection currently set to 'Trust on First Connect', then switch them to verified mode. Continue?"/>
+                            </div>
+                            <field name="insecure_connection_count" invisible="1"/>
+                            <div class="alert alert-warning mt-2" role="alert"
+                                 invisible="insecure_connection_count == 0">
+                                <strong>Security advisory:</strong>
+                                <field name="insecure_connection_count" readonly="1" nolabel="1" class="oe_inline"/>
+                                SFTP connection(s) are still using <em>Trust on First Connect</em>.
+                                Click <strong>Upgrade Host Keys</strong> above to capture and pin
+                                each server's host key.
                             </div>
                         </page>
 
@@ -84,6 +98,7 @@
                             <group>
                                 <group>
                                     <field name="enable_product_export"/>
+                                    <field name="enable_product_tags_export"/>
                                     <field name="enable_catalog_export"/>
                                     <field name="enable_catalog_mapping_export"/>
                                     <field name="enable_feature_export"/>
@@ -109,12 +124,14 @@
                                 <group string="Customer Exports">
                                     <div>
                                         <button name="action_export_customers" type="object" string="Export Customers" class="btn-secondary me-1" icon="fa-users"/>
-                                        <button name="action_export_customer_custom_fields" type="object" string="Export Custom Fields" class="btn-secondary" icon="fa-tags"/>
+                                        <button name="action_export_customer_custom_fields" type="object" string="Export Custom Fields" class="btn-secondary me-1" icon="fa-tags"/>
+                                        <button name="action_export_locations" type="object" string="Export Locations" class="btn-secondary" icon="fa-map-marker"/>
                                     </div>
                                 </group>
                                 <group string="Product Exports">
                                     <div>
                                         <button name="action_export_products" type="object" string="Export Products" class="btn-secondary me-1" icon="fa-cube"/>
+                                        <button name="action_export_product_tags" type="object" string="Export Product Tags" class="btn-secondary me-1" icon="fa-tag"/>
                                         <button name="action_export_prices" type="object" string="Export Prices" class="btn-secondary me-1" icon="fa-usd"/>
                                         <button name="action_export_inventory" type="object" string="Export Inventory" class="btn-secondary" icon="fa-cubes"/>
                                     </div>

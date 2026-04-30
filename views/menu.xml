@@ -48,6 +48,12 @@
               action="action_elastic_customer_xref"
               sequence="4"/>
 
+    <menuitem id="menu_elastic_pricelists"
+              name="Pricelists (Elastic)"
+              parent="menu_elastic_configuration"
+              action="action_elastic_pricelist"
+              sequence="5"/>
+
     <!-- Logs Menu -->
     <menuitem id="menu_elastic_logs"
               name="Logs"

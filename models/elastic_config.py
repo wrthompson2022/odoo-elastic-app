@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields, api
-from odoo.exceptions import ValidationError, UserError
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -12,6 +12,21 @@ class ElasticConfig(models.Model):
 
     name = fields.Char(string='Configuration Name', required=True, default='Elastic Configuration')
     active = fields.Boolean(string='Active', default=True)
+
+    @api.constrains('active')
+    def _check_singleton(self):
+        for record in self:
+            if not record.active:
+                continue
+            duplicates = self.search([
+                ('active', '=', True),
+                ('id', '!=', record.id),
+            ], limit=1)
+            if duplicates:
+                raise ValidationError(_(
+                    'Only one Elastic Configuration can be active at a time. '
+                    'Archive the existing configuration "%s" first.'
+                ) % duplicates.name)
 
     # ============================================
     # Environment Selection
@@ -59,6 +74,13 @@ class ElasticConfig(models.Model):
         compute='_compute_connection_status',
         store=False
     )
+    insecure_connection_count = fields.Integer(
+        string='Connections on Trust-on-First-Connect',
+        compute='_compute_insecure_connection_count',
+        store=False,
+        help='Number of SFTP connections still using the legacy '
+             '"Trust on First Connect" host-key policy.'
+    )
 
     # ============================================
     # Export Settings
@@ -81,9 +103,15 @@ class ElasticConfig(models.Model):
     # Export Scheduling - Enable/Disable
     # ============================================
     enable_product_export = fields.Boolean(string='Enable Product Export', default=False)
+    enable_product_tags_export = fields.Boolean(string='Enable Product Tags Export', default=False)
     enable_catalog_export = fields.Boolean(string='Enable Catalog Export', default=False)
     enable_catalog_mapping_export = fields.Boolean(string='Enable Catalog Mapping Export', default=False)
-    enable_feature_export = fields.Boolean(string='Enable Feature Export', default=False)
+    enable_feature_export = fields.Boolean(
+        string='Enable Feature Export',
+        default=False,
+        help='Reserved for the future features.csv export. The exporter is not '
+             'yet implemented; toggling this on currently has no effect.',
+    )
     enable_customer_export = fields.Boolean(string='Enable Customer Export', default=False)
     enable_location_export = fields.Boolean(string='Enable Location Export', default=False)
     enable_rep_export = fields.Boolean(string='Enable Sales Rep Export', default=False)
@@ -190,6 +218,15 @@ class ElasticConfig(models.Model):
                 record.active_connection_id = record.beta_connection_id
             else:
                 record.active_connection_id = record.production_connection_id
+
+    @api.depends('beta_connection_id.sftp_host_key_policy',
+                 'production_connection_id.sftp_host_key_policy')
+    def _compute_insecure_connection_count(self):
+        Connection = self.env['elastic.connection']
+        for record in self:
+            record.insecure_connection_count = Connection.search_count([
+                ('sftp_host_key_policy', '=', 'auto_add'),
+            ])
 
     @api.depends('active_connection_id', 'active_environment')
     def _compute_connection_status(self):
@@ -302,6 +339,65 @@ class ElasticConfig(models.Model):
                 }
             }
         return self.production_connection_id.action_test_connection()
+
+    def action_upgrade_host_keys(self):
+        """Walk every connection in 'auto_add' mode, capture its host key,
+        and switch it to 'verify'. Best-effort: each failure is logged and
+        the connection is left untouched so the admin can review.
+        """
+        self.ensure_one()
+        connections = self.env['elastic.connection'].search([
+            ('sftp_host_key_policy', '=', 'auto_add'),
+        ])
+        if not connections:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('No connections to upgrade'),
+                    'message': _('All SFTP connections already verify the host key.'),
+                    'type': 'success',
+                    'sticky': False,
+                }
+            }
+
+        upgraded, failures = [], []
+        for conn in connections:
+            try:
+                conn.action_fetch_and_save_host_key()
+                upgraded.append(conn.display_name)
+            except Exception as e:
+                _logger.warning('Could not upgrade host key for %s: %s', conn.display_name, e)
+                failures.append(f'{conn.display_name}: {e}')
+
+        if not failures:
+            message = _('Upgraded %d connection(s) to verified host keys: %s') % (
+                len(upgraded), ', '.join(upgraded),
+            )
+            level = 'success'
+        elif upgraded:
+            message = _(
+                'Upgraded %(ok_count)d connection(s) (%(ok)s). '
+                'Could not upgrade %(fail_count)d: %(fail)s'
+            ) % {
+                'ok_count': len(upgraded), 'ok': ', '.join(upgraded),
+                'fail_count': len(failures), 'fail': ' | '.join(failures),
+            }
+            level = 'warning'
+        else:
+            message = _('No connections could be upgraded: %s') % ' | '.join(failures)
+            level = 'danger'
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Upgrade Host Keys'),
+                'message': message,
+                'type': level,
+                'sticky': level != 'success',
+            }
+        }
 
     def action_open_connections(self):
         """Open the connections list view"""
@@ -502,6 +598,16 @@ class ElasticConfig(models.Model):
         from ..exporters.rep_exporter import RepMappingExporter
         return self._run_export(RepMappingExporter, 'Rep Mapping')
 
+    def action_export_locations(self):
+        """Export ship-to locations to Elastic SFTP"""
+        from ..exporters.location_exporter import LocationExporter
+        return self._run_export(LocationExporter, 'Location')
+
+    def action_export_product_tags(self):
+        """Export product tags to Elastic SFTP"""
+        from ..exporters.product_tags_exporter import ProductTagsExporter
+        return self._run_export(ProductTagsExporter, 'Product Tags')
+
     # ============================================
     # Import Action Methods
     # ============================================
@@ -591,8 +697,14 @@ class ElasticConfig(models.Model):
             _run_and_track('Customers', self.action_export_customers)
             _run_and_track('Customer Custom Fields', self.action_export_customer_custom_fields)
 
+        if self.enable_location_export:
+            _run_and_track('Locations', self.action_export_locations)
+
         if self.enable_product_export:
             _run_and_track('Products', self.action_export_products)
+
+        if self.enable_product_tags_export:
+            _run_and_track('Product Tags', self.action_export_product_tags)
 
         if self.enable_inventory_export:
             _run_and_track('Inventory', self.action_export_inventory)
