@@ -44,6 +44,28 @@
                                     <field name="sftp_private_key" widget="text" invisible="not sftp_use_key_auth" placeholder="-----BEGIN RSA PRIVATE KEY-----..."/>
                                 </group>
                             </group>
+                            <separator string="Host Key Verification"/>
+                            <group>
+                                <group>
+                                    <field name="sftp_host_key_policy"/>
+                                    <field name="sftp_host_key_fingerprint" readonly="1"/>
+                                </group>
+                                <group>
+                                    <button name="action_fetch_and_save_host_key" type="object"
+                                            string="Fetch &amp; Save Host Key"
+                                            class="btn-secondary" icon="fa-key"/>
+                                </group>
+                            </group>
+                            <group>
+                                <field name="sftp_known_host_key" widget="text"
+                                       placeholder="hostname ssh-ed25519 AAAAC3Nz..."
+                                       invisible="sftp_host_key_policy != 'verify'"/>
+                            </group>
+                            <div class="alert alert-warning" role="alert"
+                                 invisible="sftp_host_key_policy != 'auto_add'">
+                                <strong>Insecure:</strong> "Trust on First Connect" disables MITM protection.
+                                Switch to "Verify Stored Host Key" once you have captured the server's key.
+                            </div>
                         </page>
 
                         <!-- Directory Paths -->

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_pricelist_elastic_form" model="ir.ui.view">
+        <field name="name">product.pricelist.elastic.form</field>
+        <field name="model">product.pricelist</field>
+        <field name="inherit_id" ref="product.product_pricelist_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group string="Elastic Integration" name="elastic_integration">
+                    <group>
+                        <field name="elastic_sync_enabled"/>
+                    </group>
+                    <group>
+                        <field name="elastic_price_group_code"
+                               placeholder="LP, D, PL..."
+                               invisible="not elastic_sync_enabled"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_product_pricelist_elastic_tree" model="ir.ui.view">
+        <field name="name">product.pricelist.elastic.tree</field>
+        <field name="model">product.pricelist</field>
+        <field name="inherit_id" ref="product.product_pricelist_view_tree"/>
+        <field name="arch" type="xml">
+            <field name="currency_id" position="after">
+                <field name="elastic_sync_enabled" optional="show"/>
+                <field name="elastic_price_group_code" optional="hide"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="action_elastic_pricelist" model="ir.actions.act_window">
+        <field name="name">Pricelists (Elastic)</field>
+        <field name="res_model">product.pricelist</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('elastic_sync_enabled', '=', True)]</field>
+        <field name="context">{'default_elastic_sync_enabled': True}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No pricelists are flagged for Elastic yet</p>
+            <p>
+                Enable <strong>Send to Elastic</strong> on each pricelist you want to publish as
+                a price group. Optionally set an Elastic Price Group Code (e.g. <em>LP</em>,
+                <em>D</em>, <em>PL</em>); otherwise it is derived from the pricelist name.
+            </p>
+            <p>
+                If no pricelist is flagged, the price export falls back to the product list price.
+            </p>
+        </field>
+    </record>
+</odoo>

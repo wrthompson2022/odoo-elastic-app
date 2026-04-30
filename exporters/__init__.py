@@ -6,3 +6,5 @@ from . import inventory_exporter
 from . import price_exporter
 from . import catalog_exporter
 from . import rep_exporter
+from . import location_exporter
+from . import product_tags_exporter

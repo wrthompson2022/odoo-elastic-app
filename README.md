@@ -226,6 +226,41 @@ When enabled in configuration, the system will:
 
 This ensures backward compatibility with legacy systems while providing flexibility.
 
+### Upgrading from a previous version
+
+When upgrading to **18.0.1.2.0** or later:
+
+1. The post-migration script automatically pins every existing SFTP
+   connection to **Trust on First Connect** so that nothing breaks during
+   the upgrade window. A warning is logged listing how many connections
+   were affected.
+2. Once the module is upgraded, open **Elastic > Configuration > Settings**.
+   A yellow security advisory shows the count of connections still using
+   the legacy policy.
+3. Click **Upgrade Host Keys** to bulk-capture the live host key for each
+   connection and switch it to **Verify Stored Host Key** mode (recommended).
+   Any connection where the fetch fails (firewall, DNS, etc.) stays on
+   Trust-on-First-Connect with the failure surfaced in the notification —
+   address and re-run.
+4. Or, on each connection profile individually, hit
+   **Fetch & Save Host Key**, then save.
+
+You can confirm a connection's stored key via the read-only
+**Host Key Fingerprint** field on the connection form.
+
+### Pricelists / Price Groups
+Each `product.pricelist` carries a **Send to Elastic** flag and an optional
+**Elastic Price Group Code**:
+
+* When at least one pricelist has Send-to-Elastic enabled, the price export
+  produces one row per product per enabled pricelist using the price computed
+  from that pricelist (variant-aware).
+* When no pricelist is flagged, the export falls back to the product list
+  price under the default `LP` price group.
+* If you leave the code blank, the module derives one from the pricelist
+  name (`DEALER`/`WHOLESALE` → `D`, `PROMO` → `PL`, otherwise `LP`).
+* Codes must be unique among Send-to-Elastic pricelists.
+
 ### Extensible Architecture
 - Base classes make it easy to add new export/import types
 - Field mapping system allows flexible data transformation
