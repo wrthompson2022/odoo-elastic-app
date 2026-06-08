@@ -2,8 +2,26 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 import logging
+import re
 
 _logger = logging.getLogger(__name__)
+
+STANDARD_COLOR_GROUPS = {
+    'Black',
+    'Blue',
+    'Brown',
+    'Gold',
+    'Green',
+    'Grey',
+    'Multi',
+    'Orange',
+    'Pink',
+    'Purple',
+    'Red',
+    'Silver',
+    'White',
+    'Yellow',
+}
 
 
 class ElasticConfig(models.Model):
@@ -252,6 +270,225 @@ class ElasticConfig(models.Model):
                 'name': 'Elastic Configuration',
             })
         return config
+
+    # ============================================
+    # Product Metadata Helpers
+    # ============================================
+    @staticmethod
+    def _normalize_label(value):
+        return re.sub(r'\s+', ' ', (value or '').strip()).lower()
+
+    @staticmethod
+    def _slug_code(value, max_length=12):
+        cleaned = re.sub(r'[^A-Za-z0-9]+', ' ', value or '').strip().upper()
+        if not cleaned:
+            return 'VALUE'
+        parts = cleaned.split()
+        if len(parts) == 1:
+            return parts[0][:max_length]
+        joined = ''.join(parts)
+        if len(joined) <= max_length:
+            return joined
+        code = ''.join(part[:3] for part in parts)
+        return code[:max_length] or parts[0][:max_length]
+
+    def _make_unique_code(self, model_name, base_code, existing=None):
+        code = (base_code or 'VALUE').upper()[:12]
+        candidate = code
+        suffix = 2
+        domain = [('code', '=', candidate)]
+        if existing:
+            domain.append(('id', '!=', existing.id))
+        while self.env[model_name].search_count(domain):
+            tail = str(suffix)
+            candidate = f'{code[:12 - len(tail)]}{tail}'
+            domain = [('code', '=', candidate)]
+            if existing:
+                domain.append(('id', '!=', existing.id))
+            suffix += 1
+        return candidate
+
+    @staticmethod
+    def _guess_color_group(name):
+        normalized = (name or '').lower()
+        family_keywords = [
+            ('tortoise', 'Brown'),
+            ('tort', 'Brown'),
+            ('havana', 'Brown'),
+            ('black', 'Black'),
+            ('onyx', 'Black'),
+            ('charcoal', 'Grey'),
+            ('grey', 'Grey'),
+            ('gray', 'Grey'),
+            ('silver', 'Silver'),
+            ('gunmetal', 'Silver'),
+            ('white', 'White'),
+            ('ivory', 'White'),
+            ('cream', 'White'),
+            ('clear', 'White'),
+            ('crystal', 'White'),
+            ('transparent', 'White'),
+            ('brown', 'Brown'),
+            ('tan', 'Brown'),
+            ('khaki', 'Brown'),
+            ('sand', 'Brown'),
+            ('bronze', 'Brown'),
+            ('blue', 'Blue'),
+            ('navy', 'Blue'),
+            ('aqua', 'Blue'),
+            ('green', 'Green'),
+            ('olive', 'Green'),
+            ('red', 'Red'),
+            ('burgundy', 'Red'),
+            ('maroon', 'Red'),
+            ('pink', 'Pink'),
+            ('rose', 'Pink'),
+            ('purple', 'Purple'),
+            ('violet', 'Purple'),
+            ('yellow', 'Yellow'),
+            ('gold', 'Gold'),
+            ('orange', 'Orange'),
+            ('copper', 'Orange'),
+            ('multi', 'Multi'),
+            ('print', 'Multi'),
+            ('camo', 'Multi'),
+        ]
+        for keyword, family in family_keywords:
+            if keyword in normalized:
+                return family
+        return ''
+
+    @staticmethod
+    def _needs_standard_color_group(color_group):
+        return not color_group or color_group not in STANDARD_COLOR_GROUPS
+
+    def _get_metadata_attribute_values(self, attribute_names):
+        normalized_names = {self._normalize_label(name) for name in attribute_names}
+        attributes = self.env['product.attribute'].search([])
+        matched = attributes.filtered(
+            lambda attr: self._normalize_label(attr.name) in normalized_names
+        )
+        return matched.mapped('value_ids')
+
+    def _seed_elastic_colors(self):
+        Color = self.env['elastic.color']
+        values = self._get_metadata_attribute_values([
+            'Frame Color',
+            'Product Color',
+            'Color',
+            'Colour',
+        ])
+        created = updated = linked = 0
+        for value in values:
+            existing = Color.search([
+                '|',
+                ('odoo_attribute_value_id', '=', value.id),
+                ('odoo_attribute_value_ids', 'in', value.id),
+            ], limit=1)
+
+            if not existing:
+                base_code = self._slug_code(value.name)
+                existing = Color.search([('code', '=', base_code)], limit=1)
+
+            if existing:
+                write_vals = {}
+                if not existing.odoo_attribute_value_id:
+                    write_vals['odoo_attribute_value_id'] = value.id
+                if value not in existing.odoo_attribute_value_ids:
+                    write_vals.setdefault('odoo_attribute_value_ids', [])
+                    write_vals['odoo_attribute_value_ids'].append((4, value.id))
+                    linked += 1
+                if self._needs_standard_color_group(existing.color_group):
+                    write_vals['color_group'] = self._guess_color_group(value.name)
+                if write_vals:
+                    existing.write(write_vals)
+                    updated += 1
+                continue
+
+            code = self._make_unique_code('elastic.color', self._slug_code(value.name))
+            Color.create({
+                'name': value.name,
+                'code': code,
+                'color_group': self._guess_color_group(value.name),
+                'sort_order': value.sequence or 10,
+                'odoo_attribute_value_id': value.id,
+                'odoo_attribute_value_ids': [(4, value.id)],
+            })
+            created += 1
+        return created, updated, linked
+
+    def _seed_elastic_sizes(self):
+        Scale = self.env['elastic.size.scale']
+        Size = self.env['elastic.size.value']
+        attributes = self.env['product.attribute'].search([])
+        size_attrs = attributes.filtered(
+            lambda attr: (
+                self._normalize_label(attr.name) == 'size'
+                or self._normalize_label(attr.name).endswith(' size')
+            )
+        )
+        created = updated = 0
+        for attr in size_attrs:
+            scale_code = self._slug_code(attr.name, max_length=16)
+            scale = Scale.search([('code', '=', scale_code)], limit=1)
+            if not scale:
+                scale = Scale.create({
+                    'name': attr.name,
+                    'code': scale_code,
+                })
+            for value in attr.value_ids:
+                existing = Size.search([
+                    ('odoo_attribute_value_id', '=', value.id),
+                    ('scale_id', '=', scale.id),
+                ], limit=1)
+                if existing:
+                    write_vals = {}
+                    if existing.sort_order != (value.sequence or 10):
+                        write_vals['sort_order'] = value.sequence or 10
+                    if write_vals:
+                        existing.write(write_vals)
+                        updated += 1
+                    continue
+                code = self._make_unique_code(
+                    'elastic.size.value',
+                    self._slug_code(value.name),
+                )
+                Size.create({
+                    'scale_id': scale.id,
+                    'name': value.name,
+                    'code': code,
+                    'sort_order': value.sequence or 10,
+                    'odoo_attribute_value_id': value.id,
+                })
+                created += 1
+        return created, updated
+
+    def action_generate_product_metadata(self):
+        """Seed Elastic color and size metadata from Odoo product attributes."""
+        self.ensure_one()
+        colors_created, colors_updated, colors_linked = self._seed_elastic_colors()
+        sizes_created, sizes_updated = self._seed_elastic_sizes()
+        message = _(
+            'Colors: %(colors_created)d created, %(colors_updated)d updated, '
+            '%(colors_linked)d linked. Sizes: %(sizes_created)d created, '
+            '%(sizes_updated)d updated.'
+        ) % {
+            'colors_created': colors_created,
+            'colors_updated': colors_updated,
+            'colors_linked': colors_linked,
+            'sizes_created': sizes_created,
+            'sizes_updated': sizes_updated,
+        }
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Elastic Product Metadata Generated'),
+                'message': message,
+                'type': 'success',
+                'sticky': False,
+            }
+        }
 
     # ============================================
     # Connection Helper Methods

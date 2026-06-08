@@ -12,6 +12,7 @@
                 <field name="color_group"/>
                 <field name="hex_color"/>
                 <field name="odoo_attribute_value_id"/>
+                <field name="odoo_attribute_value_ids" widget="many2many_tags"/>
                 <field name="active"/>
             </list>
         </field>
@@ -36,6 +37,7 @@
                         <group>
                             <field name="hex_color"/>
                             <field name="odoo_attribute_value_id"/>
+                            <field name="odoo_attribute_value_ids" widget="many2many_tags"/>
                             <field name="external_id"/>
                         </group>
                     </group>

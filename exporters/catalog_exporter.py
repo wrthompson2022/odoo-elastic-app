@@ -159,7 +159,9 @@ class CatalogMappingExporter(BaseExporter):
             if attr_value.attribute_id.name.lower() in ['color', 'colour']:
                 value = attr_value.product_attribute_value_id
                 elastic_color = self.env['elastic.color'].search([
+                    '|',
                     ('odoo_attribute_value_id', '=', value.id),
+                    ('odoo_attribute_value_ids', 'in', value.id),
                     ('active', '=', True),
                 ], limit=1)
                 if elastic_color:

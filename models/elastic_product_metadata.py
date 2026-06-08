@@ -26,10 +26,18 @@ class ElasticColor(models.Model):
     active = fields.Boolean(default=True)
     odoo_attribute_value_id = fields.Many2one(
         'product.attribute.value',
-        string='Odoo Attribute Value',
+        string='Primary Odoo Attribute Value',
         ondelete='set null',
         index=True,
         help='Attribute value this Elastic color governs.',
+    )
+    odoo_attribute_value_ids = fields.Many2many(
+        'product.attribute.value',
+        'elastic_color_attribute_value_rel',
+        'elastic_color_id',
+        'attribute_value_id',
+        string='Odoo Attribute Values',
+        help='All Odoo color attribute values governed by this Elastic color.',
     )
     external_id = fields.Char(
         string='Elastic External ID',

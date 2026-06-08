@@ -108,7 +108,9 @@ class ProductExporter(BaseExporter):
         if not value:
             return self.env['elastic.color'].browse()
         return self.env['elastic.color'].search([
+            '|',
             ('odoo_attribute_value_id', '=', value.id),
+            ('odoo_attribute_value_ids', 'in', value.id),
             ('active', '=', True),
         ], limit=1)
 

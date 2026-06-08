@@ -206,6 +206,25 @@
                                 <strong>Legacy Account Number:</strong> When enabled, the system will use the "Legacy Account Number" field on customers for the SoldToID in exports before falling back to the Odoo Contact ID.
                             </div>
                         </page>
+
+                        <!-- Product Metadata -->
+                        <page string="Product Metadata" name="product_metadata">
+                            <group>
+                                <group string="Attribute Metadata">
+                                    <button name="action_generate_product_metadata"
+                                            type="object"
+                                            string="Generate Colors and Sizes"
+                                            class="btn-primary"
+                                            icon="fa-magic"/>
+                                </group>
+                                <group>
+                                    <!-- Empty group for balanced two-column layout -->
+                                </group>
+                            </group>
+                            <div class="alert alert-info" role="alert" style="margin-top: 10px;">
+                                Creates missing Elastic colors from Frame Color, Product Color, Color, and Colour attributes, and creates size values from Size attributes. Color groups are standardized to broad color families such as Black, Blue, Brown, Green, Grey, Red, White, and Yellow.
+                            </div>
+                        </page>
                     </notebook>
                 </sheet>
             </form>
