@@ -132,6 +132,7 @@
                                     <div>
                                         <button name="action_export_products" type="object" string="Export Products" class="btn-secondary me-1" icon="fa-cube"/>
                                         <button name="action_export_product_tags" type="object" string="Export Product Tags" class="btn-secondary me-1" icon="fa-tag"/>
+                                        <button name="action_export_features" type="object" string="Export Features" class="btn-secondary me-1" icon="fa-list"/>
                                         <button name="action_export_prices" type="object" string="Export Prices" class="btn-secondary me-1" icon="fa-usd"/>
                                         <button name="action_export_inventory" type="object" string="Export Inventory" class="btn-secondary" icon="fa-cubes"/>
                                     </div>
@@ -213,7 +214,7 @@
                                 <group string="Attribute Metadata">
                                     <button name="action_generate_product_metadata"
                                             type="object"
-                                            string="Generate Colors and Sizes"
+                                            string="Generate Product Metadata"
                                             class="btn-primary"
                                             icon="fa-magic"/>
                                 </group>
@@ -222,7 +223,7 @@
                                 </group>
                             </group>
                             <div class="alert alert-info" role="alert" style="margin-top: 10px;">
-                                Creates missing Elastic colors from Frame Color, Product Color, Color, and Colour attributes, and creates size values from Size attributes. Color groups are standardized to broad color families such as Black, Blue, Brown, Green, Grey, Red, White, and Yellow.
+                                Creates missing Elastic colors from Frame Color, Product Color, Color, and Colour attributes, size values from Size attributes, and features from other product attributes. Product tag mappings are configured separately from features.
                             </div>
                         </page>
                     </notebook>

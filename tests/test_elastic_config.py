@@ -136,3 +136,55 @@ class TestElasticConfig(TransactionCase):
         ], limit=1)
         self.assertTrue(size)
         self.assertEqual(size.sort_order, 20)
+
+    def test_generate_product_metadata_creates_features_excluding_color_and_size(self):
+        product_color = self.env['product.attribute'].create({'name': 'Product Color'})
+        hat_size = self.env['product.attribute'].create({'name': 'Hat Size'})
+        technology = self.env['product.attribute'].create({'name': 'Lens Technology'})
+        material = self.env['product.attribute'].create({'name': 'Material'})
+        self.env['product.attribute.value'].create({
+            'name': 'Navy',
+            'attribute_id': product_color.id,
+        })
+        self.env['product.attribute.value'].create({
+            'name': 'Medium',
+            'attribute_id': hat_size.id,
+        })
+        polarized = self.env['product.attribute.value'].create({
+            'name': 'Polarized',
+            'attribute_id': technology.id,
+        })
+        nylon = self.env['product.attribute.value'].create({
+            'name': 'Nylon',
+            'attribute_id': material.id,
+        })
+
+        config = self.env['elastic.config'].get_config()
+        config.action_generate_product_metadata()
+
+        self.assertFalse(self.env['elastic.feature'].search([
+            ('odoo_attribute_id', '=', product_color.id),
+        ]))
+        self.assertFalse(self.env['elastic.feature'].search([
+            ('odoo_attribute_id', '=', hat_size.id),
+        ]))
+
+        tech_feature = self.env['elastic.feature'].search([
+            ('odoo_attribute_id', '=', technology.id),
+        ], limit=1)
+        self.assertTrue(tech_feature)
+        self.assertEqual(tech_feature.feature_type, 'technology')
+        self.assertTrue(self.env['elastic.feature.value'].search([
+            ('feature_id', '=', tech_feature.id),
+            ('odoo_attribute_value_id', '=', polarized.id),
+        ]))
+
+        material_feature = self.env['elastic.feature'].search([
+            ('odoo_attribute_id', '=', material.id),
+        ], limit=1)
+        self.assertTrue(material_feature)
+        self.assertEqual(material_feature.feature_type, 'feature')
+        self.assertTrue(self.env['elastic.feature.value'].search([
+            ('feature_id', '=', material_feature.id),
+            ('odoo_attribute_value_id', '=', nylon.id),
+        ]))

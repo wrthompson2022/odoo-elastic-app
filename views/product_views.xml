@@ -20,6 +20,12 @@
                         </group>
                     </group>
                     <group>
+                        <group string="Shopify">
+                            <field name="shopify_product_id"/>
+                            <field name="shopify_handle"/>
+                        </group>
+                    </group>
+                    <group>
                         <group string="Catalog Assignment">
                             <field name="elastic_catalog_ids" widget="many2many_tags"/>
                         </group>

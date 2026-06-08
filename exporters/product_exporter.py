@@ -11,6 +11,8 @@ from .base_exporter import BaseExporter
 
 _logger = logging.getLogger(__name__)
 
+COLOR_ATTRIBUTE_NAMES = {'color', 'colour', 'frame color', 'product color'}
+
 
 class ProductExporter(BaseExporter):
     """
@@ -96,15 +98,25 @@ class ProductExporter(BaseExporter):
             or 'DEFAULT'
         )
 
-    def _get_attribute_value(self, record, names):
-        names = {name.lower() for name in names}
+    @staticmethod
+    def _normalize_attribute_name(name):
+        return (name or '').strip().lower()
+
+    def _is_color_attribute(self, attr_name):
+        return self._normalize_attribute_name(attr_name) in COLOR_ATTRIBUTE_NAMES
+
+    def _is_size_attribute(self, attr_name):
+        attr_name = self._normalize_attribute_name(attr_name)
+        return attr_name in {'size', 'talla'} or attr_name.endswith(' size')
+
+    def _get_attribute_value(self, record, matcher):
         for attr_value in record.product_template_attribute_value_ids:
-            if attr_value.attribute_id.name.lower() in names:
+            if matcher(attr_value.attribute_id.name):
                 return attr_value.product_attribute_value_id
         return self.env['product.attribute.value'].browse()
 
     def _get_elastic_color(self, record):
-        value = self._get_attribute_value(record, {'color', 'colour'})
+        value = self._get_attribute_value(record, self._is_color_attribute)
         if not value:
             return self.env['elastic.color'].browse()
         return self.env['elastic.color'].search([
@@ -115,7 +127,7 @@ class ProductExporter(BaseExporter):
         ], limit=1)
 
     def _get_elastic_size(self, record):
-        value = self._get_attribute_value(record, {'size', 'talla'})
+        value = self._get_attribute_value(record, self._is_size_attribute)
         if not value:
             return self.env['elastic.size.value'].browse()
         return self.env['elastic.size.value'].search([
@@ -134,7 +146,7 @@ class ProductExporter(BaseExporter):
             return elastic_color.code
 
         for attr_value in record.product_template_attribute_value_ids:
-            if attr_value.attribute_id.name.lower() in ['color', 'colour']:
+            if self._is_color_attribute(attr_value.attribute_id.name):
                 # Try to get a code-like value
                 code = attr_value.product_attribute_value_id.name
                 # If the name is long, try to abbreviate it
@@ -154,8 +166,7 @@ class ProductExporter(BaseExporter):
             return (elastic_color.color_group or elastic_color.name).upper()
 
         for attr_value in record.product_template_attribute_value_ids:
-            attr_name = attr_value.attribute_id.name.lower()
-            if attr_name in ['color', 'colour']:
+            if self._is_color_attribute(attr_value.attribute_id.name):
                 return attr_value.product_attribute_value_id.name.upper()
         return ''
 
@@ -168,8 +179,7 @@ class ProductExporter(BaseExporter):
             return elastic_color.name
 
         for attr_value in record.product_template_attribute_value_ids:
-            attr_name = attr_value.attribute_id.name.lower()
-            if attr_name in ['color', 'colour']:
+            if self._is_color_attribute(attr_value.attribute_id.name):
                 return attr_value.product_attribute_value_id.name
         return ''
 
@@ -183,8 +193,7 @@ class ProductExporter(BaseExporter):
             return elastic_color.sort_order
 
         for attr_value in record.product_template_attribute_value_ids:
-            attr_name = attr_value.attribute_id.name.lower()
-            if attr_name in ['color', 'colour']:
+            if self._is_color_attribute(attr_value.attribute_id.name):
                 return attr_value.product_attribute_value_id.sequence or 1
         return 1
 
@@ -212,8 +221,7 @@ class ProductExporter(BaseExporter):
             return elastic_size.name
 
         for attr_value in record.product_template_attribute_value_ids:
-            attr_name = attr_value.attribute_id.name.lower()
-            if attr_name in ['size', 'talla']:
+            if self._is_size_attribute(attr_value.attribute_id.name):
                 return attr_value.product_attribute_value_id.name
         return 'ON SIZE'  # Default for products without size
 
@@ -227,8 +235,7 @@ class ProductExporter(BaseExporter):
             return elastic_size.sort_order
 
         for attr_value in record.product_template_attribute_value_ids:
-            attr_name = attr_value.attribute_id.name.lower()
-            if attr_name in ['size', 'talla']:
+            if self._is_size_attribute(attr_value.attribute_id.name):
                 return attr_value.product_attribute_value_id.sequence or 1
         return 1
 

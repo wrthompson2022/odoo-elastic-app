@@ -11,6 +11,12 @@ from .base_exporter import BaseExporter
 
 _logger = logging.getLogger(__name__)
 
+COLOR_ATTRIBUTE_NAMES = {'color', 'colour', 'frame color', 'product color'}
+
+
+def _is_color_attribute(attr_name):
+    return (attr_name or '').strip().lower() in COLOR_ATTRIBUTE_NAMES
+
 
 class CatalogExporter(BaseExporter):
     """
@@ -156,7 +162,7 @@ class CatalogMappingExporter(BaseExporter):
         Extract color code from product variant attributes.
         """
         for attr_value in product.product_variant_ids[:1].product_template_attribute_value_ids:
-            if attr_value.attribute_id.name.lower() in ['color', 'colour']:
+            if _is_color_attribute(attr_value.attribute_id.name):
                 value = attr_value.product_attribute_value_id
                 elastic_color = self.env['elastic.color'].search([
                     '|',

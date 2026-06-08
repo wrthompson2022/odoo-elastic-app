@@ -22,6 +22,16 @@ class ProductTemplate(models.Model):
         string='Elastic Product ID',
         help='External product identifier in Elastic system'
     )
+    shopify_product_id = fields.Char(
+        string='Shopify Product ID',
+        index=True,
+        help='Shopify product ID used when importing product features.'
+    )
+    shopify_handle = fields.Char(
+        string='Shopify Handle',
+        index=True,
+        help='Shopify product handle used when matching imported product features.'
+    )
     elastic_product_permission_group = fields.Char(
         string='Elastic Product Permission Group',
         default='DEFAULT',

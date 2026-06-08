@@ -23,6 +23,13 @@ STANDARD_COLOR_GROUPS = {
     'Yellow',
 }
 
+COLOR_ATTRIBUTE_NAMES = {
+    'color',
+    'colour',
+    'frame color',
+    'product color',
+}
+
 
 class ElasticConfig(models.Model):
     _name = 'elastic.config'
@@ -127,8 +134,7 @@ class ElasticConfig(models.Model):
     enable_feature_export = fields.Boolean(
         string='Enable Feature Export',
         default=False,
-        help='Reserved for the future features.csv export. The exporter is not '
-             'yet implemented; toggling this on currently has no effect.',
+        help='Enable the features.csv export from governed product feature assignments.',
     )
     enable_customer_export = fields.Boolean(string='Enable Customer Export', default=False)
     enable_location_export = fields.Boolean(string='Enable Location Export', default=False)
@@ -292,8 +298,8 @@ class ElasticConfig(models.Model):
         code = ''.join(part[:3] for part in parts)
         return code[:max_length] or parts[0][:max_length]
 
-    def _make_unique_code(self, model_name, base_code, existing=None):
-        code = (base_code or 'VALUE').upper()[:12]
+    def _make_unique_code(self, model_name, base_code, existing=None, max_length=12):
+        code = (base_code or 'VALUE').upper()[:max_length]
         candidate = code
         suffix = 2
         domain = [('code', '=', candidate)]
@@ -301,7 +307,7 @@ class ElasticConfig(models.Model):
             domain.append(('id', '!=', existing.id))
         while self.env[model_name].search_count(domain):
             tail = str(suffix)
-            candidate = f'{code[:12 - len(tail)]}{tail}'
+            candidate = f'{code[:max_length - len(tail)]}{tail}'
             domain = [('code', '=', candidate)]
             if existing:
                 domain.append(('id', '!=', existing.id))
@@ -370,6 +376,24 @@ class ElasticConfig(models.Model):
         )
         return matched.mapped('value_ids')
 
+    def _is_color_attribute(self, attribute):
+        return self._normalize_label(attribute.name) in COLOR_ATTRIBUTE_NAMES
+
+    def _is_size_attribute(self, attribute):
+        name = self._normalize_label(attribute.name)
+        return name == 'size' or name.endswith(' size')
+
+    def _is_feature_attribute(self, attribute):
+        return not self._is_color_attribute(attribute) and not self._is_size_attribute(attribute)
+
+    def _feature_type_for_attribute(self, attribute):
+        name = self._normalize_label(attribute.name)
+        if 'technology' in name or 'tech' in name:
+            return 'technology'
+        if 'tag' in name or 'collection' in name:
+            return 'merchandising'
+        return 'feature'
+
     def _seed_elastic_colors(self):
         Color = self.env['elastic.color']
         values = self._get_metadata_attribute_values([
@@ -421,12 +445,7 @@ class ElasticConfig(models.Model):
         Scale = self.env['elastic.size.scale']
         Size = self.env['elastic.size.value']
         attributes = self.env['product.attribute'].search([])
-        size_attrs = attributes.filtered(
-            lambda attr: (
-                self._normalize_label(attr.name) == 'size'
-                or self._normalize_label(attr.name).endswith(' size')
-            )
-        )
+        size_attrs = attributes.filtered(lambda attr: self._is_size_attribute(attr))
         created = updated = 0
         for attr in size_attrs:
             scale_code = self._slug_code(attr.name, max_length=16)
@@ -463,21 +482,103 @@ class ElasticConfig(models.Model):
                 created += 1
         return created, updated
 
+    def _seed_elastic_features(self):
+        Feature = self.env['elastic.feature']
+        FeatureValue = self.env['elastic.feature.value']
+        attributes = self.env['product.attribute'].search([])
+        feature_attrs = attributes.filtered(lambda attr: self._is_feature_attribute(attr))
+        features_created = features_updated = values_created = values_updated = 0
+
+        for attr in feature_attrs:
+            feature = Feature.search([('odoo_attribute_id', '=', attr.id)], limit=1)
+            if not feature:
+                base_code = self._slug_code(attr.name, max_length=24)
+                feature = Feature.search([('code', '=', base_code)], limit=1)
+
+            feature_type = self._feature_type_for_attribute(attr)
+            if feature:
+                write_vals = {}
+                if not feature.odoo_attribute_id:
+                    write_vals['odoo_attribute_id'] = attr.id
+                if not feature.feature_type:
+                    write_vals['feature_type'] = feature_type
+                if feature.display_order != (attr.sequence or 10):
+                    write_vals['display_order'] = attr.sequence or 10
+                if write_vals:
+                    feature.write(write_vals)
+                    features_updated += 1
+            else:
+                code = self._make_unique_code(
+                    'elastic.feature',
+                    self._slug_code(attr.name, max_length=24),
+                    max_length=24,
+                )
+                feature = Feature.create({
+                    'name': attr.name,
+                    'code': code,
+                    'feature_type': feature_type,
+                    'display_order': attr.sequence or 10,
+                    'odoo_attribute_id': attr.id,
+                })
+                features_created += 1
+
+            for value in attr.value_ids:
+                feature_value = FeatureValue.search([
+                    ('feature_id', '=', feature.id),
+                    ('odoo_attribute_value_id', '=', value.id),
+                ], limit=1)
+                if feature_value:
+                    write_vals = {}
+                    if feature_value.display_order != (value.sequence or 10):
+                        write_vals['display_order'] = value.sequence or 10
+                    if write_vals:
+                        feature_value.write(write_vals)
+                        values_updated += 1
+                    continue
+
+                value_code = self._make_unique_code(
+                    'elastic.feature.value',
+                    self._slug_code(value.name, max_length=24),
+                    max_length=24,
+                )
+                FeatureValue.create({
+                    'feature_id': feature.id,
+                    'name': value.name,
+                    'code': value_code,
+                    'display_order': value.sequence or 10,
+                    'odoo_attribute_value_id': value.id,
+                })
+                values_created += 1
+
+        return features_created, features_updated, values_created, values_updated
+
     def action_generate_product_metadata(self):
         """Seed Elastic color and size metadata from Odoo product attributes."""
         self.ensure_one()
         colors_created, colors_updated, colors_linked = self._seed_elastic_colors()
         sizes_created, sizes_updated = self._seed_elastic_sizes()
+        (
+            features_created,
+            features_updated,
+            feature_values_created,
+            feature_values_updated,
+        ) = self._seed_elastic_features()
         message = _(
             'Colors: %(colors_created)d created, %(colors_updated)d updated, '
             '%(colors_linked)d linked. Sizes: %(sizes_created)d created, '
-            '%(sizes_updated)d updated.'
+            '%(sizes_updated)d updated. Features: %(features_created)d created, '
+            '%(features_updated)d updated, %(feature_values_created)d values created, '
+            '%(feature_values_updated)d values updated.'
         ) % {
             'colors_created': colors_created,
             'colors_updated': colors_updated,
             'colors_linked': colors_linked,
             'sizes_created': sizes_created,
             'sizes_updated': sizes_updated,
+            'features_created': features_created,
+            'features_updated': features_updated,
+            'feature_values_created': feature_values_created,
+            'feature_values_updated': feature_values_updated,
         }
         return {
             'type': 'ir.actions.client',
@@ -845,6 +946,11 @@ class ElasticConfig(models.Model):
         from ..exporters.product_tags_exporter import ProductTagsExporter
         return self._run_export(ProductTagsExporter, 'Product Tags')
 
+    def action_export_features(self):
+        """Export product features to Elastic SFTP"""
+        from ..exporters.feature_exporter import FeatureExporter
+        return self._run_export(FeatureExporter, 'Features')
+
     # ============================================
     # Import Action Methods
     # ============================================
@@ -942,6 +1048,9 @@ class ElasticConfig(models.Model):
 
         if self.enable_product_tags_export:
             _run_and_track('Product Tags', self.action_export_product_tags)
+
+        if self.enable_feature_export:
+            _run_and_track('Features', self.action_export_features)
 
         if self.enable_inventory_export:
             _run_and_track('Inventory', self.action_export_inventory)
