@@ -1,4 +1,5 @@
 from . import test_elastic_config
+from . import test_file_generator
 from . import test_pricelist
 from . import test_product_exporter
 from . import test_product_tags_exporter

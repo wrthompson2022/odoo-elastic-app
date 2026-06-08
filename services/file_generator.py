@@ -149,12 +149,8 @@ class FileGenerator:
         Generate a standardized filename
 
         :param prefix: File prefix (e.g., 'products', 'orders')
-        :param timestamp: Datetime object (defaults to now)
+        :param timestamp: Deprecated; ignored to keep export filenames stable
         :param extension: File extension (default: csv)
         :return: Filename string
         """
-        if timestamp is None:
-            timestamp = datetime.now()
-
-        timestamp_str = timestamp.strftime('%Y%m%d_%H%M%S')
-        return f"{prefix}_{timestamp_str}.{extension}"
+        return f"{prefix}.{extension}"
