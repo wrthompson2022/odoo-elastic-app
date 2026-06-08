@@ -342,6 +342,11 @@ class OrderImporter(BaseImporter):
             return sold_to
 
         xref_model = self.env['elastic.customer.xref']
+        delivery_partner = self._find_delivery_partner_by_legacy(sold_to, ship_to_external)
+        if delivery_partner:
+            xref_model.record_mapping(ship_to_external, delivery_partner, connection=connection, is_ship_to=True)
+            return delivery_partner
+
         existing = xref_model.find_partner(ship_to_external, connection=connection, is_ship_to=True)
         if existing:
             return existing
@@ -365,6 +370,17 @@ class OrderImporter(BaseImporter):
         ship_partner = self.env['res.partner'].create(ship_vals)
         xref_model.record_mapping(ship_to_external, ship_partner, connection=connection, is_ship_to=True)
         return ship_partner
+
+    def _find_delivery_partner_by_legacy(self, sold_to, ship_to_external):
+        """Find a sold-to delivery address by the Ship To ID exported from its legacy account number."""
+        ship_to_external = (ship_to_external or '').strip()
+        if not sold_to or not ship_to_external:
+            return self.env['res.partner'].browse()
+        return self.env['res.partner'].search([
+            ('parent_id', '=', sold_to.id),
+            ('type', '=', 'delivery'),
+            ('legacy_account_number', '=', ship_to_external),
+        ], limit=1)
 
     # ------------------------------------------------------------------
     # Product resolution
