@@ -57,10 +57,14 @@ class InventoryExporter(BaseExporter):
         """
         return {
             'Warehouse': lambda r: 'DEFAULT',
-            'StockItemKey': lambda r: r.barcode or r.default_code or str(r.id),
+            'StockItemKey': lambda r: self._get_stock_item_key(r),
             'AvailableDate': lambda r: '',  # Empty for current availability
             'Quantity': lambda r: self._get_available_qty(r),
         }
+
+    @staticmethod
+    def _get_stock_item_key(product):
+        return product.elastic_stock_item_key or product.barcode or product.default_code or str(product.id)
 
     def _get_available_qty(self, product, warehouse=None):
         """
@@ -128,7 +132,7 @@ class InventoryExporter(BaseExporter):
                 if not transformed:
                     continue
 
-                stock_item_key = product.barcode or product.default_code or str(product.id)
+                stock_item_key = self._get_stock_item_key(product)
 
                 if use_default_warehouse:
                     # Single row with DEFAULT warehouse
@@ -237,8 +241,11 @@ class InventoryExporter(BaseExporter):
         Skip records that don't meet minimum requirements.
         """
         # Must have either a barcode or default_code for StockItemKey
-        if not (record.barcode or record.default_code):
-            _logger.warning(f"Skipping product {record.id}: missing barcode and default_code")
+        if not (record.elastic_stock_item_key or record.barcode or record.default_code):
+            _logger.warning(
+                'Skipping product %s: missing Elastic Stock Item Key, barcode, and default_code',
+                record.id,
+            )
             return None
 
         return record

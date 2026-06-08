@@ -30,6 +30,24 @@
               action="action_elastic_catalog"
               sequence="3"/>
 
+    <menuitem id="menu_elastic_colors"
+              name="Colors"
+              parent="menu_elastic_configuration"
+              action="action_elastic_color"
+              sequence="4"/>
+
+    <menuitem id="menu_elastic_size_scales"
+              name="Size Scales"
+              parent="menu_elastic_configuration"
+              action="action_elastic_size_scale"
+              sequence="5"/>
+
+    <menuitem id="menu_elastic_size_values"
+              name="Size Values"
+              parent="menu_elastic_configuration"
+              action="action_elastic_size_value"
+              sequence="6"/>
+
     <!-- Orders Menu -->
     <menuitem id="menu_elastic_orders"
               name="Orders"
@@ -46,13 +64,13 @@
               name="Customer Cross-References"
               parent="menu_elastic_configuration"
               action="action_elastic_customer_xref"
-              sequence="4"/>
+              sequence="7"/>
 
     <menuitem id="menu_elastic_pricelists"
               name="Pricelists (Elastic)"
               parent="menu_elastic_configuration"
               action="action_elastic_pricelist"
-              sequence="5"/>
+              sequence="8"/>
 
     <!-- Logs Menu -->
     <menuitem id="menu_elastic_logs"

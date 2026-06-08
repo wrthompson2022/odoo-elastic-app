@@ -5,6 +5,12 @@ access_elastic_config_user,elastic.config.user,model_elastic_config,group_elasti
 access_elastic_config_manager,elastic.config.manager,model_elastic_config,group_elastic_manager,1,1,1,1
 access_elastic_catalog_user,elastic.catalog.user,model_elastic_catalog,group_elastic_user,1,0,0,0
 access_elastic_catalog_manager,elastic.catalog.manager,model_elastic_catalog,group_elastic_manager,1,1,1,1
+access_elastic_color_user,elastic.color.user,model_elastic_color,group_elastic_user,1,0,0,0
+access_elastic_color_manager,elastic.color.manager,model_elastic_color,group_elastic_manager,1,1,1,1
+access_elastic_size_scale_user,elastic.size.scale.user,model_elastic_size_scale,group_elastic_user,1,0,0,0
+access_elastic_size_scale_manager,elastic.size.scale.manager,model_elastic_size_scale,group_elastic_manager,1,1,1,1
+access_elastic_size_value_user,elastic.size.value.user,model_elastic_size_value,group_elastic_user,1,0,0,0
+access_elastic_size_value_manager,elastic.size.value.manager,model_elastic_size_value,group_elastic_manager,1,1,1,1
 access_elastic_export_log_user,elastic.export.log.user,model_elastic_export_log,group_elastic_user,1,0,0,0
 access_elastic_export_log_manager,elastic.export.log.manager,model_elastic_export_log,group_elastic_manager,1,1,1,1
 access_elastic_import_log_user,elastic.import.log.user,model_elastic_import_log,group_elastic_user,1,0,0,0

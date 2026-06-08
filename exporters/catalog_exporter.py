@@ -157,7 +157,14 @@ class CatalogMappingExporter(BaseExporter):
         """
         for attr_value in product.product_variant_ids[:1].product_template_attribute_value_ids:
             if attr_value.attribute_id.name.lower() in ['color', 'colour']:
-                code = attr_value.product_attribute_value_id.name
+                value = attr_value.product_attribute_value_id
+                elastic_color = self.env['elastic.color'].search([
+                    ('odoo_attribute_value_id', '=', value.id),
+                    ('active', '=', True),
+                ], limit=1)
+                if elastic_color:
+                    return elastic_color.code
+                code = value.name
                 if len(code) > 5:
                     return code[:3].upper()
                 return code

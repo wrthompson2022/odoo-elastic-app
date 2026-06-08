@@ -63,11 +63,17 @@ class ProductTagsExporter(BaseExporter):
         # Custom export logic - one row per (product, feature).
         return {}
 
-    @staticmethod
-    def _color_code(product):
+    def _color_code(self, product):
         for attr_value in product.product_template_attribute_value_ids:
             if attr_value.attribute_id.name.lower() in {'color', 'colour'}:
-                code = attr_value.product_attribute_value_id.name
+                value = attr_value.product_attribute_value_id
+                elastic_color = self.env['elastic.color'].search([
+                    ('odoo_attribute_value_id', '=', value.id),
+                    ('active', '=', True),
+                ], limit=1)
+                if elastic_color:
+                    return elastic_color.code
+                code = value.name
                 return code[:3].upper() if len(code) > 5 else code
         return ''
 

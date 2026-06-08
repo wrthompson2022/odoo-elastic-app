@@ -22,6 +22,15 @@ class ProductTemplate(models.Model):
         string='Elastic Product ID',
         help='External product identifier in Elastic system'
     )
+    elastic_product_permission_group = fields.Char(
+        string='Elastic Product Permission Group',
+        default='DEFAULT',
+        help='Product permission group sent to Elastic for variants of this product.'
+    )
+    elastic_available_date = fields.Date(
+        string='Elastic Available Date',
+        help='Available date sent to Elastic. Falls back to the export date when blank.'
+    )
     elastic_catalog_ids = fields.Many2many(
         'elastic.catalog',
         'product_template_elastic_catalog_rel',

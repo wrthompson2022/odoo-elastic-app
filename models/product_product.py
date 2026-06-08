@@ -26,6 +26,22 @@ class ProductProduct(models.Model):
         string='Elastic SKU',
         help='SKU used for Elastic (if different from internal reference)'
     )
+    elastic_item_number = fields.Char(
+        string='Elastic Item Number',
+        help='Stable ItemNumber sent to Elastic. Falls back to internal reference/SKU.'
+    )
+    elastic_stock_item_key = fields.Char(
+        string='Elastic Stock Item Key',
+        help='Stable StockItemKey sent to Elastic. Falls back to barcode/internal reference.'
+    )
+    elastic_product_permission_group = fields.Char(
+        string='Elastic Product Permission Group',
+        help='Variant-level permission group. Falls back to the product template value.'
+    )
+    elastic_available_date = fields.Date(
+        string='Elastic Available Date',
+        help='Variant-level available date. Falls back to the product template value.'
+    )
     elastic_variant_attributes = fields.Text(
         string='Elastic Variant Attributes',
         help='JSON or text representation of variant-specific attributes for Elastic'

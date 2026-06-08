@@ -65,12 +65,16 @@ class PriceExporter(BaseExporter):
         # BaseExporter still work as expected.
         return {
             'CatalogKey': lambda r: 'ALL',
-            'StockItemKey': lambda r: r.barcode or r.default_code or str(r.id),
+            'StockItemKey': lambda r: self._get_stock_item_key(r),
             'PriceGroup': lambda r: self.DEFAULT_PRICE_GROUP,
             'CurrencyCode': lambda r: self.DEFAULT_CURRENCY,
             'Price': lambda r: r.lst_price,
             'Retail': lambda r: r.lst_price,
         }
+
+    @staticmethod
+    def _get_stock_item_key(product):
+        return product.elastic_stock_item_key or product.barcode or product.default_code or str(product.id)
 
     # ------------------------------------------------------------------
     # Pricelist resolution
@@ -107,7 +111,7 @@ class PriceExporter(BaseExporter):
             transformed = self.transform_record(product)
             if not transformed:
                 continue
-            stock_item_key = product.barcode or product.default_code or str(product.id)
+            stock_item_key = self._get_stock_item_key(product)
             retail_price = product.lst_price
 
             for pricelist in pricelists:
@@ -134,7 +138,7 @@ class PriceExporter(BaseExporter):
             transformed = self.transform_record(product)
             if not transformed:
                 continue
-            stock_item_key = product.barcode or product.default_code or str(product.id)
+            stock_item_key = self._get_stock_item_key(product)
             rows.append([
                 'ALL',
                 stock_item_key,
@@ -240,8 +244,11 @@ class PriceExporter(BaseExporter):
             return {'success': False, 'message': error_message, 'record_count': 0}
 
     def transform_record(self, record):
-        if not (record.barcode or record.default_code):
-            _logger.warning('Skipping product %s: missing barcode and default_code', record.id)
+        if not (record.elastic_stock_item_key or record.barcode or record.default_code):
+            _logger.warning(
+                'Skipping product %s: missing Elastic Stock Item Key, barcode, and default_code',
+                record.id,
+            )
             return None
         if record.lst_price <= 0:
             _logger.warning('Skipping product %s: no price set', record.id)

@@ -43,6 +43,7 @@ Features
         "views/elastic_config_views.xml",
         "views/elastic_log_views.xml",
         "views/elastic_catalog_views.xml",
+        "views/elastic_product_metadata_views.xml",
         "views/elastic_customer_xref_views.xml",
         "views/elastic_order_staging_views.xml",
         "views/product_views.xml",

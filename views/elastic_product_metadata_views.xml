@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Elastic Colors -->
+    <record id="view_elastic_color_list" model="ir.ui.view">
+        <field name="name">elastic.color.list</field>
+        <field name="model">elastic.color</field>
+        <field name="arch" type="xml">
+            <list string="Elastic Colors">
+                <field name="sort_order"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="color_group"/>
+                <field name="hex_color"/>
+                <field name="odoo_attribute_value_id"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_elastic_color_form" model="ir.ui.view">
+        <field name="name">elastic.color.form</field>
+        <field name="model">elastic.color</field>
+        <field name="arch" type="xml">
+            <form string="Elastic Color">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="color_group"/>
+                            <field name="sort_order"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="hex_color"/>
+                            <field name="odoo_attribute_value_id"/>
+                            <field name="external_id"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_elastic_color" model="ir.actions.act_window">
+        <field name="name">Colors</field>
+        <field name="res_model">elastic.color</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Elastic Size Scales -->
+    <record id="view_elastic_size_scale_list" model="ir.ui.view">
+        <field name="name">elastic.size.scale.list</field>
+        <field name="model">elastic.size.scale</field>
+        <field name="arch" type="xml">
+            <list string="Elastic Size Scales">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_elastic_size_scale_form" model="ir.ui.view">
+        <field name="name">elastic.size.scale.form</field>
+        <field name="model">elastic.size.scale</field>
+        <field name="arch" type="xml">
+            <form string="Elastic Size Scale">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <field name="code"/>
+                        <field name="active"/>
+                    </group>
+                    <field name="size_value_ids">
+                        <list editable="bottom">
+                            <field name="sort_order"/>
+                            <field name="code"/>
+                            <field name="name"/>
+                            <field name="alternate_size"/>
+                            <field name="odoo_attribute_value_id"/>
+                            <field name="active"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_elastic_size_scale" model="ir.actions.act_window">
+        <field name="name">Size Scales</field>
+        <field name="res_model">elastic.size.scale</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Elastic Size Values -->
+    <record id="view_elastic_size_value_list" model="ir.ui.view">
+        <field name="name">elastic.size.value.list</field>
+        <field name="model">elastic.size.value</field>
+        <field name="arch" type="xml">
+            <list string="Elastic Size Values">
+                <field name="scale_id"/>
+                <field name="sort_order"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="alternate_size"/>
+                <field name="odoo_attribute_value_id"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_elastic_size_value_form" model="ir.ui.view">
+        <field name="name">elastic.size.value.form</field>
+        <field name="model">elastic.size.value</field>
+        <field name="arch" type="xml">
+            <form string="Elastic Size Value">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="scale_id"/>
+                            <field name="code"/>
+                            <field name="sort_order"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="alternate_size"/>
+                            <field name="odoo_attribute_value_id"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_elastic_size_value" model="ir.actions.act_window">
+        <field name="name">Size Values</field>
+        <field name="res_model">elastic.size.value</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

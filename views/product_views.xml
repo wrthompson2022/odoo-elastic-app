@@ -14,6 +14,12 @@
                             <field name="elastic_last_sync" readonly="1"/>
                             <field name="elastic_product_id"/>
                         </group>
+                        <group string="Product Export Defaults">
+                            <field name="elastic_product_permission_group"/>
+                            <field name="elastic_available_date"/>
+                        </group>
+                    </group>
+                    <group>
                         <group string="Catalog Assignment">
                             <field name="elastic_catalog_ids" widget="many2many_tags"/>
                         </group>
@@ -47,6 +53,12 @@
                     <group>
                         <field name="elastic_variant_id"/>
                         <field name="elastic_sku"/>
+                        <field name="elastic_item_number"/>
+                        <field name="elastic_stock_item_key"/>
+                    </group>
+                    <group>
+                        <field name="elastic_product_permission_group"/>
+                        <field name="elastic_available_date"/>
                     </group>
                 </group>
             </xpath>
