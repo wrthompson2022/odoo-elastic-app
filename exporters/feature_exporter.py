@@ -61,7 +61,7 @@ class FeatureExporter(BaseExporter):
         return value
 
     @classmethod
-    def _item_number(product):
+    def _item_number(cls, product):
         return (
             product.elastic_item_number
             or product.product_tmpl_id.default_code
