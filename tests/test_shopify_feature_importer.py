@@ -66,6 +66,32 @@ class TestShopifyFeatureImporter(TransactionCase):
         values = ShopifyFeatureImporter.parse_multiline('Narrow temples\n\nPin hinges')
         self.assertEqual(values, ['Narrow temples', 'Pin hinges'])
 
+    def test_parse_multiline_html_list(self):
+        values = ShopifyFeatureImporter.parse_multiline(
+            '<ul>\n'
+            '<li>Removable/Folding Vented Side Shields</li>\n'
+            '<li>Narrow Temples</li>\n'
+            '<li>Vented Rubber Nose Pads</li>\n'
+            '</ul>'
+        )
+        self.assertEqual(values, [
+            'Removable/Folding Vented Side Shields',
+            'Narrow Temples',
+            'Vented Rubber Nose Pads',
+        ])
+
+    def test_parse_multiline_escaped_html_list(self):
+        values = ShopifyFeatureImporter.parse_multiline(
+            '&lt;ul&gt;\n'
+            '&lt;li&gt;Rubber Temple Tips&lt;/li&gt;\n'
+            '&lt;li&gt;Integrated Sun Ledge&lt;/li&gt;\n'
+            '&lt;/ul&gt;'
+        )
+        self.assertEqual(values, [
+            'Rubber Temple Tips',
+            'Integrated Sun Ledge',
+        ])
+
     def test_parse_shopify_rich_text(self):
         rich_text = (
             '{"type":"root","children":[{"type":"list","children":['
@@ -224,6 +250,43 @@ class TestShopifyFeatureImporter(TransactionCase):
             ('product_tmpl_id', '=', self.template.id),
             ('feature_id', '=', self.feature.id),
             ('value_text', '=', stale_value),
+        ])
+        self.assertFalse(stale)
+
+    def test_cleanup_stale_assignments_removes_multiline_html_rows(self):
+        importer = self._build_importer()
+        shopify_product = {'id': 123}
+        stale_values = ['<ul>', '<li>Narrow Temples</li>', '</ul>']
+        for sequence, value in enumerate(stale_values, start=1):
+            self.env['elastic.product.feature.assignment'].create({
+                'product_tmpl_id': self.template.id,
+                'feature_id': self.feature.id,
+                'value_text': value,
+                'source': 'shopify',
+                'source_key': ShopifyFeatureImporter._source_key(
+                    shopify_product,
+                    self.mapping,
+                    value,
+                ),
+                'sequence': sequence,
+            })
+        current = importer.parse_value(
+            '<ul>\n<li>Narrow Temples</li>\n</ul>',
+            'multiline',
+        )
+
+        removed = importer._cleanup_stale_assignments(
+            self.template,
+            self.mapping,
+            shopify_product,
+            current,
+        )
+
+        self.assertEqual(removed, 3)
+        stale = self.env['elastic.product.feature.assignment'].search([
+            ('product_tmpl_id', '=', self.template.id),
+            ('feature_id', '=', self.feature.id),
+            ('value_text', 'in', stale_values),
         ])
         self.assertFalse(stale)
 

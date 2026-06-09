@@ -134,11 +134,20 @@ class ShopifyFeatureImporter:
 
     @staticmethod
     def parse_multiline(value):
-        return [
-            html.unescape(line.strip())
-            for line in (value or '').splitlines()
-            if line and line.strip()
-        ]
+        value = html.unescape(value or '')
+        if ShopifyFeatureImporter._looks_like_html_list(value):
+            return ShopifyFeatureImporter.parse_html_list(value)
+
+        values = []
+        for line in value.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if ShopifyFeatureImporter._looks_like_html(line):
+                values.extend(ShopifyFeatureImporter.parse_html_text(line))
+            else:
+                values.append(html.unescape(line))
+        return values
 
     @staticmethod
     def parse_plain(value):
@@ -163,6 +172,10 @@ class ShopifyFeatureImporter:
     @staticmethod
     def _looks_like_html(value):
         return bool(re.search(r'</?[a-zA-Z][^>]*>|&lt;/?[a-zA-Z][^&]*?&gt;', value or ''))
+
+    @staticmethod
+    def _looks_like_html_list(value):
+        return bool(re.search(r'<li(?:\s[^>]*)?>|&lt;li(?:\s[^&]*)?&gt;', value or '', re.I))
 
     @staticmethod
     def _normalize_value(value):
