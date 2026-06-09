@@ -31,9 +31,6 @@
                         </group>
                     </group>
                     <group>
-                        <field name="elastic_features" widget="text" placeholder="JSON or text representation of product features"/>
-                    </group>
-                    <group>
                         <field name="elastic_notes" widget="text" placeholder="Additional notes for Elastic integration"/>
                     </group>
                     <div class="mt-3">

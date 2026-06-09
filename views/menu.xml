@@ -58,6 +58,7 @@
               name="Feature Values"
               parent="menu_elastic_configuration"
               action="action_elastic_feature_value"
+              active="False"
               sequence="8"/>
 
     <menuitem id="menu_elastic_product_feature_assignments"

@@ -290,6 +290,11 @@ class ElasticShopifyConnection(models.Model):
         default='sku',
         required=True,
     )
+    import_only_elastic_products = fields.Boolean(
+        string='Only Import Elastic Products',
+        default=True,
+        help='Skip Shopify feature imports for products not enabled for Elastic exports.',
+    )
     mapping_ids = fields.One2many(
         'elastic.shopify.feature.mapping',
         'connection_id',
@@ -351,6 +356,7 @@ class ElasticShopifyFeatureMapping(models.Model):
     parser = fields.Selection(
         [
             ('html_list', 'HTML List'),
+            ('html_text', 'HTML Text'),
             ('rich_text', 'Shopify Rich Text'),
             ('multiline', 'Multiline Text'),
             ('plain', 'Plain Text'),

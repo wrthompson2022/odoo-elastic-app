@@ -50,8 +50,8 @@ class ProductTemplate(models.Model):
         help='Catalogs this product belongs to in Elastic'
     )
     elastic_features = fields.Text(
-        string='Elastic Features/Attributes',
-        help='JSON or text representation of product features for Elastic'
+        string='Elastic Product Tag Text',
+        help='Optional text field that can be selected by Product Tag Mappings.'
     )
     elastic_notes = fields.Text(
         string='Elastic Notes',

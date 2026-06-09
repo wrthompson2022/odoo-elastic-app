@@ -160,7 +160,6 @@
                 <field name="feature_type"/>
                 <field name="filterable"/>
                 <field name="searchable"/>
-                <field name="odoo_attribute_id"/>
                 <field name="export_to_elastic"/>
                 <field name="active"/>
             </list>
@@ -184,7 +183,6 @@
                             <field name="active"/>
                         </group>
                         <group>
-                            <field name="odoo_attribute_id"/>
                             <field name="export_to_elastic"/>
                             <field name="filterable"/>
                             <field name="searchable"/>
@@ -195,7 +193,6 @@
                             <field name="display_order"/>
                             <field name="code"/>
                             <field name="name"/>
-                            <field name="odoo_attribute_value_id"/>
                             <field name="external_id"/>
                             <field name="active"/>
                         </list>
@@ -221,7 +218,6 @@
                 <field name="display_order"/>
                 <field name="code"/>
                 <field name="name"/>
-                <field name="odoo_attribute_value_id"/>
                 <field name="external_id"/>
                 <field name="active"/>
             </list>
@@ -245,7 +241,6 @@
                             <field name="active"/>
                         </group>
                         <group>
-                            <field name="odoo_attribute_value_id"/>
                             <field name="external_id"/>
                         </group>
                     </group>
@@ -288,7 +283,6 @@
                             <field name="product_tmpl_id"/>
                             <field name="product_id"/>
                             <field name="feature_id"/>
-                            <field name="feature_value_id"/>
                             <field name="value_text"/>
                         </group>
                         <group>
@@ -390,6 +384,7 @@
                             <field name="shop_domain"/>
                             <field name="api_version"/>
                             <field name="match_strategy"/>
+                            <field name="import_only_elastic_products"/>
                         </group>
                         <group>
                             <field name="access_token" password="True"/>

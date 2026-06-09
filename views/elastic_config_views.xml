@@ -223,7 +223,7 @@
                                 </group>
                             </group>
                             <div class="alert alert-info" role="alert" style="margin-top: 10px;">
-                                Creates missing Elastic colors from Frame Color, Product Color, Color, and Colour attributes, size values from Size attributes, and features from other product attributes. Product tag mappings are configured separately from features.
+                                Creates missing Elastic colors from Frame Color, Product Color, Color, and Colour attributes, and size values from Size attributes. Features are imported from Shopify; product tags are configured separately from Product Tag Mappings.
                             </div>
                         </page>
                     </notebook>

@@ -48,7 +48,7 @@ This Odoo 18.0 module provides comprehensive integration with Elastic B2B throug
 - `elastic_last_sync` - Timestamp tracking
 - `elastic_product_id` - External Elastic ID
 - `elastic_catalog_ids` - Catalog assignments
-- `elastic_features` - Product features/attributes
+- `elastic_features` - Optional product tag source text
 - `elastic_notes` - Integration notes
 
 **Product Variant (`product.product`):**

@@ -383,17 +383,6 @@ class ElasticConfig(models.Model):
         name = self._normalize_label(attribute.name)
         return name == 'size' or name.endswith(' size')
 
-    def _is_feature_attribute(self, attribute):
-        return not self._is_color_attribute(attribute) and not self._is_size_attribute(attribute)
-
-    def _feature_type_for_attribute(self, attribute):
-        name = self._normalize_label(attribute.name)
-        if 'technology' in name or 'tech' in name:
-            return 'technology'
-        if 'tag' in name or 'collection' in name:
-            return 'merchandising'
-        return 'feature'
-
     def _seed_elastic_colors(self):
         Color = self.env['elastic.color']
         values = self._get_metadata_attribute_values([
@@ -482,103 +471,21 @@ class ElasticConfig(models.Model):
                 created += 1
         return created, updated
 
-    def _seed_elastic_features(self):
-        Feature = self.env['elastic.feature']
-        FeatureValue = self.env['elastic.feature.value']
-        attributes = self.env['product.attribute'].search([])
-        feature_attrs = attributes.filtered(lambda attr: self._is_feature_attribute(attr))
-        features_created = features_updated = values_created = values_updated = 0
-
-        for attr in feature_attrs:
-            feature = Feature.search([('odoo_attribute_id', '=', attr.id)], limit=1)
-            if not feature:
-                base_code = self._slug_code(attr.name, max_length=24)
-                feature = Feature.search([('code', '=', base_code)], limit=1)
-
-            feature_type = self._feature_type_for_attribute(attr)
-            if feature:
-                write_vals = {}
-                if not feature.odoo_attribute_id:
-                    write_vals['odoo_attribute_id'] = attr.id
-                if not feature.feature_type:
-                    write_vals['feature_type'] = feature_type
-                if feature.display_order != (attr.sequence or 10):
-                    write_vals['display_order'] = attr.sequence or 10
-                if write_vals:
-                    feature.write(write_vals)
-                    features_updated += 1
-            else:
-                code = self._make_unique_code(
-                    'elastic.feature',
-                    self._slug_code(attr.name, max_length=24),
-                    max_length=24,
-                )
-                feature = Feature.create({
-                    'name': attr.name,
-                    'code': code,
-                    'feature_type': feature_type,
-                    'display_order': attr.sequence or 10,
-                    'odoo_attribute_id': attr.id,
-                })
-                features_created += 1
-
-            for value in attr.value_ids:
-                feature_value = FeatureValue.search([
-                    ('feature_id', '=', feature.id),
-                    ('odoo_attribute_value_id', '=', value.id),
-                ], limit=1)
-                if feature_value:
-                    write_vals = {}
-                    if feature_value.display_order != (value.sequence or 10):
-                        write_vals['display_order'] = value.sequence or 10
-                    if write_vals:
-                        feature_value.write(write_vals)
-                        values_updated += 1
-                    continue
-
-                value_code = self._make_unique_code(
-                    'elastic.feature.value',
-                    self._slug_code(value.name, max_length=24),
-                    max_length=24,
-                )
-                FeatureValue.create({
-                    'feature_id': feature.id,
-                    'name': value.name,
-                    'code': value_code,
-                    'display_order': value.sequence or 10,
-                    'odoo_attribute_value_id': value.id,
-                })
-                values_created += 1
-
-        return features_created, features_updated, values_created, values_updated
-
     def action_generate_product_metadata(self):
         """Seed Elastic color and size metadata from Odoo product attributes."""
         self.ensure_one()
         colors_created, colors_updated, colors_linked = self._seed_elastic_colors()
         sizes_created, sizes_updated = self._seed_elastic_sizes()
-        (
-            features_created,
-            features_updated,
-            feature_values_created,
-            feature_values_updated,
-        ) = self._seed_elastic_features()
         message = _(
             'Colors: %(colors_created)d created, %(colors_updated)d updated, '
             '%(colors_linked)d linked. Sizes: %(sizes_created)d created, '
-            '%(sizes_updated)d updated. Features: %(features_created)d created, '
-            '%(features_updated)d updated, %(feature_values_created)d values created, '
-            '%(feature_values_updated)d values updated.'
+            '%(sizes_updated)d updated.'
         ) % {
             'colors_created': colors_created,
             'colors_updated': colors_updated,
             'colors_linked': colors_linked,
             'sizes_created': sizes_created,
             'sizes_updated': sizes_updated,
-            'features_created': features_created,
-            'features_updated': features_updated,
-            'feature_values_created': feature_values_created,
-            'feature_values_updated': feature_values_updated,
         }
         return {
             'type': 'ir.actions.client',

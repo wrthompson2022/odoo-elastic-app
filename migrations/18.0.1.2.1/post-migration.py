@@ -11,6 +11,7 @@ def migrate(cr, version):
         return
 
     _null_blank_source_keys(cr)
+    _enable_elastic_product_only_shopify_imports(cr)
     _shorten_shopify_feature_source_keys(cr)
     _dedupe_non_null_source_keys(cr)
     _recreate_feature_assignment_source_key_constraint(cr)
@@ -32,18 +33,45 @@ def _null_blank_source_keys(cr):
         )
 
 
+def _enable_elastic_product_only_shopify_imports(cr):
+    cr.execute("""
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'elastic_shopify_connection'
+           AND column_name = 'import_only_elastic_products'
+    """)
+    if not cr.fetchone():
+        return
+    cr.execute("""
+        UPDATE elastic_shopify_connection
+           SET import_only_elastic_products = TRUE
+         WHERE import_only_elastic_products IS NULL
+    """)
+    updated = cr.rowcount or 0
+    if updated:
+        _logger.info(
+            'Elastic Integration upgrade: enabled Elastic-product-only Shopify '
+            'feature imports on %d existing connection(s).',
+            updated,
+        )
+
+
 def _shorten_shopify_feature_source_keys(cr):
     """Replace legacy full-value Shopify source keys with hashed keys.
 
     Legacy keys were shaped as shopify:<product_id>:<source>:<value>. The
     value can be large Shopify rich text, which made the unique btree index
-    exceed PostgreSQL's maximum index-row size.
+    exceed PostgreSQL's maximum index-row size. New keys include feature_id so
+    mappings that read the same Shopify source into different features remain
+    distinct.
     """
     cr.execute("""
         UPDATE elastic_product_feature_assignment
            SET source_key = concat(
                    'shopify:',
                    split_part(source_key, ':', 2),
+                   ':',
+                   feature_id,
                    ':',
                    split_part(source_key, ':', 3),
                    ':',
@@ -58,7 +86,7 @@ def _shorten_shopify_feature_source_keys(cr):
                    )
                )
          WHERE source_key ~ '^shopify:[^:]*:[^:]*:.+'
-           AND source_key !~ '^shopify:[^:]*:[^:]*:[0-9a-f]{64}$'
+           AND source_key !~ '^shopify:[^:]*:[0-9]+:[^:]*:[0-9a-f]{64}$'
     """)
     updated = cr.rowcount or 0
     if updated:
