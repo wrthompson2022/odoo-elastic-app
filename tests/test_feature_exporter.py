@@ -98,7 +98,14 @@ class TestFeatureExporter(TransactionCase):
         self.assertEqual([row[3] for row in rows], [30, 10, 40])
 
     def test_item_number_uses_base_style_for_color_size_sku(self):
-        template = type('Template', (), {'default_code': ''})()
+        category = type('Category', (), {
+            'name': 'Apparel - Hats',
+            'complete_name': 'Apparel / Hats',
+        })()
+        template = type('Template', (), {
+            'default_code': '',
+            'categ_id': category,
+        })()
         product = type('Product', (), {
             'elastic_item_number': '',
             'default_code': 'ANGLERCFB-5KF-ON SIZE',
@@ -106,12 +113,41 @@ class TestFeatureExporter(TransactionCase):
             'barcode': '',
             'id': 99,
             'product_tmpl_id': template,
+            'categ_id': category,
         })()
 
         self.assertEqual(FeatureExporter._item_number(product), 'ANGLERCFB')
 
+    def test_item_number_keeps_sunglass_internal_reference(self):
+        category = type('Category', (), {
+            'name': 'Sunglasses',
+            'complete_name': 'Sunglasses',
+        })()
+        template = type('Template', (), {
+            'default_code': '',
+            'categ_id': category,
+        })()
+        product = type('Product', (), {
+            'elastic_item_number': '',
+            'default_code': 'BAL-081-010',
+            'elastic_sku': '',
+            'barcode': '',
+            'id': 99,
+            'product_tmpl_id': template,
+            'categ_id': category,
+        })()
+
+        self.assertEqual(FeatureExporter._item_number(product), 'BAL-081-010')
+
     def test_item_number_keeps_two_part_sku(self):
-        template = type('Template', (), {'default_code': ''})()
+        category = type('Category', (), {
+            'name': 'Sunglasses',
+            'complete_name': 'Sunglasses',
+        })()
+        template = type('Template', (), {
+            'default_code': '',
+            'categ_id': category,
+        })()
         product = type('Product', (), {
             'elastic_item_number': '',
             'default_code': 'BASE-8',
@@ -119,6 +155,51 @@ class TestFeatureExporter(TransactionCase):
             'barcode': '',
             'id': 99,
             'product_tmpl_id': template,
+            'categ_id': category,
         })()
 
         self.assertEqual(FeatureExporter._item_number(product), 'BASE-8')
+
+    def test_item_number_does_not_fall_back_to_odoo_id_or_barcode(self):
+        template = type('Template', (), {
+            'default_code': '',
+            'categ_id': None,
+        })()
+        product = type('Product', (), {
+            'elastic_item_number': '',
+            'default_code': '',
+            'elastic_sku': '',
+            'barcode': '840290927805',
+            'id': 44101,
+            'product_tmpl_id': template,
+            'categ_id': None,
+        })()
+
+        self.assertFalse(FeatureExporter._item_number(product))
+
+    def test_description_exports_once_per_item_number(self):
+        description_feature = self.env['elastic.feature'].create({
+            'name': 'Description',
+            'code': 'DESCRIPTION',
+        })
+        older_description = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': description_feature.id,
+            'value_text': 'Older description',
+            'sequence': 5,
+            'source': 'shopify',
+        })
+        later_description = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': description_feature.id,
+            'value_text': 'Later description',
+            'sequence': 10,
+            'source': 'shopify',
+        })
+
+        exporter = self._build_exporter()
+        rows = exporter._build_data_rows(older_description | later_description)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][2], 'Description')
+        self.assertEqual(rows[0][4], 'Older description')
