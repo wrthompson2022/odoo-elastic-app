@@ -51,8 +51,24 @@ class FeatureExporter(BaseExporter):
         return {}
 
     @staticmethod
+    def _base_style_number(value):
+        value = (value or '').strip()
+        if not value:
+            return ''
+        parts = [part.strip() for part in value.split('-')]
+        if len(parts) >= 3 and all(parts):
+            return parts[0]
+        return value
+
+    @classmethod
     def _item_number(product):
-        return product.elastic_item_number or product.default_code or product.barcode or str(product.id)
+        return (
+            product.elastic_item_number
+            or product.product_tmpl_id.default_code
+            or cls._base_style_number(product.default_code or product.elastic_sku)
+            or product.barcode
+            or str(product.id)
+        )
 
     def _products_for_assignment(self, assignment):
         if assignment.product_id:
@@ -61,6 +77,45 @@ class FeatureExporter(BaseExporter):
         if self.config.export_only_synced_products:
             products = products.filtered('elastic_sync_enabled')
         return products
+
+    @staticmethod
+    def _sort_number(value):
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _build_data_rows(self, assignments):
+        data_rows = []
+        for assignment in assignments:
+            value = assignment.value_text or (
+                assignment.feature_value_id.name if assignment.feature_value_id else ''
+            )
+            if not value:
+                continue
+            for product in self._products_for_assignment(assignment):
+                item_number = self._item_number(product)
+                if not item_number:
+                    continue
+                data_rows.append([
+                    'GLOBAL',
+                    item_number,
+                    assignment.feature_id.name,
+                    assignment.sequence,
+                    value,
+                    assignment.feature_value_id.display_order or assignment.sequence,
+                ])
+
+        return sorted(
+            data_rows,
+            key=lambda row: (
+                row[1],
+                self._sort_number(row[3]),
+                row[2] or '',
+                self._sort_number(row[5]),
+                row[4] or '',
+            ),
+        )
 
     def export(self):
         export_type = self.get_export_type()
@@ -76,24 +131,7 @@ class FeatureExporter(BaseExporter):
 
             self.pre_export_hook(assignments)
 
-            data_rows = []
-            for assignment in assignments:
-                value = assignment.value_text or (
-                    assignment.feature_value_id.name if assignment.feature_value_id else ''
-                )
-                if not value:
-                    continue
-                for product in self._products_for_assignment(assignment):
-                    if not (product.elastic_item_number or product.default_code or product.barcode):
-                        continue
-                    data_rows.append([
-                        'GLOBAL',
-                        self._item_number(product),
-                        assignment.feature_id.name,
-                        assignment.feature_id.display_order,
-                        value,
-                        assignment.feature_value_id.display_order or assignment.sequence,
-                    ])
+            data_rows = self._build_data_rows(assignments)
 
             if not data_rows:
                 message = f'No valid {export_type} records after transformation'

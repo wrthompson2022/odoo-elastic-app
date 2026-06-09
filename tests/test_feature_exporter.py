@@ -60,3 +60,65 @@ class TestFeatureExporter(TransactionCase):
         products = exporter._products_for_assignment(self.assignment)
         self.assertEqual(products, self.product)
         self.assertEqual(exporter._item_number(self.product), 'FE-001')
+
+    def test_attribute_name_sort_uses_assignment_sequence(self):
+        exporter = self._build_exporter()
+        rows = exporter._build_data_rows(self.assignment)
+
+        self.assertEqual(rows[0][3], 40)
+
+    def test_rows_sort_by_item_number_then_attribute_name_sort(self):
+        low_sequence_assignment = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': self.feature.id,
+            'value_text': 'First feature for FE',
+            'sequence': 10,
+            'source': 'shopify',
+        })
+        earlier_template = self.env['product.template'].create({
+            'name': 'Earlier Feature Export Frame',
+            'sale_ok': True,
+        })
+        earlier_product = earlier_template.product_variant_ids[:1]
+        earlier_product.default_code = 'AA-001'
+        earlier_assignment = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': earlier_template.id,
+            'feature_id': self.feature.id,
+            'value_text': 'Feature for AA',
+            'sequence': 30,
+            'source': 'shopify',
+        })
+
+        exporter = self._build_exporter()
+        rows = exporter._build_data_rows(
+            self.assignment | earlier_assignment | low_sequence_assignment
+        )
+
+        self.assertEqual([row[1] for row in rows], ['AA-001', 'FE-001', 'FE-001'])
+        self.assertEqual([row[3] for row in rows], [30, 10, 40])
+
+    def test_item_number_uses_base_style_for_color_size_sku(self):
+        template = type('Template', (), {'default_code': ''})()
+        product = type('Product', (), {
+            'elastic_item_number': '',
+            'default_code': 'ANGLERCFB-5KF-ON SIZE',
+            'elastic_sku': '',
+            'barcode': '',
+            'id': 99,
+            'product_tmpl_id': template,
+        })()
+
+        self.assertEqual(FeatureExporter._item_number(product), 'ANGLERCFB')
+
+    def test_item_number_keeps_two_part_sku(self):
+        template = type('Template', (), {'default_code': ''})()
+        product = type('Product', (), {
+            'elastic_item_number': '',
+            'default_code': 'BASE-8',
+            'elastic_sku': '',
+            'barcode': '',
+            'id': 99,
+            'product_tmpl_id': template,
+        })()
+
+        self.assertEqual(FeatureExporter._item_number(product), 'BASE-8')
