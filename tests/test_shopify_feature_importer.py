@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import hashlib
+
 from odoo.tests.common import TransactionCase
 
 from ..importers.shopify_feature_importer import ShopifyFeatureImporter
@@ -96,3 +98,48 @@ class TestShopifyFeatureImporter(TransactionCase):
         ])
         self.assertEqual(len(assignment), 1)
         self.assertEqual(assignment.source, 'shopify')
+
+    def test_source_key_hashes_long_values(self):
+        value = 'Polarized lens technology ' * 200
+        source_key = ShopifyFeatureImporter._source_key(
+            {'id': 123},
+            self.mapping,
+            value,
+        )
+        expected_hash = hashlib.sha256(value.encode('utf-8')).hexdigest()
+        self.assertEqual(source_key, f'shopify:123:custom.features:{expected_hash}')
+        self.assertLess(len(source_key), 100)
+
+    def test_upsert_assignment_updates_legacy_source_key(self):
+        importer = self._build_importer()
+        shopify_product = {'id': 123}
+        value = 'Narrow temples'
+        legacy_source_key = ShopifyFeatureImporter._legacy_source_key(
+            shopify_product,
+            self.mapping,
+            value,
+        )
+        assignment = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': self.feature.id,
+            'value_text': value,
+            'source': 'shopify',
+            'source_key': legacy_source_key,
+            'sequence': 1,
+        })
+
+        created = importer._upsert_assignment(
+            self.template,
+            self.mapping,
+            shopify_product,
+            value,
+            2,
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(assignment.source_key, ShopifyFeatureImporter._source_key(
+            shopify_product,
+            self.mapping,
+            value,
+        ))
+        self.assertEqual(assignment.sequence, 2)

@@ -251,7 +251,7 @@ class ElasticProductFeatureAssignment(models.Model):
     _sql_constraints = [
         (
             'source_key_unique',
-            'UNIQUE(product_tmpl_id, product_id, feature_id, value_text, source_key)',
+            'UNIQUE(source_key)',
             'This feature assignment already exists for the product and source.',
         ),
     ]

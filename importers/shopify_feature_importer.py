@@ -6,6 +6,7 @@ Pulls configured Shopify product fields/metafields and upserts
 elastic.product.feature.assignment rows for the features.csv exporter.
 """
 import html
+import hashlib
 import json
 import logging
 import re
@@ -202,6 +203,16 @@ class ShopifyFeatureImporter:
             source = mapping.product_field_name
         else:
             source = f'{mapping.metafield_namespace}.{mapping.metafield_key}'
+        value_hash = hashlib.sha256((value or '').encode('utf-8')).hexdigest()
+        return f'shopify:{product_id}:{source}:{value_hash}'
+
+    @staticmethod
+    def _legacy_source_key(shopify_product, mapping, value):
+        product_id = shopify_product.get('id') or ''
+        if mapping.source_type == 'product_field':
+            source = mapping.product_field_name
+        else:
+            source = f'{mapping.metafield_namespace}.{mapping.metafield_key}'
         return f'shopify:{product_id}:{source}:{value}'
 
     def _upsert_assignment(self, template, mapping, shopify_product, value, sequence):
@@ -210,7 +221,12 @@ class ShopifyFeatureImporter:
         if not value:
             return False
         source_key = self._source_key(shopify_product, mapping, value)
-        assignment = Assignment.search([('source_key', '=', source_key)], limit=1)
+        legacy_source_key = self._legacy_source_key(shopify_product, mapping, value)
+        assignment = Assignment.search([
+            '|',
+            ('source_key', '=', source_key),
+            ('source_key', '=', legacy_source_key),
+        ], limit=1)
         vals = {
             'product_tmpl_id': template.id,
             'feature_id': mapping.feature_id.id,
