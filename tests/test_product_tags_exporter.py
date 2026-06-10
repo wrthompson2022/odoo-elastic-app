@@ -91,6 +91,16 @@ class TestProductTagsExporter(TransactionCase):
         exporter = self._build_exporter()
         self.assertEqual(exporter._color_code(self.product), 'BLACK')
 
+    def test_export_domain_honors_template_and_variant_sync_flags(self):
+        self.config.export_only_synced_products = True
+        exporter = self._build_exporter()
+
+        self.assertIn(('elastic_sync_enabled', '=', True), exporter.get_export_domain())
+        self.assertIn(
+            ('product_tmpl_id.elastic_sync_enabled', '=', True),
+            exporter.get_export_domain(),
+        )
+
     def test_only_five_active_tag_mappings_are_allowed(self):
         field_id = self._field('product.product', 'default_code').id
         for index in range(5):

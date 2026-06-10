@@ -114,7 +114,7 @@
                             </field>
                         </page>
                         <page string="Variants" name="variants">
-                            <field name="variant_ids" domain="[('active', '=', True), ('sale_ok', '=', True)]">
+                            <field name="variant_ids" domain="[('active', '=', True), ('sale_ok', '=', True), ('elastic_sync_enabled', '=', True), ('product_tmpl_id.elastic_sync_enabled', '=', True)]">
                                 <list>
                                     <field name="product_tmpl_id"/>
                                     <field name="default_code"/>

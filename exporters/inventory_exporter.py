@@ -38,6 +38,7 @@ class InventoryExporter(BaseExporter):
         # Optionally filter to only synced products
         if self.config.export_only_synced_products:
             domain.append(('elastic_sync_enabled', '=', True))
+            domain.append(('product_tmpl_id.elastic_sync_enabled', '=', True))
 
         return domain
 

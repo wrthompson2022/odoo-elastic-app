@@ -43,6 +43,16 @@ class TestPriceExporter(TransactionCase):
         self.assertEqual(price, 100.0)
         self.assertEqual(retail, 100.0)
 
+    def test_export_domain_honors_template_and_variant_sync_flags(self):
+        self.config.export_only_synced_products = True
+        exporter = self._build_exporter()
+
+        self.assertIn(('elastic_sync_enabled', '=', True), exporter.get_export_domain())
+        self.assertIn(
+            ('product_tmpl_id.elastic_sync_enabled', '=', True),
+            exporter.get_export_domain(),
+        )
+
     def test_iterates_over_enabled_pricelists(self):
         wholesale = self.env['product.pricelist'].create({
             'name': 'Wholesale Tier',

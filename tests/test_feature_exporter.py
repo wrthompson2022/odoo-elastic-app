@@ -61,6 +61,24 @@ class TestFeatureExporter(TransactionCase):
         self.assertEqual(products, self.product)
         self.assertEqual(exporter._item_number(self.product), 'FE-001')
 
+    def test_synced_product_filter_skips_disabled_template(self):
+        self.config.export_only_synced_products = True
+        self.template.elastic_sync_enabled = False
+
+        exporter = self._build_exporter()
+        products = exporter._products_for_assignment(self.assignment)
+
+        self.assertFalse(products)
+
+    def test_synced_product_filter_skips_disabled_variant(self):
+        self.config.export_only_synced_products = True
+        self.product.elastic_sync_enabled = False
+
+        exporter = self._build_exporter()
+        products = exporter._products_for_assignment(self.assignment)
+
+        self.assertFalse(products)
+
     def test_attribute_name_sort_uses_assignment_sequence(self):
         exporter = self._build_exporter()
         rows = exporter._build_data_rows(self.assignment)

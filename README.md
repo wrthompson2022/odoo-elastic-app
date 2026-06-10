@@ -45,18 +45,18 @@ This Odoo 18.0 module provides comprehensive integration with Elastic B2B throug
 #### 4. Custom Fields on Products
 **Product Template (`product.template`):**
 - `elastic_sync_enabled` - Enable/disable sync per product
-- `elastic_last_sync` - Timestamp tracking
 - `elastic_product_id` - Template-level Elastic ItemNumber / style number
 - `elastic_catalog_ids` - Catalog assignments
 - `elastic_features` - Optional product tag source text
-- `elastic_notes` - Integration notes
 
 **Product Variant (`product.product`):**
 - `elastic_sync_enabled` - Variant-level sync control
-- `elastic_last_sync` - Variant sync timestamp
-- `elastic_variant_id` - External variant ID
+- `elastic_last_sync` - Last successful variant export timestamp
 - `elastic_sku` - Elastic-specific SKU
-- `elastic_variant_attributes` - Variant attributes
+- `elastic_item_number` - Variant-level ItemNumber fallback when the template style number is blank
+- `elastic_stock_item_key` - Stable StockItemKey override for product, price, inventory, and order matching
+- `elastic_product_permission_group` - Variant-level permission group override
+- `elastic_available_date` - Variant-level available date override
 
 #### 5. Custom Fields on Customers (`res.partner`)
 - `elastic_sync_enabled` - Enable/disable customer sync
@@ -247,6 +247,11 @@ When upgrading to **18.0.1.2.0** or later:
 
 You can confirm a connection's stored key via the read-only
 **Host Key Fingerprint** field on the connection form.
+
+When upgrading to **18.0.1.2.2** or later, the module removes obsolete
+product fields that were never consumed by the current exporters/importers:
+template sync timestamps, template Elastic notes, variant external IDs, and
+free-form variant attribute text. Variant export timestamps remain in place.
 
 ### Pricelists / Price Groups
 Each `product.pricelist` carries a **Send to Elastic** flag and an optional

@@ -56,8 +56,16 @@ class FeatureExporter(BaseExporter):
         return product._get_elastic_item_number()
 
     def _products_for_assignment(self, assignment):
+        if (
+            self.config.export_only_synced_products
+            and not assignment.product_tmpl_id.elastic_sync_enabled
+        ):
+            return self.env['product.product'].browse()
         if assignment.product_id:
-            return assignment.product_id
+            products = assignment.product_id
+            if self.config.export_only_synced_products:
+                products = products.filtered('elastic_sync_enabled')
+            return products
         products = assignment.product_tmpl_id.product_variant_ids.filtered(lambda p: p.active)
         if self.config.export_only_synced_products:
             products = products.filtered('elastic_sync_enabled')

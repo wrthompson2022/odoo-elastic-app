@@ -13,11 +13,6 @@ class ProductTemplate(models.Model):
         default=True,
         help='Enable to include this product in Elastic exports'
     )
-    elastic_last_sync = fields.Datetime(
-        string='Last Synced to Elastic',
-        readonly=True,
-        help='Timestamp of the last successful sync to Elastic'
-    )
     elastic_product_id = fields.Char(
         string='Elastic ItemNumber',
         help='Style-level ItemNumber sent to Elastic exports.'
@@ -53,35 +48,10 @@ class ProductTemplate(models.Model):
         string='Elastic Product Tag Text',
         help='Optional text field that can be selected by Product Tag Mappings.'
     )
-    elastic_notes = fields.Text(
-        string='Elastic Notes',
-        help='Additional notes or special instructions for Elastic integration'
-    )
 
     # ============================================
     # Helper Methods
     # ============================================
-    def action_sync_to_elastic(self):
-        """Manual sync action to push product to Elastic"""
-        for record in self:
-            if not record.elastic_sync_enabled:
-                continue
-
-            # This will be implemented in Phase 2 when we create the product exporter
-            # For now, just mark as synced
-            record.elastic_last_sync = fields.Datetime.now()
-
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': 'Sync Initiated',
-                'message': f'{len(self)} product(s) marked for Elastic sync',
-                'type': 'success',
-                'sticky': False,
-            }
-        }
-
     def _get_elastic_item_number(self):
         self.ensure_one()
         return self.elastic_product_id or self.default_code or ''

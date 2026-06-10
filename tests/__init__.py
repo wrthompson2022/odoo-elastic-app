@@ -7,6 +7,7 @@ from . import test_product_tags_exporter
 from . import test_feature_exporter
 from . import test_shopify_feature_importer
 from . import test_price_exporter
+from . import test_inventory_exporter
 from . import test_customer_xref
 from . import test_sftp_service
 from . import test_location_exporter
