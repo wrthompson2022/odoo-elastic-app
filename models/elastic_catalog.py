@@ -98,7 +98,14 @@ class ElasticCatalog(models.Model):
         'product_template_elastic_catalog_rel',
         'catalog_id',
         'product_id',
-        string='Products'
+        string='Product Templates'
+    )
+    variant_ids = fields.Many2many(
+        'product.product',
+        'product_product_elastic_catalog_rel',
+        'catalog_id',
+        'product_id',
+        string='Product Variants'
     )
     partner_ids = fields.Many2many(
         'res.partner',
@@ -108,7 +115,8 @@ class ElasticCatalog(models.Model):
         string='Customers'
     )
 
-    product_count = fields.Integer(string='Product Count', compute='_compute_product_count', store=True)
+    product_count = fields.Integer(string='Product Template Count', compute='_compute_product_count', store=True)
+    variant_count = fields.Integer(string='Variant Count', compute='_compute_variant_count', store=True)
     partner_count = fields.Integer(string='Customer Count', compute='_compute_partner_count', store=True)
 
     _sql_constraints = [
@@ -119,6 +127,11 @@ class ElasticCatalog(models.Model):
     def _compute_product_count(self):
         for record in self:
             record.product_count = len(record.product_ids)
+
+    @api.depends('variant_ids')
+    def _compute_variant_count(self):
+        for record in self:
+            record.variant_count = len(record.variant_ids)
 
     @api.depends('partner_ids')
     def _compute_partner_count(self):
@@ -132,11 +145,10 @@ class ElasticCatalog(models.Model):
 
     def _get_exportable_mapping_products(self):
         self.ensure_one()
-        products = self.product_ids.mapped('product_variant_ids')
+        products = self.product_ids.mapped('product_variant_ids') | self.variant_ids
         return products.filtered(
             lambda product: product.active
             and product.sale_ok
-            and product.elastic_sync_enabled
             and product._get_elastic_item_number()
         )
 
@@ -207,7 +219,11 @@ class ElasticCatalog(models.Model):
                     for index, row in enumerate(rows, start=1)
                 ],
             })
-        return self._mapping_notification(_('Catalog mappings generated.'))
+        row_count = sum(len(catalog.mapping_line_ids) for catalog in self)
+        return self._mapping_notification(
+            _('Catalog mappings generated: %s row(s).') % row_count,
+            reload_view=True,
+        )
 
     def action_import_mapping_upload(self):
         for catalog in self:
@@ -247,7 +263,11 @@ class ElasticCatalog(models.Model):
                 'mapping_source': 'uploaded',
                 'mapping_line_ids': lines,
             })
-        return self._mapping_notification(_('Uploaded catalog mapping loaded.'))
+        row_count = sum(len(catalog.mapping_line_ids) for catalog in self)
+        return self._mapping_notification(
+            _('Uploaded catalog mapping loaded: %s row(s).') % row_count,
+            reload_view=True,
+        )
 
     @api.model
     def generate_active_catalog_mapping_lines(self):
@@ -255,17 +275,20 @@ class ElasticCatalog(models.Model):
         catalogs.action_generate_mapping_lines()
         return len(catalogs)
 
-    def _mapping_notification(self, message):
-        return {
+    def _mapping_notification(self, message, notification_type='success', reload_view=False):
+        action = {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Catalog Mapping'),
                 'message': message,
-                'type': 'success',
+                'type': notification_type,
                 'sticky': False,
             }
         }
+        if reload_view:
+            action['params']['next'] = {'type': 'ir.actions.client', 'tag': 'reload'}
+        return action
 
 
 class ElasticCatalogMappingLine(models.Model):

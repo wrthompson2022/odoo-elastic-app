@@ -128,9 +128,10 @@ class TestCatalogMappingExporter(TransactionCase):
             'product_ids': [(6, 0, [template.id])],
         })
 
-        catalog.action_generate_mapping_lines()
+        result = catalog.action_generate_mapping_lines()
         rows = self._build_exporter()._build_data_rows(catalog)
 
+        self.assertEqual(result['params']['next']['tag'], 'reload')
         self.assertEqual(
             sorted(rows),
             [
@@ -138,6 +139,23 @@ class TestCatalogMappingExporter(TransactionCase):
                 ['DUCKS', 1, 'FRAME-BLU', '5KF'],
             ],
         )
+
+    def test_generate_mapping_lines_supports_direct_variants(self):
+        product = self.env['product.product'].create({
+            'name': 'Direct Variant',
+            'default_code': 'DIRECT-001',
+            'sale_ok': True,
+        })
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Variant Catalog',
+            'code': 'VAR',
+            'variant_ids': [(6, 0, [product.id])],
+        })
+
+        catalog.action_generate_mapping_lines()
+        rows = self._build_exporter()._build_data_rows(catalog)
+
+        self.assertEqual(rows, [['VAR', 1, 'DIRECT-001', '']])
 
     def test_uploaded_mapping_preserves_file_order(self):
         catalog = self.env['elastic.catalog'].create({

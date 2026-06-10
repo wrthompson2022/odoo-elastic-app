@@ -24,6 +24,7 @@
                             <field name="catalog_mapping_position"/>
                             <field name="review_flag"/>
                             <field name="product_count"/>
+                            <field name="variant_count"/>
                             <field name="partner_count"/>
                             <field name="mapping_line_count"/>
                         </group>
@@ -103,12 +104,23 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Products" name="products">
+                        <page string="Product Templates" name="products">
                             <field name="product_ids" domain="[('elastic_sync_enabled', '=', True)]">
                                 <list>
                                     <field name="name"/>
                                     <field name="default_code"/>
                                     <field name="list_price"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Variants" name="variants">
+                            <field name="variant_ids" domain="[('active', '=', True), ('sale_ok', '=', True)]">
+                                <list>
+                                    <field name="product_tmpl_id"/>
+                                    <field name="default_code"/>
+                                    <field name="barcode"/>
+                                    <field name="elastic_item_number"/>
+                                    <field name="elastic_sync_enabled"/>
                                 </list>
                             </field>
                         </page>
@@ -142,6 +154,7 @@
                 <field name="mapping_source"/>
                 <field name="mapping_line_count"/>
                 <field name="product_count"/>
+                <field name="variant_count"/>
                 <field name="partner_count"/>
                 <field name="active"/>
             </list>
