@@ -27,8 +27,8 @@ class ProductProduct(models.Model):
         help='SKU used for Elastic (if different from internal reference)'
     )
     elastic_item_number = fields.Char(
-        string='Elastic Item Number',
-        help='Stable ItemNumber sent to Elastic. Falls back to internal reference/SKU.'
+        string='Elastic ItemNumber Override',
+        help='Variant-specific ItemNumber override. Falls back to the product template Elastic ItemNumber.'
     )
     elastic_stock_item_key = fields.Char(
         string='Elastic Stock Item Key',
@@ -76,3 +76,14 @@ class ProductProduct(models.Model):
         self.ensure_one()
         # Use elastic_sku if set, otherwise fall back to default_code
         return self.elastic_sku or self.default_code or ''
+
+    def _get_elastic_item_number(self):
+        self.ensure_one()
+        return (
+            self.product_tmpl_id.elastic_product_id
+            or self.elastic_item_number
+            or self.default_code
+            or self.elastic_sku
+            or self.product_tmpl_id.default_code
+            or ''
+        )

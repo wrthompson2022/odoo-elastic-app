@@ -66,6 +66,8 @@ class _TextHTMLParser(HTMLParser):
 
 
 class ShopifyFeatureImporter:
+    SINGLE_VALUE_FEATURES = {'description'}
+
     def __init__(self, env, connection):
         self.env = env
         self.connection = connection
@@ -181,13 +183,17 @@ class ShopifyFeatureImporter:
     def _normalize_value(value):
         return ' '.join(html.unescape(value or '').split()).strip()
 
+    @classmethod
+    def _value_key(cls, value):
+        return cls._normalize_value(value).casefold()
+
     @staticmethod
     def _dedupe_values(values):
         seen = set()
         deduped = []
         for value in values or []:
             normalized = ShopifyFeatureImporter._normalize_value(value)
-            key = normalized.casefold()
+            key = ShopifyFeatureImporter._value_key(normalized)
             if normalized and key not in seen:
                 seen.add(key)
                 deduped.append(normalized)
@@ -355,6 +361,19 @@ class ShopifyFeatureImporter:
     def _legacy_source_key(shopify_product, mapping, value):
         return f'{ShopifyFeatureImporter._legacy_source_key_prefix(shopify_product, mapping)}{value}'
 
+    @classmethod
+    def _is_single_value_feature(cls, feature):
+        return (feature.name or '').strip().casefold() in cls.SINGLE_VALUE_FEATURES
+
+    @staticmethod
+    def _assignment_priority(assignment, current_source_keys=None):
+        current_source_keys = current_source_keys or set()
+        return (
+            0 if assignment.source_key in current_source_keys else 1,
+            assignment.sequence or 0,
+            assignment.id or 0,
+        )
+
     def _upsert_assignment(self, template, mapping, shopify_product, value, sequence):
         Assignment = self.env['elastic.product.feature.assignment'].with_context(active_test=False)
         value = self._normalize_value(value)
@@ -374,7 +393,7 @@ class ShopifyFeatureImporter:
             ('source', '=', 'shopify'),
         ]
         duplicates = Assignment.search(duplicate_domain).filtered(
-            lambda record: self._normalize_value(record.value_text).casefold() == value.casefold()
+            lambda record: self._value_key(record.value_text) == self._value_key(value)
         )
         if not assignment and duplicates:
             assignment = duplicates[:1]
@@ -398,7 +417,7 @@ class ShopifyFeatureImporter:
 
     def _cleanup_stale_assignments(self, template, mapping, shopify_product, values):
         Assignment = self.env['elastic.product.feature.assignment'].with_context(active_test=False)
-        current_values = {self._normalize_value(value).casefold() for value in values if value}
+        current_values = {self._value_key(value) for value in values if value}
         source_prefixes = (
             self._source_key_prefix(shopify_product, mapping),
             self._legacy_source_key_prefix(shopify_product, mapping),
@@ -413,11 +432,60 @@ class ShopifyFeatureImporter:
             lambda assignment: (
                 assignment.source_key
                 and any(assignment.source_key.startswith(prefix) for prefix in source_prefixes)
-                and self._normalize_value(assignment.value_text).casefold() not in current_values
+                and self._value_key(assignment.value_text) not in current_values
             )
         )
         stale.unlink()
         return len(stale)
+
+    def _consolidate_product_assignments(self, template, current_source_keys=None):
+        current_source_keys = current_source_keys or set()
+        Assignment = self.env['elastic.product.feature.assignment'].with_context(active_test=False)
+        removed_count = 0
+        assignments = Assignment.search([
+            ('product_tmpl_id', '=', template.id),
+            ('product_id', '=', False),
+            ('source', '=', 'shopify'),
+        ])
+        by_feature = {}
+        for assignment in assignments:
+            by_feature.setdefault(assignment.feature_id.id, []).append(assignment)
+
+        for feature_assignments in by_feature.values():
+            if not feature_assignments:
+                continue
+            feature = feature_assignments[0].feature_id
+            if self._is_single_value_feature(feature):
+                keep = min(
+                    feature_assignments,
+                    key=lambda assignment: self._assignment_priority(assignment, current_source_keys),
+                )
+                stale = Assignment.browse([assignment.id for assignment in feature_assignments if assignment != keep])
+                if stale:
+                    removed_count += len(stale)
+                    stale.unlink()
+                continue
+
+            seen = {}
+            stale_ids = []
+            for assignment in sorted(
+                feature_assignments,
+                key=lambda record: self._assignment_priority(record, current_source_keys),
+            ):
+                value_key = self._value_key(assignment.value_text)
+                if not value_key:
+                    stale_ids.append(assignment.id)
+                    continue
+                if value_key in seen:
+                    stale_ids.append(assignment.id)
+                    continue
+                seen[value_key] = assignment.id
+            if stale_ids:
+                stale = Assignment.browse(stale_ids)
+                removed_count += len(stale)
+                stale.unlink()
+
+        return removed_count
 
     def _extract_mapping_value(self, shopify_product, metafields, mapping):
         if mapping.source_type == 'product_field':
@@ -440,12 +508,14 @@ class ShopifyFeatureImporter:
                     continue
                 product_count += 1
                 metafields = None
+                current_source_keys = set()
                 for mapping in mappings:
                     if mapping.source_type == 'metafield' and metafields is None:
                         metafields = self._metafields_for_product(shopify_product.get('id'))
                     raw_value = self._extract_mapping_value(shopify_product, metafields or {}, mapping)
                     values = self.parse_value(raw_value, mapping.parser)
                     for sequence, value in enumerate(values, start=1):
+                        current_source_keys.add(self._source_key(shopify_product, mapping, value))
                         if self._upsert_assignment(template, mapping, shopify_product, value, sequence):
                             created_count += 1
                     stale_count += self._cleanup_stale_assignments(
@@ -454,6 +524,7 @@ class ShopifyFeatureImporter:
                         shopify_product,
                         values,
                     )
+                stale_count += self._consolidate_product_assignments(template, current_source_keys)
 
         return {
             'success': True,

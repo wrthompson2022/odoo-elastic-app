@@ -76,14 +76,21 @@ class TestProductExporter(TransactionCase):
         exporter.sftp_service = MagicMock()
         return exporter
 
-    def test_explicit_product_keys_win(self):
+    def test_template_item_number_wins_over_variant_item_number(self):
+        self.template.elastic_product_id = 'STYLE-ELASTIC'
         self.product.write({
             'elastic_item_number': 'ITEM-ELASTIC',
             'elastic_stock_item_key': 'STOCK-ELASTIC',
         })
         exporter = self._build_exporter()
-        self.assertEqual(exporter._get_item_number(self.product), 'ITEM-ELASTIC')
+        self.assertEqual(exporter._get_item_number(self.product), 'STYLE-ELASTIC')
         self.assertEqual(exporter._get_stock_item_key(self.product), 'STOCK-ELASTIC')
+
+    def test_variant_item_number_is_fallback_when_template_blank(self):
+        self.product.elastic_item_number = 'ITEM-ELASTIC'
+        exporter = self._build_exporter()
+
+        self.assertEqual(exporter._get_item_number(self.product), 'ITEM-ELASTIC')
 
     def test_linked_color_metadata_wins_over_truncated_attribute_name(self):
         exporter = self._build_exporter()

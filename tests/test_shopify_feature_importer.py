@@ -290,6 +290,104 @@ class TestShopifyFeatureImporter(TransactionCase):
         ])
         self.assertFalse(stale)
 
+    def test_consolidate_product_assignments_keeps_one_description(self):
+        importer = self._build_importer()
+        description = self.env['elastic.feature'].create({
+            'name': 'Description',
+            'code': 'DESCRIPTION',
+        })
+        keep = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': description.id,
+            'value_text': 'First description',
+            'source': 'shopify',
+            'source_key': 'shopify:123:%s:body_html:first' % description.id,
+            'sequence': 1,
+        })
+        self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': description.id,
+            'value_text': 'Second description',
+            'source': 'shopify',
+            'source_key': 'shopify:123:%s:description:second' % description.id,
+            'sequence': 1,
+        })
+
+        removed = importer._consolidate_product_assignments(self.template)
+
+        self.assertEqual(removed, 1)
+        descriptions = self.env['elastic.product.feature.assignment'].search([
+            ('product_tmpl_id', '=', self.template.id),
+            ('feature_id', '=', description.id),
+            ('source', '=', 'shopify'),
+        ])
+        self.assertEqual(descriptions, keep)
+
+    def test_consolidate_product_assignments_prefers_current_description_source(self):
+        importer = self._build_importer()
+        description = self.env['elastic.feature'].create({
+            'name': 'Description',
+            'code': 'DESCRIPTION',
+        })
+        self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': description.id,
+            'value_text': 'Stale description',
+            'source': 'shopify',
+            'source_key': 'shopify:123:%s:old.description:stale' % description.id,
+            'sequence': 1,
+        })
+        current = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': description.id,
+            'value_text': 'Current description',
+            'source': 'shopify',
+            'source_key': 'shopify:123:%s:body_html:current' % description.id,
+            'sequence': 1,
+        })
+
+        removed = importer._consolidate_product_assignments(
+            self.template,
+            {current.source_key},
+        )
+
+        self.assertEqual(removed, 1)
+        descriptions = self.env['elastic.product.feature.assignment'].search([
+            ('product_tmpl_id', '=', self.template.id),
+            ('feature_id', '=', description.id),
+            ('source', '=', 'shopify'),
+        ])
+        self.assertEqual(descriptions, current)
+
+    def test_consolidate_product_assignments_removes_exact_duplicate_values(self):
+        importer = self._build_importer()
+        keep = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': self.feature.id,
+            'value_text': 'Keeper holes',
+            'source': 'shopify',
+            'source_key': 'shopify:123:%s:custom.features:one' % self.feature.id,
+            'sequence': 1,
+        })
+        self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': self.template.id,
+            'feature_id': self.feature.id,
+            'value_text': ' Keeper holes ',
+            'source': 'shopify',
+            'source_key': 'shopify:123:%s:custom.more_features:two' % self.feature.id,
+            'sequence': 2,
+        })
+
+        removed = importer._consolidate_product_assignments(self.template)
+
+        self.assertEqual(removed, 1)
+        assignments = self.env['elastic.product.feature.assignment'].search([
+            ('product_tmpl_id', '=', self.template.id),
+            ('feature_id', '=', self.feature.id),
+            ('source', '=', 'shopify'),
+        ])
+        self.assertEqual(assignments, keep)
+
     def test_source_key_hashes_long_values(self):
         value = 'Polarized lens technology ' * 200
         source_key = ShopifyFeatureImporter._source_key(

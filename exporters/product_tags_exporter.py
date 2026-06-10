@@ -172,9 +172,9 @@ class ProductTagsExporter(BaseExporter):
 
             data_rows = []
             for product in products:
-                if not (product.elastic_item_number or product.default_code or product.barcode):
+                item_number = product._get_elastic_item_number()
+                if not item_number:
                     continue
-                item_number = product.elastic_item_number or product.default_code or product.barcode
                 color_code = self._color_code(product)
 
                 for tag_name, tag_value in self._iter_tag_rows(product, mappings=mappings):

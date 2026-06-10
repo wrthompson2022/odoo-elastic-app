@@ -19,8 +19,8 @@ class ProductTemplate(models.Model):
         help='Timestamp of the last successful sync to Elastic'
     )
     elastic_product_id = fields.Char(
-        string='Elastic Product ID',
-        help='External product identifier in Elastic system'
+        string='Elastic ItemNumber',
+        help='Style-level ItemNumber sent to Elastic exports.'
     )
     shopify_product_id = fields.Char(
         string='Shopify Product ID',
@@ -81,3 +81,7 @@ class ProductTemplate(models.Model):
                 'sticky': False,
             }
         }
+
+    def _get_elastic_item_number(self):
+        self.ensure_one()
+        return self.elastic_product_id or self.default_code or ''

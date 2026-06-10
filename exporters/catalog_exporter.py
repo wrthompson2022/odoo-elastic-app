@@ -214,8 +214,9 @@ class CatalogMappingExporter(BaseExporter):
                 catalog_position = catalog.id
 
                 for product in catalog.product_ids:
-                    # Get the item number (default_code or ID)
-                    item_number = product.default_code or str(product.id)
+                    item_number = product._get_elastic_item_number()
+                    if not item_number:
+                        continue
 
                     # Get color code from first variant
                     color_code = self._get_color_code(product)

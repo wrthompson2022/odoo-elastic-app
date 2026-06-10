@@ -97,85 +97,49 @@ class TestFeatureExporter(TransactionCase):
         self.assertEqual([row[1] for row in rows], ['AA-001', 'FE-001', 'FE-001'])
         self.assertEqual([row[3] for row in rows], [30, 10, 40])
 
-    def test_item_number_uses_base_style_for_color_size_sku(self):
-        category = type('Category', (), {
-            'name': 'Apparel - Hats',
-            'complete_name': 'Apparel / Hats',
-        })()
-        template = type('Template', (), {
-            'default_code': '',
-            'categ_id': category,
-        })()
+    def test_item_number_uses_product_helper(self):
         product = type('Product', (), {
-            'elastic_item_number': '',
-            'default_code': 'ANGLERCFB-5KF-ON SIZE',
-            'elastic_sku': '',
-            'barcode': '',
-            'id': 99,
-            'product_tmpl_id': template,
-            'categ_id': category,
+            '_get_elastic_item_number': lambda self: 'ANGLERCFB',
         })()
 
         self.assertEqual(FeatureExporter._item_number(product), 'ANGLERCFB')
 
-    def test_item_number_keeps_sunglass_internal_reference(self):
-        category = type('Category', (), {
-            'name': 'Sunglasses',
-            'complete_name': 'Sunglasses',
-        })()
-        template = type('Template', (), {
-            'default_code': '',
-            'categ_id': category,
-        })()
-        product = type('Product', (), {
-            'elastic_item_number': '',
-            'default_code': 'BAL-081-010',
-            'elastic_sku': '',
-            'barcode': '',
-            'id': 99,
-            'product_tmpl_id': template,
-            'categ_id': category,
-        })()
+    def test_model_item_number_uses_template_elastic_item_number(self):
+        self.template.elastic_product_id = 'ANGLERCFB'
+        self.product.default_code = 'ANGLERCFB-5KF-ON SIZE'
 
-        self.assertEqual(FeatureExporter._item_number(product), 'BAL-081-010')
+        self.assertEqual(self.product._get_elastic_item_number(), 'ANGLERCFB')
 
-    def test_item_number_keeps_two_part_sku(self):
-        category = type('Category', (), {
-            'name': 'Sunglasses',
-            'complete_name': 'Sunglasses',
-        })()
-        template = type('Template', (), {
-            'default_code': '',
-            'categ_id': category,
-        })()
-        product = type('Product', (), {
-            'elastic_item_number': '',
-            'default_code': 'BASE-8',
-            'elastic_sku': '',
-            'barcode': '',
-            'id': 99,
-            'product_tmpl_id': template,
-            'categ_id': category,
-        })()
+    def test_model_item_number_prefers_template_mapping_over_variant_override(self):
+        self.template.elastic_product_id = 'ANGLERCFB'
+        self.product.elastic_item_number = 'ANGLERCFB-OVERRIDE'
 
-        self.assertEqual(FeatureExporter._item_number(product), 'BASE-8')
+        self.assertEqual(self.product._get_elastic_item_number(), 'ANGLERCFB')
+
+    def test_model_item_number_uses_variant_override_when_template_blank(self):
+        self.product.elastic_item_number = 'ANGLERCFB-OVERRIDE'
+
+        self.assertEqual(self.product._get_elastic_item_number(), 'ANGLERCFB-OVERRIDE')
+
+    def test_model_item_number_falls_back_to_internal_reference(self):
+        self.product.default_code = 'BAL-081-010'
+
+        self.assertEqual(self.product._get_elastic_item_number(), 'BAL-081-010')
+
+    def test_model_item_number_prefers_variant_reference_over_template_default_code(self):
+        self.template.default_code = 'BAL'
+        self.product.default_code = 'BAL-081-010'
+
+        self.assertEqual(self.product._get_elastic_item_number(), 'BAL-081-010')
 
     def test_item_number_does_not_fall_back_to_odoo_id_or_barcode(self):
-        template = type('Template', (), {
-            'default_code': '',
-            'categ_id': None,
-        })()
-        product = type('Product', (), {
-            'elastic_item_number': '',
-            'default_code': '',
-            'elastic_sku': '',
-            'barcode': '840290927805',
-            'id': 44101,
-            'product_tmpl_id': template,
-            'categ_id': None,
-        })()
+        self.template.elastic_product_id = False
+        self.product.elastic_item_number = False
+        self.product.default_code = False
+        self.product.elastic_sku = False
+        self.product.barcode = '840290927805'
 
-        self.assertFalse(FeatureExporter._item_number(product))
+        self.assertFalse(self.product._get_elastic_item_number())
 
     def test_description_exports_once_per_item_number(self):
         description_feature = self.env['elastic.feature'].create({

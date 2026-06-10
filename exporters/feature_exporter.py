@@ -20,16 +20,6 @@ class FeatureExporter(BaseExporter):
     Headers: Region,ItemNumber,AttributeName,AttributeNameSort,AttributeValue,AttributeValueSort
     """
     SINGLE_VALUE_ATTRIBUTES = {'description'}
-    BASE_STYLE_CATEGORY_TOKENS = (
-        'accessor',
-        'apparel',
-        'cap',
-        'clothing',
-        'hat',
-        'hoodie',
-        'shirt',
-        'tee',
-    )
 
     def get_export_type(self):
         return 'feature'
@@ -62,53 +52,8 @@ class FeatureExporter(BaseExporter):
         return {}
 
     @staticmethod
-    def _base_style_number(value):
-        value = (value or '').strip()
-        if not value:
-            return ''
-        parts = [part.strip() for part in value.split('-')]
-        if len(parts) >= 3 and all(parts):
-            return parts[0]
-        return value
-
-    @classmethod
-    def _item_number(cls, product):
-        if product.elastic_item_number:
-            return product.elastic_item_number
-
-        template = product.product_tmpl_id
-        product_code = product.default_code or product.elastic_sku or ''
-        template_code = template.default_code or ''
-        if cls._uses_base_style_item_number(product):
-            return template_code or cls._base_style_number(product_code)
-
-        return product_code or template_code
-
-    @classmethod
-    def _uses_base_style_item_number(cls, product):
-        category_text = ' '.join(cls._category_names(product)).casefold()
-        return any(token in category_text for token in cls.BASE_STYLE_CATEGORY_TOKENS)
-
-    @staticmethod
-    def _category_names(product):
-        template = getattr(product, 'product_tmpl_id', None)
-        categories = [
-            getattr(product, 'categ_id', None),
-            getattr(template, 'categ_id', None),
-        ]
-        names = []
-        for category in categories:
-            if not category:
-                continue
-            names.extend(
-                str(value)
-                for value in (
-                    getattr(category, 'complete_name', ''),
-                    getattr(category, 'name', ''),
-                )
-                if value
-            )
-        return names
+    def _item_number(product):
+        return product._get_elastic_item_number()
 
     def _products_for_assignment(self, assignment):
         if assignment.product_id:

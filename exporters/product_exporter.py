@@ -86,7 +86,7 @@ class ProductExporter(BaseExporter):
         }
 
     def _get_item_number(self, record):
-        return record.elastic_item_number or record.default_code or record.elastic_sku or str(record.id)
+        return record._get_elastic_item_number()
 
     def _get_stock_item_key(self, record):
         return record.elastic_stock_item_key or record.barcode or record.default_code or str(record.id)
@@ -250,15 +250,8 @@ class ProductExporter(BaseExporter):
         Validate and transform product record before export.
         Skip records that don't meet minimum requirements.
         """
-        # Must have either a default_code, barcode, or name
-        if not (
-            record.elastic_item_number
-            or record.elastic_stock_item_key
-            or record.default_code
-            or record.barcode
-            or record.name
-        ):
-            _logger.warning(f"Skipping product {record.id}: missing identifier")
+        if not record._get_elastic_item_number():
+            _logger.warning("Skipping product %s: missing Elastic ItemNumber", record.id)
             return None
 
         return record
