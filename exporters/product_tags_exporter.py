@@ -78,6 +78,8 @@ class ProductTagsExporter(BaseExporter):
         for attr_value in product.product_template_attribute_value_ids:
             if self._is_color_attribute(attr_value.attribute_id.name):
                 value = attr_value.product_attribute_value_id
+                if value.elastic_color_code:
+                    return value.elastic_color_code
                 elastic_color = self.env['elastic.color'].search([
                     '|',
                     ('odoo_attribute_value_id', '=', value.id),

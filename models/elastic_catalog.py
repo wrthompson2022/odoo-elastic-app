@@ -164,6 +164,9 @@ class ElasticCatalog(models.Model):
                 continue
 
             value = attr_value.product_attribute_value_id
+            if value.elastic_color_code:
+                return value.elastic_color_code
+
             elastic_color = self.env['elastic.color'].search([
                 '|',
                 ('odoo_attribute_value_id', '=', value.id),

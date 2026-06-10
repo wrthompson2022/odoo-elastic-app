@@ -157,6 +157,39 @@ class TestCatalogMappingExporter(TransactionCase):
 
         self.assertEqual(rows, [['VAR', 1, 'DIRECT-001', '']])
 
+    def test_generate_mapping_lines_uses_attribute_color_code(self):
+        color_attr = self.env['product.attribute'].create({'name': 'Color'})
+        gray = self.env['product.attribute.value'].create({
+            'name': 'Gray',
+            'attribute_id': color_attr.id,
+            'elastic_color_code': '02A',
+        })
+        self.env['elastic.color'].create({
+            'name': 'Seeded Gray',
+            'code': 'GRA',
+            'odoo_attribute_value_id': gray.id,
+        })
+        template = self.env['product.template'].create({
+            'name': 'Elastic Gray Frame',
+            'sale_ok': True,
+            'attribute_line_ids': [(0, 0, {
+                'attribute_id': color_attr.id,
+                'value_ids': [(6, 0, [gray.id])],
+            })],
+        })
+        product = template.product_variant_ids[:1]
+        product.default_code = 'GRAY-001'
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Gray Catalog',
+            'code': 'GRAY',
+            'product_ids': [(6, 0, [template.id])],
+        })
+
+        catalog.action_generate_mapping_lines()
+        rows = self._build_exporter()._build_data_rows(catalog)
+
+        self.assertEqual(rows, [['GRAY', 1, 'GRAY-001', '02A']])
+
     def test_uploaded_mapping_preserves_file_order(self):
         catalog = self.env['elastic.catalog'].create({
             'name': 'Uploaded Catalog',

@@ -99,6 +99,39 @@ class TestProductExporter(TransactionCase):
         self.assertEqual(exporter._get_color_name(self.product), 'Classic Tortoise')
         self.assertEqual(exporter._get_color_sort(self.product), 30)
 
+    def test_attribute_value_color_metadata_is_fallback(self):
+        amber = self.env['product.attribute.value'].create({
+            'name': 'Amber Gradient',
+            'attribute_id': self.color_attr.id,
+            'elastic_color_code': '2A0',
+            'elastic_color_group': 'BROWN',
+            'elastic_color_name': 'Amber Gradient',
+            'elastic_color_sort_order': 12,
+        })
+        self.env['elastic.color'].create({
+            'name': 'Seeded Amber',
+            'code': 'AMB',
+            'color_group': 'ORANGE',
+            'sort_order': 99,
+            'odoo_attribute_value_id': amber.id,
+        })
+        template = self.env['product.template'].create({
+            'name': 'Elastic Amber Frame',
+            'sale_ok': True,
+            'attribute_line_ids': [(0, 0, {
+                'attribute_id': self.color_attr.id,
+                'value_ids': [(6, 0, [amber.id])],
+            })],
+        })
+        product = template.product_variant_ids[:1]
+
+        exporter = self._build_exporter()
+
+        self.assertEqual(exporter._get_color_code(product), '2A0')
+        self.assertEqual(exporter._get_color_value(product), 'BROWN')
+        self.assertEqual(exporter._get_color_name(product), 'Amber Gradient')
+        self.assertEqual(exporter._get_color_sort(product), 12)
+
     def test_linked_size_metadata_supplies_sort_and_alternate_size(self):
         exporter = self._build_exporter()
         self.assertEqual(exporter._get_size_name(self.product), 'Medium Fit')

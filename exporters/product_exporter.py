@@ -142,19 +142,19 @@ class ProductExporter(BaseExporter):
         Extract color code from product variant attributes.
         Returns the attribute value code for Color attribute.
         """
+        value = self._get_attribute_value(record, self._is_color_attribute)
+        if value and value.elastic_color_code:
+            return value.elastic_color_code
+
         elastic_color = self._get_elastic_color(record)
         if elastic_color:
             return elastic_color.code
 
-        for attr_value in record.product_template_attribute_value_ids:
-            if self._is_color_attribute(attr_value.attribute_id.name):
-                # Try to get a code-like value
-                code = attr_value.product_attribute_value_id.name
-                # If the name is long, try to abbreviate it
-                if len(code) > 5:
-                    # Take first 3 characters and a number if available
-                    return code[:3].upper()
-                return code
+        if value:
+            code = value.name
+            if len(code) > 5:
+                return code[:3].upper()
+            return code
         return ''
 
     def _get_color_value(self, record):
@@ -162,26 +162,32 @@ class ProductExporter(BaseExporter):
         Extract color value from product variant attributes.
         Returns the attribute value name for Color attribute.
         """
+        value = self._get_attribute_value(record, self._is_color_attribute)
+        if value and value.elastic_color_group:
+            return value.elastic_color_group.upper()
+
         elastic_color = self._get_elastic_color(record)
         if elastic_color:
             return (elastic_color.color_group or elastic_color.name).upper()
 
-        for attr_value in record.product_template_attribute_value_ids:
-            if self._is_color_attribute(attr_value.attribute_id.name):
-                return attr_value.product_attribute_value_id.name.upper()
+        if value:
+            return value.name.upper()
         return ''
 
     def _get_color_name(self, record):
         """
         Get the full color name from product variant attributes.
         """
+        value = self._get_attribute_value(record, self._is_color_attribute)
+        if value and value.elastic_color_name:
+            return value.elastic_color_name
+
         elastic_color = self._get_elastic_color(record)
         if elastic_color:
             return elastic_color.name
 
-        for attr_value in record.product_template_attribute_value_ids:
-            if self._is_color_attribute(attr_value.attribute_id.name):
-                return attr_value.product_attribute_value_id.name
+        if value:
+            return value.name
         return ''
 
     def _get_color_sort(self, record):
@@ -189,13 +195,16 @@ class ProductExporter(BaseExporter):
         Get the color sort order from product variant attributes.
         Returns the sequence of the color attribute value or 1.
         """
+        value = self._get_attribute_value(record, self._is_color_attribute)
+        if value and value.elastic_color_sort_order:
+            return value.elastic_color_sort_order
+
         elastic_color = self._get_elastic_color(record)
         if elastic_color:
             return elastic_color.sort_order
 
-        for attr_value in record.product_template_attribute_value_ids:
-            if self._is_color_attribute(attr_value.attribute_id.name):
-                return attr_value.product_attribute_value_id.sequence or 1
+        if value:
+            return value.sequence or 1
         return 1
 
     def _get_available_date(self, record):
@@ -217,13 +226,16 @@ class ProductExporter(BaseExporter):
         Extract size name from product variant attributes.
         Returns the attribute value name for Size attribute.
         """
+        value = self._get_attribute_value(record, self._is_size_attribute)
+        if value and value.elastic_size_name:
+            return value.elastic_size_name
+
         elastic_size = self._get_elastic_size(record)
         if elastic_size:
             return elastic_size.name
 
-        for attr_value in record.product_template_attribute_value_ids:
-            if self._is_size_attribute(attr_value.attribute_id.name):
-                return attr_value.product_attribute_value_id.name
+        if value:
+            return value.name
         return 'ON SIZE'  # Default for products without size
 
     def _get_size_num(self, record):
@@ -231,16 +243,23 @@ class ProductExporter(BaseExporter):
         Get the size sort order from product variant attributes.
         Returns the sequence of the size attribute value or 1.
         """
+        value = self._get_attribute_value(record, self._is_size_attribute)
+        if value and value.elastic_size_sort_order:
+            return value.elastic_size_sort_order
+
         elastic_size = self._get_elastic_size(record)
         if elastic_size:
             return elastic_size.sort_order
 
-        for attr_value in record.product_template_attribute_value_ids:
-            if self._is_size_attribute(attr_value.attribute_id.name):
-                return attr_value.product_attribute_value_id.sequence or 1
+        if value:
+            return value.sequence or 1
         return 1
 
     def _get_alternate_size(self, record):
+        value = self._get_attribute_value(record, self._is_size_attribute)
+        if value and value.elastic_alternate_size:
+            return value.elastic_alternate_size
+
         elastic_size = self._get_elastic_size(record)
         if elastic_size:
             return elastic_size.alternate_size or ''

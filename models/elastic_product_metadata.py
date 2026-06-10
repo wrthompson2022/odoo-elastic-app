@@ -3,6 +3,43 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
+class ProductAttributeValue(models.Model):
+    _inherit = 'product.attribute.value'
+
+    elastic_color_code = fields.Char(
+        string='Elastic Color Code',
+        help='ColorCode sent to Elastic when this attribute value is used as a color.',
+    )
+    elastic_color_group = fields.Char(
+        string='Elastic Color',
+        help='Color/family value sent to Elastic, e.g. BLACK, GRAY, BLUE.',
+    )
+    elastic_color_name = fields.Char(
+        string='Elastic Color Name',
+        help='Display color name sent to Elastic.',
+    )
+    elastic_color_sort_order = fields.Integer(
+        string='Elastic Color Sort',
+        help='ColorSort sent to Elastic. Falls back to the attribute value sequence when blank.',
+    )
+    elastic_size_code = fields.Char(
+        string='Elastic Size Code',
+        help='Stable size code for integrations that need an external size identifier.',
+    )
+    elastic_size_name = fields.Char(
+        string='Elastic Size Name',
+        help='SizeName sent to Elastic.',
+    )
+    elastic_size_sort_order = fields.Integer(
+        string='Elastic Size Sort',
+        help='SizeNum sent to Elastic. Falls back to the attribute value sequence when blank.',
+    )
+    elastic_alternate_size = fields.Char(
+        string='Elastic Alternate Size',
+        help='AlternateSize sent to Elastic.',
+    )
+
+
 class ElasticColor(models.Model):
     _name = 'elastic.color'
     _description = 'Elastic Color'

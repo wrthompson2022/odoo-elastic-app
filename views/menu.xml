@@ -36,48 +36,54 @@
               action="action_elastic_color"
               sequence="4"/>
 
+    <menuitem id="menu_elastic_attribute_values"
+              name="Attribute Values"
+              parent="menu_elastic_configuration"
+              action="action_elastic_attribute_value"
+              sequence="5"/>
+
     <menuitem id="menu_elastic_size_scales"
               name="Size Scales"
               parent="menu_elastic_configuration"
               action="action_elastic_size_scale"
-              sequence="5"/>
+              sequence="6"/>
 
     <menuitem id="menu_elastic_size_values"
               name="Size Values"
               parent="menu_elastic_configuration"
               action="action_elastic_size_value"
-              sequence="6"/>
+              sequence="7"/>
 
     <menuitem id="menu_elastic_features"
               name="Features"
               parent="menu_elastic_configuration"
               action="action_elastic_feature"
-              sequence="7"/>
+              sequence="8"/>
 
     <menuitem id="menu_elastic_feature_values"
               name="Feature Values"
               parent="menu_elastic_configuration"
               action="action_elastic_feature_value"
               active="False"
-              sequence="8"/>
+              sequence="9"/>
 
     <menuitem id="menu_elastic_product_feature_assignments"
               name="Product Feature Assignments"
               parent="menu_elastic_configuration"
               action="action_elastic_product_feature_assignment"
-              sequence="9"/>
+              sequence="10"/>
 
     <menuitem id="menu_elastic_product_tag_mappings"
               name="Product Tag Mappings"
               parent="menu_elastic_configuration"
               action="action_elastic_product_tag_mapping"
-              sequence="10"/>
+              sequence="11"/>
 
     <menuitem id="menu_elastic_shopify_connections"
               name="Shopify Feature Imports"
               parent="menu_elastic_configuration"
               action="action_elastic_shopify_connection"
-              sequence="11"/>
+              sequence="12"/>
 
     <!-- Orders Menu -->
     <menuitem id="menu_elastic_orders"
@@ -95,13 +101,13 @@
               name="Customer Cross-References"
               parent="menu_elastic_configuration"
               action="action_elastic_customer_xref"
-              sequence="12"/>
+              sequence="13"/>
 
     <menuitem id="menu_elastic_pricelists"
               name="Pricelists (Elastic)"
               parent="menu_elastic_configuration"
               action="action_elastic_pricelist"
-              sequence="13"/>
+              sequence="14"/>
 
     <!-- Logs Menu -->
     <menuitem id="menu_elastic_logs"

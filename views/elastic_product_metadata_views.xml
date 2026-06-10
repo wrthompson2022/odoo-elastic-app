@@ -1,5 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Product Attribute Values -->
+    <record id="view_elastic_attribute_value_list" model="ir.ui.view">
+        <field name="name">product.attribute.value.elastic.list</field>
+        <field name="model">product.attribute.value</field>
+        <field name="arch" type="xml">
+            <list string="Elastic Attribute Values">
+                <field name="attribute_id"/>
+                <field name="name"/>
+                <field name="sequence"/>
+                <field name="elastic_color_code"/>
+                <field name="elastic_color_group"/>
+                <field name="elastic_color_name"/>
+                <field name="elastic_color_sort_order"/>
+                <field name="elastic_size_code"/>
+                <field name="elastic_size_name"/>
+                <field name="elastic_size_sort_order"/>
+                <field name="elastic_alternate_size"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_elastic_attribute_value_form" model="ir.ui.view">
+        <field name="name">product.attribute.value.elastic.form</field>
+        <field name="model">product.attribute.value</field>
+        <field name="arch" type="xml">
+            <form string="Elastic Attribute Value">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="attribute_id"/>
+                            <field name="sequence"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Color">
+                            <field name="elastic_color_code"/>
+                            <field name="elastic_color_group"/>
+                            <field name="elastic_color_name"/>
+                            <field name="elastic_color_sort_order"/>
+                        </group>
+                        <group string="Size">
+                            <field name="elastic_size_code"/>
+                            <field name="elastic_size_name"/>
+                            <field name="elastic_size_sort_order"/>
+                            <field name="elastic_alternate_size"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_elastic_attribute_value" model="ir.actions.act_window">
+        <field name="name">Attribute Values</field>
+        <field name="res_model">product.attribute.value</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('attribute_id', '!=', False)]</field>
+    </record>
+
     <!-- Elastic Colors -->
     <record id="view_elastic_color_list" model="ir.ui.view">
         <field name="name">elastic.color.list</field>

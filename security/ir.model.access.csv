@@ -7,6 +7,8 @@ access_elastic_catalog_user,elastic.catalog.user,model_elastic_catalog,group_ela
 access_elastic_catalog_manager,elastic.catalog.manager,model_elastic_catalog,group_elastic_manager,1,1,1,1
 access_elastic_catalog_mapping_line_user,elastic.catalog.mapping.line.user,model_elastic_catalog_mapping_line,group_elastic_user,1,0,0,0
 access_elastic_catalog_mapping_line_manager,elastic.catalog.mapping.line.manager,model_elastic_catalog_mapping_line,group_elastic_manager,1,1,1,1
+access_product_attribute_value_elastic_user,product.attribute.value.elastic.user,product.model_product_attribute_value,group_elastic_user,1,0,0,0
+access_product_attribute_value_elastic_manager,product.attribute.value.elastic.manager,product.model_product_attribute_value,group_elastic_manager,1,1,1,1
 access_elastic_color_user,elastic.color.user,model_elastic_color,group_elastic_user,1,0,0,0
 access_elastic_color_manager,elastic.color.manager,model_elastic_color,group_elastic_manager,1,1,1,1
 access_elastic_size_scale_user,elastic.size.scale.user,model_elastic_size_scale,group_elastic_user,1,0,0,0
