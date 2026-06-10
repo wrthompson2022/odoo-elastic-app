@@ -41,13 +41,13 @@
         </field>
     </record>
 
-    <!-- Product Variant Form - Add Elastic Tab -->
+    <!-- Product Variant Form - Replace inherited Elastic Tab -->
     <record id="view_product_product_elastic_form" model="ir.ui.view">
         <field name="name">product.product.elastic.form</field>
         <field name="model">product.product</field>
         <field name="inherit_id" ref="product.product_normal_form_view"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
+            <xpath expr="//page[@name='elastic']" position="replace">
                 <page string="Elastic" name="elastic">
                     <group>
                         <group string="Sync Settings">
