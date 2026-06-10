@@ -142,6 +142,7 @@
                                 <group string="Catalog Exports">
                                     <div>
                                         <button name="action_export_catalogs" type="object" string="Export Catalogs" class="btn-secondary me-1" icon="fa-book"/>
+                                        <button name="action_generate_catalog_mappings" type="object" string="Generate Mappings" class="btn-secondary me-1" icon="fa-magic"/>
                                         <button name="action_export_catalog_mappings" type="object" string="Export Mappings" class="btn-secondary" icon="fa-link"/>
                                     </div>
                                 </group>

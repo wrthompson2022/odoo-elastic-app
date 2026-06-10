@@ -6,7 +6,8 @@ Exports catalog definitions to the Elastic platform via SFTP.
 File format: catalogs.csv
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from odoo import fields
 from .base_exporter import BaseExporter
 
 _logger = logging.getLogger(__name__)
@@ -77,39 +78,53 @@ class CatalogExporter(BaseExporter):
 
     def get_field_mapping(self):
         """Map Elastic headers to Odoo fields or callable functions"""
-        today = datetime.now()
+        today = datetime.now().date()
         next_year = today + timedelta(days=365)
-        date_format = '%Y%m%d'
 
         return {
             'CatalogKey': 'code',
             'CatalogName': 'name',
-            'CatalogPermissionGroup': lambda r: 'DEFAULT',
-            'CatalogType': lambda r: 'nonblocking',
-            'CatalogPosition': lambda r: r.id,  # Use ID as position
-            'StartDate': lambda r: today.strftime(date_format),
-            'EndDate': lambda r: next_year.strftime(date_format),
-            'ReviewFlag': lambda r: 'N',
-            'FirstShipDate': lambda r: today.strftime(date_format),
-            'LastShipDate': lambda r: next_year.strftime(date_format),
-            'LastCancelDate': lambda r: '',
-            'DefaultCancelDays': lambda r: 30,
-            'SeasonCode': lambda r: 'ALL',
-            'ShipMinDays': lambda r: '',
-            'ShipDefaultDays': lambda r: '',
-            'ShipMaxDays': lambda r: '',
-            'MaxCancelDays': lambda r: '',
-            'MinCancelDays': lambda r: '',
-            'Warehouse': lambda r: '',
-            'ShipDate1': lambda r: '',
-            'ShipDate2': lambda r: '',
-            'ShipDate3': lambda r: '',
-            'ShipDate4': lambda r: '',
-            'ShipDate5': lambda r: '',
-            'Brand': lambda r: '',
-            'CatalogClassification': lambda r: 'ATS',
-            'PriceGroup': lambda r: '',
+            'CatalogPermissionGroup': lambda r: r.catalog_permission_group or 'DEFAULT',
+            'CatalogType': lambda r: r.catalog_type or 'nonblocking',
+            'CatalogPosition': lambda r: r.catalog_position or r.id,
+            'StartDate': lambda r: self._format_elastic_date(r.start_date, today),
+            'EndDate': lambda r: self._format_elastic_date(r.end_date, next_year),
+            'ReviewFlag': lambda r: r.review_flag or 'N',
+            'FirstShipDate': lambda r: self._format_elastic_date(r.first_ship_date, today),
+            'LastShipDate': lambda r: self._format_elastic_date(r.last_ship_date, next_year),
+            'LastCancelDate': lambda r: self._format_elastic_date(r.last_cancel_date),
+            'DefaultCancelDays': lambda r: r.default_cancel_days or 30,
+            'SeasonCode': lambda r: r.season_code or 'ALL',
+            'ShipMinDays': lambda r: self._optional_int(r.ship_min_days),
+            'ShipDefaultDays': lambda r: self._optional_int(r.ship_default_days),
+            'ShipMaxDays': lambda r: self._optional_int(r.ship_max_days),
+            'MaxCancelDays': lambda r: self._optional_int(r.max_cancel_days),
+            'MinCancelDays': lambda r: self._optional_int(r.min_cancel_days),
+            'Warehouse': lambda r: r.warehouse or '',
+            'ShipDate1': lambda r: self._format_elastic_date(r.ship_date_1),
+            'ShipDate2': lambda r: self._format_elastic_date(r.ship_date_2),
+            'ShipDate3': lambda r: self._format_elastic_date(r.ship_date_3),
+            'ShipDate4': lambda r: self._format_elastic_date(r.ship_date_4),
+            'ShipDate5': lambda r: self._format_elastic_date(r.ship_date_5),
+            'Brand': lambda r: r.brand or '',
+            'CatalogClassification': lambda r: r.catalog_classification or 'ATS',
+            'PriceGroup': lambda r: r.price_group or '',
         }
+
+    def _format_elastic_date(self, value, fallback=None):
+        """Return Elastic YYYYMMDD dates, or blank when no value is available."""
+        source_value = value or fallback
+        if isinstance(source_value, datetime):
+            date_value = source_value.date()
+        elif isinstance(source_value, date):
+            date_value = source_value
+        else:
+            date_value = fields.Date.to_date(source_value)
+        return date_value.strftime('%Y%m%d') if date_value else ''
+
+    def _optional_int(self, value):
+        """Keep optional numeric CSV fields blank unless explicitly populated."""
+        return value or ''
 
     def transform_record(self, record):
         """
@@ -161,7 +176,7 @@ class CatalogMappingExporter(BaseExporter):
         """
         Extract color code from product variant attributes.
         """
-        for attr_value in product.product_variant_ids[:1].product_template_attribute_value_ids:
+        for attr_value in product.product_template_attribute_value_ids:
             if _is_color_attribute(attr_value.attribute_id.name):
                 value = attr_value.product_attribute_value_id
                 elastic_color = self.env['elastic.color'].search([
@@ -177,6 +192,30 @@ class CatalogMappingExporter(BaseExporter):
                     return code[:3].upper()
                 return code
         return ''
+
+    def pre_export_hook(self, records):
+        generated_catalogs = records.filtered(lambda catalog: catalog.mapping_source == 'generated')
+        if generated_catalogs:
+            generated_catalogs.action_generate_mapping_lines()
+
+    def _build_data_rows(self, catalogs):
+        data_rows = []
+        for catalog in catalogs:
+            if not catalog.code:
+                continue
+
+            for line in catalog.mapping_line_ids:
+                if not line.item_number:
+                    continue
+
+                data_rows.append([
+                    catalog.code,
+                    line.catalog_position or catalog.catalog_mapping_position or 1,
+                    line.item_number,
+                    line.color_code or '',
+                ])
+
+        return data_rows
 
     def export(self):
         """
@@ -205,28 +244,7 @@ class CatalogMappingExporter(BaseExporter):
             # Pre-export hook
             self.pre_export_hook(catalogs)
 
-            # Build data rows
-            data_rows = []
-            for catalog in catalogs:
-                if not catalog.code:
-                    continue
-
-                catalog_position = catalog.id
-
-                for product in catalog.product_ids:
-                    item_number = product._get_elastic_item_number()
-                    if not item_number:
-                        continue
-
-                    # Get color code from first variant
-                    color_code = self._get_color_code(product)
-
-                    data_rows.append([
-                        catalog.code,
-                        catalog_position,
-                        item_number,
-                        color_code,
-                    ])
+            data_rows = self._build_data_rows(catalogs)
 
             if not data_rows:
                 message = f"No valid {export_type} records after transformation"

@@ -833,6 +833,21 @@ class ElasticConfig(models.Model):
         from ..exporters.catalog_exporter import CatalogMappingExporter
         return self._run_export(CatalogMappingExporter, 'Catalog Mapping')
 
+    def action_generate_catalog_mappings(self):
+        """Generate mapping lines for all active generated catalogs."""
+        self.ensure_one()
+        count = self.env['elastic.catalog'].generate_active_catalog_mapping_lines()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Catalog Mapping',
+                'message': f'Generated catalog mappings for {count} active catalog(s).',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
     def action_export_reps(self):
         """Export sales reps to Elastic SFTP"""
         from ..exporters.rep_exporter import RepExporter
@@ -916,6 +931,16 @@ class ElasticConfig(models.Model):
                 OrderImporter(self.env, config).import_files()
             except Exception as e:  # pragma: no cover
                 _logger.error('Scheduled order import failed for config %s: %s', config.name, e, exc_info=True)
+
+    @api.model
+    def cron_export_all(self):
+        """Scheduled action: run enabled exports for every active config."""
+        configs = self.search([('active', '=', True)])
+        for config in configs:
+            try:
+                config.action_export_all()
+            except Exception as e:  # pragma: no cover
+                _logger.error('Scheduled export failed for config %s: %s', config.name, e, exc_info=True)
 
     def action_export_all(self):
         """Run all enabled exports."""

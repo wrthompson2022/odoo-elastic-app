@@ -10,5 +10,14 @@
             <field name="interval_type">hours</field>
             <field name="active" eval="False"/>
         </record>
+        <record id="ir_cron_elastic_export_all" model="ir.cron">
+            <field name="name">Elastic: Export All Enabled</field>
+            <field name="model_id" ref="model_elastic_config"/>
+            <field name="state">code</field>
+            <field name="code">model.cron_export_all()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="False"/>
+        </record>
     </data>
 </odoo>

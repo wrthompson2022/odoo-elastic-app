@@ -16,16 +16,93 @@
                         <group>
                             <field name="name"/>
                             <field name="code"/>
+                            <field name="catalog_permission_group"/>
+                            <field name="catalog_type"/>
                         </group>
                         <group>
+                            <field name="catalog_position"/>
+                            <field name="catalog_mapping_position"/>
+                            <field name="review_flag"/>
                             <field name="product_count"/>
                             <field name="partner_count"/>
+                            <field name="mapping_line_count"/>
                         </group>
                     </group>
                     <group>
                         <field name="description" widget="text"/>
                     </group>
                     <notebook>
+                        <page string="Elastic Settings" name="elastic_settings">
+                            <group>
+                                <group string="Availability">
+                                    <field name="start_date"/>
+                                    <field name="end_date"/>
+                                    <field name="first_ship_date"/>
+                                    <field name="last_ship_date"/>
+                                    <field name="last_cancel_date"/>
+                                </group>
+                                <group string="Shipping Rules">
+                                    <field name="default_cancel_days"/>
+                                    <field name="ship_min_days"/>
+                                    <field name="ship_default_days"/>
+                                    <field name="ship_max_days"/>
+                                    <field name="min_cancel_days"/>
+                                    <field name="max_cancel_days"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Ship Dates">
+                                    <field name="ship_date_1"/>
+                                    <field name="ship_date_2"/>
+                                    <field name="ship_date_3"/>
+                                    <field name="ship_date_4"/>
+                                    <field name="ship_date_5"/>
+                                </group>
+                                <group string="Classification">
+                                    <field name="season_code"/>
+                                    <field name="warehouse"/>
+                                    <field name="brand"/>
+                                    <field name="catalog_classification"/>
+                                    <field name="price_group"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Mapping Lines" name="mapping_lines">
+                            <group>
+                                <group string="Mapping Source">
+                                    <field name="mapping_source" widget="radio"/>
+                                    <field name="mapping_sort_method" invisible="mapping_source != 'generated'"/>
+                                </group>
+                                <group string="Upload">
+                                    <field name="mapping_upload" filename="mapping_upload_filename" invisible="mapping_source != 'uploaded'"/>
+                                    <field name="mapping_upload_filename" invisible="1"/>
+                                </group>
+                            </group>
+                            <div>
+                                <button name="action_generate_mapping_lines"
+                                        type="object"
+                                        string="Generate Mapping"
+                                        class="btn-primary me-2"
+                                        icon="fa-magic"
+                                        invisible="mapping_source != 'generated'"/>
+                                <button name="action_import_mapping_upload"
+                                        type="object"
+                                        string="Load Uploaded Mapping"
+                                        class="btn-secondary"
+                                        icon="fa-upload"
+                                        invisible="mapping_source != 'uploaded'"/>
+                            </div>
+                            <field name="mapping_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="catalog_position"/>
+                                    <field name="item_number"/>
+                                    <field name="color_code"/>
+                                    <field name="product_class"/>
+                                    <field name="product_id"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="Products" name="products">
                             <field name="product_ids" domain="[('elastic_sync_enabled', '=', True)]">
                                 <list>
@@ -58,6 +135,12 @@
             <list string="Elastic Catalogs">
                 <field name="name"/>
                 <field name="code"/>
+                <field name="catalog_position"/>
+                <field name="start_date"/>
+                <field name="end_date"/>
+                <field name="catalog_classification"/>
+                <field name="mapping_source"/>
+                <field name="mapping_line_count"/>
                 <field name="product_count"/>
                 <field name="partner_count"/>
                 <field name="active"/>
