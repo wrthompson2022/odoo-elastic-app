@@ -41,29 +41,37 @@
         </field>
     </record>
 
-    <!-- Product Variant Form - Add Elastic Fields -->
+    <!-- Product Variant Form - Add Elastic Tab -->
     <record id="view_product_product_elastic_form" model="ir.ui.view">
         <field name="name">product.product.elastic.form</field>
         <field name="model">product.product</field>
         <field name="inherit_id" ref="product.product_normal_form_view"/>
         <field name="arch" type="xml">
-            <xpath expr="//group[@name='group_general']" position="after">
-                <group string="Elastic Integration" name="elastic_group">
+            <xpath expr="//notebook" position="inside">
+                <page string="Elastic" name="elastic">
                     <group>
-                        <field name="elastic_sync_enabled"/>
-                        <field name="elastic_last_sync" readonly="1"/>
+                        <group string="Sync Settings">
+                            <field name="elastic_sync_enabled"/>
+                            <field name="elastic_last_sync" readonly="1"/>
+                        </group>
+                        <group string="Item Identifiers">
+                            <field name="elastic_template_item_number"/>
+                            <field name="elastic_item_number"/>
+                            <field name="elastic_stock_item_key"/>
+                            <field name="elastic_sku"/>
+                            <field name="elastic_variant_id"/>
+                        </group>
                     </group>
                     <group>
-                        <field name="elastic_variant_id"/>
-                        <field name="elastic_sku"/>
-                        <field name="elastic_item_number"/>
-                        <field name="elastic_stock_item_key"/>
+                        <group string="Product Export Defaults">
+                            <field name="elastic_product_permission_group"/>
+                            <field name="elastic_available_date"/>
+                        </group>
                     </group>
                     <group>
-                        <field name="elastic_product_permission_group"/>
-                        <field name="elastic_available_date"/>
+                        <field name="elastic_variant_attributes"/>
                     </group>
-                </group>
+                </page>
             </xpath>
         </field>
     </record>

@@ -22,6 +22,12 @@ class ProductProduct(models.Model):
         string='Elastic Variant ID',
         help='External variant identifier in Elastic system'
     )
+    elastic_template_item_number = fields.Char(
+        string='Elastic ItemNumber',
+        related='product_tmpl_id.elastic_product_id',
+        readonly=False,
+        help='Style-level ItemNumber sent to Elastic exports for this variant.'
+    )
     elastic_sku = fields.Char(
         string='Elastic SKU',
         help='SKU used for Elastic (if different from internal reference)'
