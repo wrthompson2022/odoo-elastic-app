@@ -260,6 +260,14 @@ Each `product.pricelist` carries a **Send to Elastic** flag and an optional
 * If you leave the code blank, the module derives one from the pricelist
   name (`DEALER`/`WHOLESALE` → `D`, `PROMO` → `PL`, otherwise `LP`).
 * Codes must be unique among Send-to-Elastic pricelists.
+* **CatalogKey** follows the product's Elastic catalog membership (template
+  or variant level): a product assigned to a catalog is priced under that
+  catalog's code (one row per catalog when assigned to several), and
+  products with no catalog assignment fall back to `ALL`.
+* **Retail** is always the product's Odoo sales price (treat it as MSRP);
+  **Price** is the value computed from each Send-to-Elastic pricelist. To
+  reproduce a full Elastic price-group matrix (e.g. `LP, PL, PH, F, E, D, C`),
+  create one Send-to-Elastic pricelist per group.
 
 ### Extensible Architecture
 - Base classes make it easy to add new export/import types

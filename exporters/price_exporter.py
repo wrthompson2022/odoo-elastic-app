@@ -8,9 +8,14 @@ File format: prices.csv
 Behavior:
 * If any active pricelists have "Send to Elastic" enabled, one row per
   product per enabled pricelist is exported using the price computed from
-  that pricelist (variant-aware via _get_product_price).
+  that pricelist (variant-aware).
 * Otherwise, a single row per product is exported using the product list
   price under the default 'LP' price group.
+* CatalogKey comes from the product's Elastic catalog membership (template
+  or variant level). Products that belong to no catalog are exported under
+  'ALL'; products in several catalogs get one row per catalog.
+* Retail is always the product list price (MSRP); Price is the price-group
+  price computed from the pricelist.
 """
 import logging
 
@@ -77,6 +82,28 @@ class PriceExporter(BaseExporter):
         return product.elastic_stock_item_key or product.barcode or product.default_code or str(product.id)
 
     # ------------------------------------------------------------------
+    # Catalog resolution
+    # ------------------------------------------------------------------
+    def _get_catalog_code_map(self, products):
+        """Map product id -> list of Elastic catalog codes the product belongs to.
+
+        Membership is checked at both template and variant level. Products
+        absent from the map belong to no catalog and are exported under 'ALL'.
+        """
+        code_map = {}
+        catalogs = self.env['elastic.catalog'].search([('active', '=', True)])
+        for catalog in catalogs:
+            code = (catalog.code or '').strip()
+            if not code:
+                continue
+            members = (catalog.product_ids.product_variant_ids | catalog.variant_ids) & products
+            for product_id in members.ids:
+                code_map.setdefault(product_id, []).append(code)
+        for codes in code_map.values():
+            codes.sort()
+        return code_map
+
+    # ------------------------------------------------------------------
     # Pricelist resolution
     # ------------------------------------------------------------------
     def _get_enabled_pricelists(self):
@@ -105,48 +132,73 @@ class PriceExporter(BaseExporter):
             )
             return product.lst_price
 
-    def _build_rows_from_pricelists(self, products, pricelists):
-        rows = []
-        for product in products:
-            transformed = self.transform_record(product)
-            if not transformed:
-                continue
-            stock_item_key = self._get_stock_item_key(product)
-            retail_price = product.lst_price
+    def _get_pricelist_prices(self, products, pricelist):
+        """Compute prices for a batch of variants from one pricelist."""
+        try:
+            return pricelist._get_products_price(products, 1.0)
+        except Exception:  # pragma: no cover - defensive against API drift
+            _logger.warning(
+                'Batch price computation failed for pricelist %s; '
+                'falling back to per-product computation.',
+                pricelist.display_name,
+            )
+            return {
+                product.id: self._get_product_price(product, pricelist)
+                for product in products
+            }
 
-            for pricelist in pricelists:
-                price = self._get_product_price(product, pricelist)
-                currency_code = (
-                    pricelist.currency_id.name
-                    if pricelist.currency_id
-                    else self._get_company_currency_code()
-                )
-                rows.append([
-                    'ALL',
-                    stock_item_key,
-                    pricelist._get_elastic_price_group_code(),
-                    currency_code,
-                    price,
-                    retail_price,
-                ])
+    def _build_rows_from_pricelists(self, products, pricelists):
+        valid_products = products.filtered(
+            lambda p: self.transform_record(p) is not None
+        )
+        if not valid_products:
+            return []
+        catalog_codes = self._get_catalog_code_map(valid_products)
+
+        rows = []
+        for pricelist in pricelists:
+            price_group = pricelist._get_elastic_price_group_code()
+            currency_code = (
+                pricelist.currency_id.name
+                if pricelist.currency_id
+                else self._get_company_currency_code()
+            )
+            prices = self._get_pricelist_prices(valid_products, pricelist)
+            for product in valid_products:
+                stock_item_key = self._get_stock_item_key(product)
+                price = prices.get(product.id, product.lst_price)
+                for catalog_key in catalog_codes.get(product.id, ['ALL']):
+                    rows.append([
+                        catalog_key,
+                        stock_item_key,
+                        price_group,
+                        currency_code,
+                        price,
+                        product.lst_price,
+                    ])
         return rows
 
     def _build_rows_from_lst_price(self, products):
+        valid_products = products.filtered(
+            lambda p: self.transform_record(p) is not None
+        )
+        if not valid_products:
+            return []
+        catalog_codes = self._get_catalog_code_map(valid_products)
         currency_code = self._get_company_currency_code()
+
         rows = []
-        for product in products:
-            transformed = self.transform_record(product)
-            if not transformed:
-                continue
+        for product in valid_products:
             stock_item_key = self._get_stock_item_key(product)
-            rows.append([
-                'ALL',
-                stock_item_key,
-                self.DEFAULT_PRICE_GROUP,
-                currency_code,
-                product.lst_price,
-                product.lst_price,
-            ])
+            for catalog_key in catalog_codes.get(product.id, ['ALL']):
+                rows.append([
+                    catalog_key,
+                    stock_item_key,
+                    self.DEFAULT_PRICE_GROUP,
+                    currency_code,
+                    product.lst_price,
+                    product.lst_price,
+                ])
         return rows
 
     # ------------------------------------------------------------------
