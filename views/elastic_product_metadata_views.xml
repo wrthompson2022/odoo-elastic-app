@@ -62,6 +62,24 @@
         <field name="domain">[('attribute_id', '!=', False)]</field>
     </record>
 
+    <record id="view_product_attribute_form_elastic_values" model="ir.ui.view">
+        <field name="name">product.attribute.form.elastic.values</field>
+        <field name="model">product.attribute</field>
+        <field name="inherit_id" ref="product.product_attribute_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='value_ids']/list/field[@name='name']" position="after">
+                <field name="elastic_color_code" optional="show"/>
+                <field name="elastic_size_code" optional="show"/>
+                <field name="elastic_color_group" optional="hide"/>
+                <field name="elastic_color_name" optional="hide"/>
+                <field name="elastic_color_sort_order" optional="hide"/>
+                <field name="elastic_size_name" optional="hide"/>
+                <field name="elastic_size_sort_order" optional="hide"/>
+                <field name="elastic_alternate_size" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
     <!-- Elastic Colors -->
     <record id="view_elastic_color_list" model="ir.ui.view">
         <field name="name">elastic.color.list</field>
