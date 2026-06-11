@@ -1,0 +1,677 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="knowledge_article_elastic_sop_root" model="knowledge.article">
+        <field name="name">Elastic Integration SOP</field>
+        <field name="category">workspace</field>
+        <field name="internal_permission">write</field>
+        <field name="is_article_visible_by_everyone" eval="True"/>
+        <field name="sequence">60</field>
+        <field name="body"><![CDATA[
+<h1>Elastic Integration SOP</h1>
+
+<h2>Purpose</h2>
+<p>This Knowledge section explains the end-to-end operating procedure for the Elastic Integration app. It covers SFTP connection setup, configuration, product and customer data preparation, feature import, flat-file generation, manual exports, order imports, scheduling, logging, and troubleshooting.</p>
+
+<h2>Process Map</h2>
+<ol>
+    <li>Configure Beta and Production SFTP connections.</li>
+    <li>Select the active environment and file format settings.</li>
+    <li>Prepare Odoo products, variants, customers, catalogs, reps, pricelists, and cross-references.</li>
+    <li>Generate product metadata and optionally import product feature assignments from Shopify.</li>
+    <li>Run manual exports and confirm generated files in the active connection outbound directory.</li>
+    <li>Import Elastic order files from the active connection inbound directory.</li>
+    <li>Activate and schedule imports and exports through Odoo scheduled actions.</li>
+    <li>Monitor Export Logs, Import Logs, and Staged Orders after each run.</li>
+</ol>
+
+<h2>Child Pages</h2>
+<ul>
+    <li><strong>01 - Connection Setup</strong>: SFTP profiles, authentication, host keys, directories, and environment switching.</li>
+    <li><strong>02 - Core Configuration and Data Prep</strong>: settings, toggles, product/customer fields, catalogs, pricelists, reps, and cross-references.</li>
+    <li><strong>03 - Product Metadata and Feature Import</strong>: color/size metadata, product tag mappings, Shopify feature imports, and feature assignments.</li>
+    <li><strong>04 - End File Generation and Manual Exports</strong>: generated CSV files, file names, data sources, filters, and export sequence.</li>
+    <li><strong>05 - Order Import and Staged Orders</strong>: inbound order polling, staging, duplicate handling, sale order creation, and retries.</li>
+    <li><strong>06 - Scheduling Imports and Exports</strong>: scheduled action activation, cadence, and operational controls.</li>
+    <li><strong>07 - Monitoring and Troubleshooting</strong>: logs, common failures, and recovery steps.</li>
+</ul>
+
+<h2>Roles</h2>
+<table class="table table-sm table-bordered">
+    <thead>
+        <tr>
+            <th>Role</th>
+            <th>Responsibility</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Elastic Manager</strong></td>
+            <td>Owns SFTP credentials, host-key verification, active environment selection, export/import settings, scheduled actions, metadata setup, and troubleshooting.</td>
+        </tr>
+        <tr>
+            <td><strong>Elastic User</strong></td>
+            <td>Reviews configuration, runs permitted exports/imports, reviews logs, and manages staged orders as assigned.</td>
+        </tr>
+        <tr>
+            <td><strong>Sales / Customer Operations</strong></td>
+            <td>Maintains customer SoldToID data, ship-to locations, sales reps, catalogs, price groups, order exceptions, and customer cross-references.</td>
+        </tr>
+        <tr>
+            <td><strong>Product / Merchandising</strong></td>
+            <td>Maintains product identifiers, color/size metadata, catalogs, product tags, features, and Shopify feature mappings.</td>
+        </tr>
+        <tr>
+            <td><strong>IT / Administrator</strong></td>
+            <td>Installs or upgrades the module, activates cron jobs, monitors technical errors, and coordinates access to Odoo and Elastic SFTP.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Navigation</h2>
+<p>The app adds an <strong>Elastic</strong> top-level menu in Odoo. Use:</p>
+<ul>
+    <li><strong>Elastic &gt; Configuration &gt; Settings</strong> for active environment, export toggles, import settings, product metadata generation, and manual actions.</li>
+    <li><strong>Elastic &gt; Configuration &gt; SFTP Connections</strong> for Beta and Production connection profiles.</li>
+    <li><strong>Elastic &gt; Configuration</strong> for catalogs, colors, sizes, features, product tag mappings, Shopify feature imports, customer cross-references, and Elastic pricelists.</li>
+    <li><strong>Elastic &gt; Orders &gt; Staged Orders</strong> for imported Elastic orders that are pending, processed, duplicate, or in error.</li>
+    <li><strong>Elastic &gt; Logs</strong> for import and export logs.</li>
+</ul>
+        ]]></field>
+    </record>
+
+    <record id="knowledge_article_elastic_sop_connection_setup" model="knowledge.article">
+        <field name="name">01 - Connection Setup</field>
+        <field name="parent_id" ref="knowledge_article_elastic_sop_root"/>
+        <field name="category">workspace</field>
+        <field name="internal_permission">write</field>
+        <field name="is_article_visible_by_everyone" eval="True"/>
+        <field name="sequence">61</field>
+        <field name="body"><![CDATA[
+<h1>01 - Connection Setup</h1>
+
+<h2>Goal</h2>
+<p>Create and validate separate SFTP connection profiles for Elastic Beta and Elastic Production, then choose which environment the app should use for all imports and exports.</p>
+
+<h2>Prerequisites</h2>
+<ul>
+    <li>Elastic SFTP host, port, username, and either password or SSH private key.</li>
+    <li>Elastic outbound, inbound, and archive directory paths.</li>
+    <li>Odoo access in the Elastic Manager group for credential and host-key fields.</li>
+</ul>
+
+<h2>Create a Beta Connection</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; SFTP Connections</strong>.</li>
+    <li>Create a new connection named <strong>Elastic Beta</strong>.</li>
+    <li>Set <strong>Environment</strong> to <strong>Beta / Sandbox</strong>.</li>
+    <li>Enter SFTP host, port, and username.</li>
+    <li>Select the authentication method: password or SSH key.</li>
+    <li>Enter <strong>Export Directory</strong>, <strong>Import Directory</strong>, and <strong>Archive Directory</strong>.</li>
+    <li>Use <strong>Fetch &amp; Save Host Key</strong> when using verified host keys.</li>
+    <li>Click <strong>Test Connection</strong>.</li>
+</ol>
+
+<h2>Create a Production Connection</h2>
+<ol>
+    <li>Create another connection named <strong>Elastic Production</strong>.</li>
+    <li>Set <strong>Environment</strong> to <strong>Production</strong>.</li>
+    <li>Enter the production credentials and directory paths.</li>
+    <li>Fetch and save the host key, then test the connection.</li>
+</ol>
+
+<h2>Host-Key Policy</h2>
+<p>Use <strong>Verify Stored Host Key</strong> for normal operations. This pins the SFTP server key and protects the connection from server impersonation.</p>
+<p><strong>Trust on First Connect</strong> should only be temporary for troubleshooting. If any connection is still using that policy, the Settings page shows an advisory and the <strong>Upgrade Host Keys</strong> button.</p>
+
+<h2>Link Connections to the Active Configuration</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Settings</strong>.</li>
+    <li>Open the active Elastic Configuration.</li>
+    <li>On <strong>SFTP Connections</strong>, select the Beta connection and Production connection.</li>
+    <li>Choose <strong>Active Environment</strong>. Use Beta for testing and Production for live data.</li>
+    <li>Click <strong>Test Active Connection</strong>.</li>
+</ol>
+
+<h2>Operational Rule</h2>
+<p>All manual exports, scheduled exports, manual imports, and scheduled imports use the active environment's connection. Switch the active environment deliberately and confirm the connection status before running live exports or imports.</p>
+        ]]></field>
+    </record>
+
+    <record id="knowledge_article_elastic_sop_core_configuration" model="knowledge.article">
+        <field name="name">02 - Core Configuration and Data Prep</field>
+        <field name="parent_id" ref="knowledge_article_elastic_sop_root"/>
+        <field name="category">workspace</field>
+        <field name="internal_permission">write</field>
+        <field name="is_article_visible_by_everyone" eval="True"/>
+        <field name="sequence">62</field>
+        <field name="body"><![CDATA[
+<h1>02 - Core Configuration and Data Prep</h1>
+
+<h2>Goal</h2>
+<p>Configure the data rules that determine which Odoo records are sent to Elastic and how Elastic order files are matched back to Odoo.</p>
+
+<h2>File Format Settings</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Settings</strong>.</li>
+    <li>Open <strong>Export Settings</strong>.</li>
+    <li>Set <strong>Export File Delimiter</strong> to comma, pipe, or tab based on Elastic requirements.</li>
+    <li>Set <strong>Export File Encoding</strong>. Use UTF-8 unless Elastic requests another encoding.</li>
+    <li>Keep <strong>Include Header Row</strong> enabled unless Elastic explicitly requests headerless files.</li>
+    <li>Set date and datetime formats used by configuration-driven fields.</li>
+</ol>
+
+<h2>Enable Export Types</h2>
+<p>On <strong>Export Settings</strong>, enable only the files that should be included when using <strong>Export All Enabled</strong> or the scheduled export job.</p>
+<ul>
+    <li>Products</li>
+    <li>Product Tags</li>
+    <li>Catalogs</li>
+    <li>Catalog Mappings</li>
+    <li>Features</li>
+    <li>Customers</li>
+    <li>Locations</li>
+    <li>Sales Reps</li>
+    <li>Rep Mappings</li>
+    <li>Inventory</li>
+    <li>Prices</li>
+</ul>
+
+<h2>Export Filters</h2>
+<p>Use <strong>Export Only Synced Products</strong> to limit product, price, inventory, feature, and tag exports to products with Elastic sync enabled. Product exports also require the template and variant to be enabled.</p>
+<p>Use <strong>Export Only Synced Customers</strong> to limit customer, location, custom-field, and rep-mapping exports to customers with Elastic sync enabled.</p>
+
+<h2>Customer Setup</h2>
+<ol>
+    <li>Open the customer in Contacts.</li>
+    <li>On the Elastic tab, confirm <strong>Push to Elastic</strong>.</li>
+    <li>Enter <strong>Elastic Legacy Account #</strong> when Elastic SoldToID should use the legacy account number.</li>
+    <li>Assign <strong>Customer Catalogs</strong> when catalog permission should be customer-specific.</li>
+    <li>Assign <strong>Elastic Sales Rep</strong> when rep mapping is required.</li>
+    <li>Set <strong>Elastic Price Level</strong> when customer export should send a price group other than the default.</li>
+    <li>Set <strong>Drop Ship Approved</strong> when the custom fields export should send drop_ship = Y.</li>
+</ol>
+
+<h2>SoldToID Rule</h2>
+<p>If <strong>Use Legacy Account Number for SoldToID</strong> is enabled in Settings, the customer export and order matching use the customer's Elastic Legacy Account # when present. If it is blank, Odoo falls back to the Odoo contact ID.</p>
+
+<h2>Product and Variant Setup</h2>
+<ol>
+    <li>Open the product template.</li>
+    <li>On the Elastic tab, confirm <strong>Push to Elastic</strong>.</li>
+    <li>Enter <strong>Elastic ItemNumber</strong> for the style-level ItemNumber.</li>
+    <li>Set template-level Product Permission Group, Available Date, and Catalogs when needed.</li>
+    <li>Open each variant that needs overrides.</li>
+    <li>Set variant-level Push to Elastic, Elastic SKU, Elastic ItemNumber Override, Elastic Stock Item Key, Product Permission Group, and Available Date as needed.</li>
+</ol>
+
+<h2>Catalog Setup</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Catalogs</strong>.</li>
+    <li>Create catalogs with unique codes.</li>
+    <li>Add product templates, product variants, and customers as needed.</li>
+    <li>Choose whether catalog mapping lines are generated by Odoo or loaded from an uploaded file.</li>
+    <li>For generated mapping, set the sort method and click <strong>Generate Mapping Lines</strong>.</li>
+    <li>For uploaded mapping, upload the CSV and click <strong>Load Mapping Upload</strong>.</li>
+</ol>
+
+<h2>Pricing Setup</h2>
+<p>Go to <strong>Elastic &gt; Configuration &gt; Pricelists (Elastic)</strong>. Mark pricelists <strong>Send to Elastic</strong> and assign an Elastic Price Group Code. If no active pricelist is marked for Elastic, the price export falls back to product list price with price group LP.</p>
+
+<h2>Customer Cross-References</h2>
+<p>Use <strong>Elastic &gt; Configuration &gt; Customer Cross-References</strong> to maintain external Sold-To and Ship-To IDs when order files need explicit mapping to Odoo partners. During order import, mappings are also recorded automatically after a match is found.</p>
+        ]]></field>
+    </record>
+
+    <record id="knowledge_article_elastic_sop_feature_import" model="knowledge.article">
+        <field name="name">03 - Product Metadata and Feature Import</field>
+        <field name="parent_id" ref="knowledge_article_elastic_sop_root"/>
+        <field name="category">workspace</field>
+        <field name="internal_permission">write</field>
+        <field name="is_article_visible_by_everyone" eval="True"/>
+        <field name="sequence">63</field>
+        <field name="body"><![CDATA[
+<h1>03 - Product Metadata and Feature Import</h1>
+
+<h2>Goal</h2>
+<p>Prepare Elastic color, size, tag, and feature metadata so product exports and feature exports contain governed values instead of ad hoc text.</p>
+
+<h2>Generate Color and Size Metadata</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Settings</strong>.</li>
+    <li>Open the <strong>Product Metadata</strong> tab.</li>
+    <li>Click <strong>Generate Product Metadata</strong>.</li>
+    <li>Review generated records under <strong>Colors</strong>, <strong>Size Scales</strong>, and <strong>Size Values</strong>.</li>
+    <li>Clean up codes, color groups, sort orders, alternate sizes, and inactive records before exporting products.</li>
+</ol>
+<p>Color metadata is seeded from product attribute values named Color, Colour, Frame Color, or Product Color. Size metadata is seeded from attributes named Size or ending in Size.</p>
+
+<h2>Maintain Attribute Value Overrides</h2>
+<p>Use <strong>Elastic &gt; Configuration &gt; Attribute Values</strong> or the Product Attribute form to maintain direct Elastic overrides on Odoo attribute values:</p>
+<ul>
+    <li>Elastic Color Code</li>
+    <li>Elastic Color</li>
+    <li>Elastic Color Name</li>
+    <li>Elastic Color Sort</li>
+    <li>Elastic Size Code</li>
+    <li>Elastic Size Name</li>
+    <li>Elastic Size Sort</li>
+    <li>Elastic Alternate Size</li>
+</ul>
+
+<h2>Product Tag Mappings</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Product Tag Mappings</strong>.</li>
+    <li>Create one mapping for each TagName Elastic should receive.</li>
+    <li>Select whether the source field is on product template or product variant.</li>
+    <li>Select the Odoo field that supplies TagValue.</li>
+    <li>Choose whether values should be split by line, comma, semicolon, or not split.</li>
+    <li>Run <strong>Export Product Tags</strong> or enable Product Tags in Export All.</li>
+</ol>
+<p>The product tags export skips color attributes because color is already sent in products.csv.</p>
+
+<h2>Governed Feature Setup</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Features</strong>.</li>
+    <li>Create or review the target Elastic features.</li>
+    <li>Set feature code, display order, type, filterable/searchable flags, and Export to Elastic.</li>
+    <li>Maintain governed values under <strong>Feature Values</strong> when controlled values are required.</li>
+    <li>Use <strong>Product Feature Assignments</strong> for manual or reviewed assignments.</li>
+</ol>
+
+<h2>Shopify Feature Import</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Shopify Feature Imports</strong>.</li>
+    <li>Create a Shopify connection with shop domain, API version, access token, and match strategy.</li>
+    <li>Choose match strategy: Variant SKU, Variant Barcode, Shopify Product ID, or Shopify Handle.</li>
+    <li>Enable <strong>Only Import Elastic Products</strong> when imports should skip products not enabled for Elastic.</li>
+    <li>Add feature mappings from Shopify product fields or metafields to target Elastic features.</li>
+    <li>Choose the parser: HTML list, HTML text, rich text, multiline, or plain text.</li>
+    <li>Click <strong>Import Features</strong>.</li>
+    <li>Review <strong>Product Feature Assignments</strong>.</li>
+</ol>
+
+<h2>Feature Export Rule</h2>
+<p>The features.csv export reads active Product Feature Assignments where the related feature is active and marked Export to Elastic. Template-level assignments are expanded to active variants. If Export Only Synced Products is enabled, unsynced templates or variants are skipped.</p>
+        ]]></field>
+    </record>
+
+    <record id="knowledge_article_elastic_sop_file_generation" model="knowledge.article">
+        <field name="name">04 - End File Generation and Manual Exports</field>
+        <field name="parent_id" ref="knowledge_article_elastic_sop_root"/>
+        <field name="category">workspace</field>
+        <field name="internal_permission">write</field>
+        <field name="is_article_visible_by_everyone" eval="True"/>
+        <field name="sequence">64</field>
+        <field name="body"><![CDATA[
+<h1>04 - End File Generation and Manual Exports</h1>
+
+<h2>Goal</h2>
+<p>Generate the Elastic outbound files and upload them to the active SFTP connection's export directory.</p>
+
+<h2>File Generation Behavior</h2>
+<ul>
+    <li>Files are generated with the delimiter, encoding, and header setting from <strong>Elastic &gt; Configuration &gt; Settings</strong>.</li>
+    <li>File names are stable and do not include timestamps.</li>
+    <li>Each successful export uploads to the active connection's <strong>Export Directory</strong>.</li>
+    <li>Each export creates an <strong>Elastic &gt; Logs &gt; Export Logs</strong> record with type, record count, file name, status, and message.</li>
+</ul>
+
+<h2>Generated Files</h2>
+<table class="table table-sm table-bordered">
+    <thead>
+        <tr>
+            <th>Button / Export</th>
+            <th>File</th>
+            <th>Primary Odoo Source</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Export Customers</td>
+            <td>customers.csv</td>
+            <td>Company customers from Contacts</td>
+        </tr>
+        <tr>
+            <td>Export Custom Fields</td>
+            <td>customer_custom_fields.csv</td>
+            <td>Customer drop_ship approval and related custom fields</td>
+        </tr>
+        <tr>
+            <td>Export Locations</td>
+            <td>locations.csv</td>
+            <td>Customer primary addresses and delivery contacts</td>
+        </tr>
+        <tr>
+            <td>Export Products</td>
+            <td>products.csv</td>
+            <td>Sellable active product variants</td>
+        </tr>
+        <tr>
+            <td>Export Product Tags</td>
+            <td>product_tags.csv</td>
+            <td>Active product tag mappings applied to product/template fields</td>
+        </tr>
+        <tr>
+            <td>Export Features</td>
+            <td>features.csv</td>
+            <td>Active governed product feature assignments</td>
+        </tr>
+        <tr>
+            <td>Export Prices</td>
+            <td>prices.csv</td>
+            <td>Sellable active product variants and Elastic-enabled pricelists</td>
+        </tr>
+        <tr>
+            <td>Export Inventory</td>
+            <td>inventory.csv</td>
+            <td>Storable active products by active warehouse</td>
+        </tr>
+        <tr>
+            <td>Export Catalogs</td>
+            <td>catalogs.csv</td>
+            <td>Active Elastic catalogs</td>
+        </tr>
+        <tr>
+            <td>Export Mappings</td>
+            <td>catalog_mapping.csv</td>
+            <td>Catalog mapping lines generated by Odoo or loaded from upload</td>
+        </tr>
+        <tr>
+            <td>Export Reps</td>
+            <td>reps.csv</td>
+            <td>Active internal sales users</td>
+        </tr>
+        <tr>
+            <td>Export Rep Mappings</td>
+            <td>rep_mappings.csv</td>
+            <td>Customers assigned to an Elastic Sales Rep</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Recommended Manual Export Sequence</h2>
+<ol>
+    <li>Test the active SFTP connection.</li>
+    <li>Run <strong>Generate Product Metadata</strong> after product attributes are loaded or changed.</li>
+    <li>Prepare catalogs and click <strong>Generate Mappings</strong> if using generated catalog mappings.</li>
+    <li>Export catalogs.</li>
+    <li>Export catalog mappings.</li>
+    <li>Export products.</li>
+    <li>Export product tags and features.</li>
+    <li>Export prices.</li>
+    <li>Export inventory.</li>
+    <li>Export customers, custom fields, locations, reps, and rep mappings.</li>
+    <li>Review Export Logs and confirm files appear in the Elastic outbound directory.</li>
+</ol>
+
+<h2>Run All Enabled</h2>
+<p>Use <strong>Export All Enabled</strong> when all required toggles are configured. This runs each enabled export, summarizes success and failure, and creates individual export logs for each file.</p>
+
+<h2>Validation Checklist</h2>
+<ul>
+    <li>Products have ItemNumber and StockItemKey values.</li>
+    <li>Customers have SoldToID values that match Elastic expectations.</li>
+    <li>Pricelists marked Send to Elastic have unique price group codes.</li>
+    <li>Catalogs have unique codes and mapping lines.</li>
+    <li>Product tag mappings point to fields that still exist.</li>
+    <li>Feature assignments have values and active/exportable features.</li>
+    <li>Export logs show success and expected record counts.</li>
+</ul>
+        ]]></field>
+    </record>
+
+    <record id="knowledge_article_elastic_sop_order_import" model="knowledge.article">
+        <field name="name">05 - Order Import and Staged Orders</field>
+        <field name="parent_id" ref="knowledge_article_elastic_sop_root"/>
+        <field name="category">workspace</field>
+        <field name="internal_permission">write</field>
+        <field name="is_article_visible_by_everyone" eval="True"/>
+        <field name="sequence">65</field>
+        <field name="body"><![CDATA[
+<h1>05 - Order Import and Staged Orders</h1>
+
+<h2>Goal</h2>
+<p>Poll Elastic order files from SFTP, stage each order/shipment group, and create Odoo draft sale orders with auditability and retry support.</p>
+
+<h2>Configure Order Import</h2>
+<ol>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Settings</strong>.</li>
+    <li>Open <strong>Import Settings</strong>.</li>
+    <li>Enable <strong>Order Import</strong>.</li>
+    <li>Set <strong>Order File Pattern</strong>, such as *.csv or ORDER_*.csv.</li>
+    <li>Choose whether to <strong>Auto-Confirm Orders</strong>. Leave disabled unless the business wants imported orders confirmed automatically.</li>
+    <li>Choose whether to <strong>Archive Processed Files</strong>. Keep enabled for normal operation.</li>
+    <li>Select <strong>Stock Item Key Field</strong>: UPC / Barcode, SKU, or Product Number + Variation Code + Size.</li>
+</ol>
+
+<h2>Manual Import</h2>
+<ol>
+    <li>Confirm the active SFTP environment is correct.</li>
+    <li>Confirm order files are in the active connection's Import Directory.</li>
+    <li>Click <strong>Import Orders Now</strong>.</li>
+    <li>Review the notification summary.</li>
+    <li>Open <strong>Elastic &gt; Logs &gt; Import Logs</strong>.</li>
+    <li>Open <strong>Elastic &gt; Orders &gt; Staged Orders</strong> for pending, processed, duplicate, or error rows.</li>
+</ol>
+
+<h2>What the Importer Does</h2>
+<ol>
+    <li>Lists matching files in the active SFTP Import Directory.</li>
+    <li>Downloads each matching file.</li>
+    <li>Parses the file using the configured delimiter and encoding.</li>
+    <li>Groups rows by Elastic Order Number and Shipment Number.</li>
+    <li>Creates or updates one staged order per order/shipment group.</li>
+    <li>Attempts to create one draft sale order per staged group.</li>
+    <li>Marks duplicates when a sale order already exists for the same Elastic order and shipment keys.</li>
+    <li>Writes errors to the staged order record for review.</li>
+    <li>Moves processed source files to the active connection Archive Directory when archiving is enabled.</li>
+    <li>Creates an Import Log with file count, order count, error count, status, and summary message.</li>
+</ol>
+
+<h2>Staged Order Review</h2>
+<p>Use <strong>Elastic &gt; Orders &gt; Staged Orders</strong> to review import outcomes.</p>
+<ul>
+    <li><strong>Pending</strong>: staged but not processed yet.</li>
+    <li><strong>Processed</strong>: sale order was created.</li>
+    <li><strong>Duplicate</strong>: an existing sale order matched the Elastic order/shipment keys.</li>
+    <li><strong>Error</strong>: processing failed and the error message needs review.</li>
+</ul>
+
+<h2>Retry Procedure</h2>
+<ol>
+    <li>Open the staged order in Error.</li>
+    <li>Read the error message.</li>
+    <li>Fix the cause, usually customer mapping, product matching, missing product, or invalid order data.</li>
+    <li>Click <strong>Retry</strong>.</li>
+    <li>If the retry creates a sale order, open it from the staged order.</li>
+</ol>
+
+<h2>Matching Notes</h2>
+<ul>
+    <li>Sold-To and Ship-To matching uses customer cross-references first when available.</li>
+    <li>The customer legacy account number can be used as SoldToID when enabled in Settings.</li>
+    <li>Product matching follows the configured Stock Item Key Field.</li>
+    <li>Duplicate checks use the Elastic Order Number and Shipment Number stored on sale orders.</li>
+</ul>
+        ]]></field>
+    </record>
+
+    <record id="knowledge_article_elastic_sop_scheduling" model="knowledge.article">
+        <field name="name">06 - Scheduling Imports and Exports</field>
+        <field name="parent_id" ref="knowledge_article_elastic_sop_root"/>
+        <field name="category">workspace</field>
+        <field name="internal_permission">write</field>
+        <field name="is_article_visible_by_everyone" eval="True"/>
+        <field name="sequence">66</field>
+        <field name="body"><![CDATA[
+<h1>06 - Scheduling Imports and Exports</h1>
+
+<h2>Goal</h2>
+<p>Activate Odoo scheduled actions so imports and exports run automatically against the active Elastic configuration.</p>
+
+<h2>Scheduled Actions Created by the Module</h2>
+<table class="table table-sm table-bordered">
+    <thead>
+        <tr>
+            <th>Scheduled Action</th>
+            <th>Default Active</th>
+            <th>Default Cadence</th>
+            <th>Runs</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Elastic: Import Orders</td>
+            <td>No</td>
+            <td>Every 1 hour</td>
+            <td>Order import for active configurations where Enable Order Import is checked.</td>
+        </tr>
+        <tr>
+            <td>Elastic: Export All Enabled</td>
+            <td>No</td>
+            <td>Every 1 day</td>
+            <td>All export types enabled on each active Elastic configuration.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Activate Scheduled Order Import</h2>
+<ol>
+    <li>Go to <strong>Settings &gt; Technical &gt; Automation &gt; Scheduled Actions</strong>. Developer mode may be required.</li>
+    <li>Open <strong>Elastic: Import Orders</strong>.</li>
+    <li>Set the interval and next execution time according to the business schedule.</li>
+    <li>Activate the scheduled action.</li>
+    <li>Confirm <strong>Enable Order Import</strong> is checked on the active Elastic configuration.</li>
+    <li>Confirm the active environment is correct.</li>
+    <li>After the next run, review Import Logs and Staged Orders.</li>
+</ol>
+
+<h2>Activate Scheduled Export</h2>
+<ol>
+    <li>Open <strong>Elastic: Export All Enabled</strong> in Scheduled Actions.</li>
+    <li>Set the interval and next execution time.</li>
+    <li>Activate the scheduled action.</li>
+    <li>In <strong>Elastic &gt; Configuration &gt; Settings</strong>, enable only the export types that should run automatically.</li>
+    <li>Run <strong>Export All Enabled</strong> manually once before relying on the scheduled job.</li>
+    <li>After the next run, review Export Logs and confirm files on SFTP.</li>
+</ol>
+
+<h2>Scheduling Controls</h2>
+<ul>
+    <li>Scheduled exports run against active configurations and respect the export enable toggles.</li>
+    <li>Scheduled order imports run only for active configurations where order import is enabled.</li>
+    <li>Both scheduled actions use the active environment selected on each configuration.</li>
+    <li>Keep Beta scheduled actions disabled unless testing automation intentionally.</li>
+    <li>Do not activate Production schedules until manual Beta and Production test runs have been validated.</li>
+</ul>
+
+<h2>Recommended Production Cadence</h2>
+<ul>
+    <li>Order import: every 15 to 60 minutes depending on order volume and service expectations.</li>
+    <li>Inventory export: at least daily, more often if Elastic needs near-current availability.</li>
+    <li>Prices, products, catalogs, features, and customers: daily or after relevant master-data changes.</li>
+</ul>
+        ]]></field>
+    </record>
+
+    <record id="knowledge_article_elastic_sop_monitoring" model="knowledge.article">
+        <field name="name">07 - Monitoring and Troubleshooting</field>
+        <field name="parent_id" ref="knowledge_article_elastic_sop_root"/>
+        <field name="category">workspace</field>
+        <field name="internal_permission">write</field>
+        <field name="is_article_visible_by_everyone" eval="True"/>
+        <field name="sequence">67</field>
+        <field name="body"><![CDATA[
+<h1>07 - Monitoring and Troubleshooting</h1>
+
+<h2>Daily Monitoring</h2>
+<ol>
+    <li>Open <strong>Elastic &gt; Logs &gt; Export Logs</strong> and review the most recent export run.</li>
+    <li>Open <strong>Elastic &gt; Logs &gt; Import Logs</strong> and review the most recent import run.</li>
+    <li>Open <strong>Elastic &gt; Orders &gt; Staged Orders</strong> and filter for Error or Pending records.</li>
+    <li>Confirm expected files exist in the outbound directory and processed order files moved to archive.</li>
+    <li>Escalate any failed logs or unprocessed staged orders before the next scheduled run.</li>
+</ol>
+
+<h2>Common Export Issues</h2>
+<table class="table table-sm table-bordered">
+    <thead>
+        <tr>
+            <th>Symptom</th>
+            <th>Likely Cause</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>No records found</td>
+            <td>Export toggle/filter is too restrictive, records are inactive, or required sync flags are off.</td>
+            <td>Review export filters, active flags, Push to Elastic values, and record eligibility.</td>
+        </tr>
+        <tr>
+            <td>No valid records after transformation</td>
+            <td>Required identifiers are missing, such as ItemNumber, StockItemKey, catalog code, or feature value.</td>
+            <td>Review the specific export requirements and fill missing master data.</td>
+        </tr>
+        <tr>
+            <td>SFTP upload failed</td>
+            <td>Connection, credential, host-key, or remote directory issue.</td>
+            <td>Test the active connection, verify host key, confirm credentials, and confirm remote paths.</td>
+        </tr>
+        <tr>
+            <td>Unexpected price rows</td>
+            <td>Pricelists marked Send to Elastic drive price groups; otherwise list price is used.</td>
+            <td>Review Elastic pricelist settings and price group codes.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Common Import Issues</h2>
+<table class="table table-sm table-bordered">
+    <thead>
+        <tr>
+            <th>Symptom</th>
+            <th>Likely Cause</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>No order files found</td>
+            <td>File pattern does not match, files are in the wrong directory, or the active environment is wrong.</td>
+            <td>Review Order File Pattern, active connection Import Directory, and Active Environment.</td>
+        </tr>
+        <tr>
+            <td>No Odoo customer found</td>
+            <td>Missing Sold-To cross-reference or legacy account number mismatch.</td>
+            <td>Create or correct the Customer Cross-Reference or customer Elastic Legacy Account #.</td>
+        </tr>
+        <tr>
+            <td>Product not found</td>
+            <td>Order file product key does not match the configured Stock Item Key Field.</td>
+            <td>Review UPC, SKU, or Product Number + Variation Code + Size data in Odoo and the file.</td>
+        </tr>
+        <tr>
+            <td>Duplicate staged order</td>
+            <td>A sale order already exists for the Elastic order and shipment keys.</td>
+            <td>Open the linked sale order and confirm no action is needed.</td>
+        </tr>
+        <tr>
+            <td>File did not archive</td>
+            <td>Archive path is blank, archiving is disabled, or SFTP move failed.</td>
+            <td>Review Archive Processed Files, Archive Directory, and SFTP permissions.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2>Recovery Rules</h2>
+<ul>
+    <li>Fix master data first, then retry staged orders.</li>
+    <li>Use manual imports and exports to validate fixes before waiting for scheduled jobs.</li>
+    <li>Use Beta for integration testing whenever possible.</li>
+    <li>Keep failed log messages with the incident or support ticket.</li>
+    <li>Do not change the active environment during a scheduled run window.</li>
+</ul>
+        ]]></field>
+    </record>
+</odoo>

@@ -53,6 +53,12 @@ class ElasticConfig(models.Model):
                     'Archive the existing configuration "%s" first.'
                 ) % duplicates.name)
 
+    @api.constrains('order_import_interval_hours')
+    def _check_order_import_interval_hours(self):
+        for record in self:
+            if record.order_import_interval_hours < 1:
+                raise ValidationError(_('Order Import Interval must be at least 1 hour.'))
+
     # ============================================
     # Environment Selection
     # ============================================
@@ -276,6 +282,39 @@ class ElasticConfig(models.Model):
                 'name': 'Elastic Configuration',
             })
         return config
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records._sync_order_import_cron_interval()
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        if {'active', 'order_import_interval_hours'} & set(vals):
+            self._sync_order_import_cron_interval()
+        return result
+
+    def _get_order_import_cron(self):
+        return self.env.ref(
+            'odoo-elastic-app.ir_cron_elastic_order_import',
+            raise_if_not_found=False,
+        )
+
+    def _sync_order_import_cron_interval(self):
+        """Keep the global order-import cron interval aligned to the active config."""
+        cron = self._get_order_import_cron()
+        if not cron:
+            return
+
+        config = self.search([('active', '=', True)], limit=1)
+        if not config:
+            return
+
+        cron.sudo().write({
+            'interval_number': config.order_import_interval_hours,
+            'interval_type': 'hours',
+        })
 
     # ============================================
     # Product Metadata Helpers

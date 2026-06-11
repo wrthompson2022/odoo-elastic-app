@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from odoo import models, fields, api
+
+_logger = logging.getLogger(__name__)
 
 
 class ResPartner(models.Model):
@@ -95,23 +99,40 @@ class ResPartner(models.Model):
         return str(self.id)
 
     def action_sync_to_elastic(self):
-        """Manual sync action to push customer to Elastic"""
-        for record in self:
-            if not record.elastic_sync_enabled:
-                continue
+        """Run the customer export from a partner form/list action.
 
-            # This will be implemented in Phase 2 when we create the customer exporter
-            # For now, just mark as synced
-            record.elastic_last_sync = fields.Datetime.now()
+        Elastic exports are full flat-file feeds with stable filenames, so this
+        action runs the normal customer exporter instead of writing a partial
+        customers.csv containing only the selected partner.
+        """
+        from ..exporters.customer_exporter import CustomerExporter
+
+        try:
+            config = self.env['elastic.config'].get_config()
+            result = CustomerExporter(self.env, config).export()
+        except Exception as e:
+            _logger.error('Customer export from partner action failed: %s', e, exc_info=True)
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Customer Export Error',
+                    'message': str(e),
+                    'type': 'danger',
+                    'sticky': True,
+                }
+            }
+
+        notification_type = 'success' if result.get('success') else 'warning'
 
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': 'Sync Initiated',
-                'message': f'{len(self)} customer(s) marked for Elastic sync',
-                'type': 'success',
-                'sticky': False,
+                'title': 'Customer Export Complete' if result.get('success') else 'Customer Export Failed',
+                'message': result.get('message', 'Customer export finished.'),
+                'type': notification_type,
+                'sticky': notification_type != 'success',
             }
         }
 

@@ -32,6 +32,7 @@ Features
         "product",
         "sale_management",
         "stock",
+        "knowledge",
     ],
     "external_dependencies": {
         "python": ["paramiko"],
@@ -51,6 +52,7 @@ Features
         "views/res_partner_views.xml",
         "views/menu.xml",
         "views/elastic_cron.xml",
+        "data/elastic_knowledge_sop.xml",
     ],
     "images": ["static/description/icon.png"],
     "application": True,

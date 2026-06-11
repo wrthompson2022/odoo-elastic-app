@@ -22,6 +22,20 @@ class TestElasticConfig(TransactionCase):
         with self.assertRaises(ValidationError):
             self.env['elastic.config'].create({'name': 'Duplicate', 'active': True})
 
+    def test_order_import_interval_updates_scheduled_action(self):
+        config = self.env['elastic.config'].get_config()
+        cron = self.env.ref('odoo-elastic-app.ir_cron_elastic_order_import')
+
+        config.order_import_interval_hours = 3
+
+        self.assertEqual(cron.interval_number, 3)
+        self.assertEqual(cron.interval_type, 'hours')
+
+    def test_order_import_interval_must_be_positive(self):
+        config = self.env['elastic.config'].get_config()
+        with self.assertRaises(ValidationError):
+            config.order_import_interval_hours = 0
+
     def test_active_connection_follows_active_environment(self):
         config = self.env['elastic.config'].get_config()
         beta = self.env['elastic.connection'].create({

@@ -38,7 +38,7 @@
                         <field name="elastic_notes" widget="text" placeholder="Additional notes for Elastic integration"/>
                     </group>
                     <div class="mt-3">
-                        <button name="action_sync_to_elastic" type="object" string="Sync to Elastic" class="btn-primary" invisible="not elastic_sync_enabled"/>
+                        <button name="action_sync_to_elastic" type="object" string="Export Customers to Elastic" class="btn-primary" invisible="not elastic_sync_enabled"/>
                     </div>
                 </page>
             </xpath>
