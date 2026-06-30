@@ -274,6 +274,23 @@ Each `product.pricelist` carries a **Send to Elastic** flag and an optional
   reproduce a full Elastic price-group matrix (e.g. `LP, PL, PH, F, E, D, C`),
   create one Send-to-Elastic pricelist per group.
 
+### Inventory ATP
+The `inventory.csv` export sends time-phased available-to-promise rows by
+warehouse. It starts from current internal on-hand stock, applies open incoming
+and outgoing stock moves in date order, and keeps the internal running balance
+negative when demand exceeds supply so later receipts first cover prior
+shortages. Negative exported quantities are clamped to `0`.
+
+By default ATP demand comes from confirmed stock moves. Enable **Include
+Quotations in ATP Demand** to also subtract draft/sent sales quotations.
+
+Enable **Use BOM Component Fallback for ATP** when MTO finished goods should be
+sellable based on raw goods. If a product has no positive finished-goods ATP,
+the exporter evaluates every active BOM for that product/template, calculates
+the buildable quantity from each BOM's limiting storable component, and uses the
+best active BOM as fallback supply. Existing finished-good demand still consumes
+that fallback supply before quantities are exported.
+
 ### Extensible Architecture
 - Base classes make it easy to add new export/import types
 - Field mapping system allows flexible data transformation
@@ -309,7 +326,7 @@ Implement advanced exports:
 
 - Odoo 18.0
 - Python packages: `paramiko>=3.4.0`
-- Odoo modules: base, sale_management, stock, contacts, product, mail
+- Odoo modules: base, sale_management, stock, mrp, contacts, product, mail
 
 ## License
 

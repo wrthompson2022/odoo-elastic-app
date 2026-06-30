@@ -157,6 +157,8 @@
                             <group>
                                 <group>
                                     <field name="export_only_synced_products"/>
+                                    <field name="inventory_include_quotation_demand"/>
+                                    <field name="inventory_use_bom_component_fallback"/>
                                     <field name="export_only_synced_customers"/>
                                 </group>
                                 <group>

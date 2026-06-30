@@ -178,6 +178,8 @@
 
 <h2>Export Filters</h2>
 <p>Use <strong>Export Only Synced Products</strong> to limit product, price, inventory, feature, and tag exports to products with Elastic sync enabled. Product exports also require the template and variant to be enabled.</p>
+<p>Use <strong>Include Quotations in ATP Demand</strong> when draft/sent sales quotations should reduce exported inventory availability. Leave it disabled when only confirmed sales demand should reduce ATP.</p>
+<p>Use <strong>Use BOM Component Fallback for ATP</strong> when made-to-order finished goods should be sellable based on raw-material stock. Finished-goods ATP is used first; BOM component availability is only used when the finished good has no positive ATP.</p>
 <p>Use <strong>Export Only Synced Customers</strong> to limit customer, location, custom-field, and rep-mapping exports to customers with Elastic sync enabled.</p>
 
 <h2>Customer Setup</h2>
@@ -364,7 +366,7 @@
         <tr>
             <td>Export Inventory</td>
             <td>inventory.csv</td>
-            <td>Storable active products by active warehouse</td>
+            <td>Time-phased ATP for storable active products by active warehouse</td>
         </tr>
         <tr>
             <td>Export Catalogs</td>
@@ -388,6 +390,17 @@
         </tr>
     </tbody>
 </table>
+
+<h2>Inventory ATP Logic</h2>
+<p>The inventory export sends available-to-promise quantities by product and warehouse. It starts with current finished-goods on-hand stock, applies open incoming and outgoing stock moves in date order, optionally subtracts draft/sent quotations, and sends negative quantities as 0. The internal running balance can go negative so later receipts first cover earlier shortages before increasing sellable availability.</p>
+<p>If <strong>Use BOM Component Fallback for ATP</strong> is enabled and a finished good has no positive finished-goods ATP, Odoo evaluates every active BOM for that product/template. For each BOM, the buildable quantity is the lowest available component quantity after BOM usage is considered. If multiple active BOMs exist, Odoo uses the BOM that can build the highest number of finished units. Existing finished-good demand still reduces that BOM-derived quantity before export.</p>
+
+<h3>Inventory Examples</h3>
+<ul>
+    <li><strong>Future receipts cover old shortages:</strong> a SKU has 50 on hand, 75 units of demand due now, 50 units arriving next week, and 100 units arriving the week after. The current row exports 0, next week's row exports 25, and the following receipt increases availability to 125.</li>
+    <li><strong>Negative quantities are never sent:</strong> a SKU has 10 on hand and 25 units of future demand before any receipt. The row for that demand date exports 0, not -15. Later receipts first cover the shortage before increasing availability.</li>
+    <li><strong>BOM fallback for MTO goods:</strong> a finished good has no finished stock or open manufacturing supply. Active BOM A can build 40 units because one component is limited to 40; active BOM B can build 60. Odoo uses 60 as fallback supply, then subtracts any existing finished-good demand before writing inventory.csv.</li>
+</ul>
 
 <h2>Recommended Manual Export Sequence</h2>
 <ol>

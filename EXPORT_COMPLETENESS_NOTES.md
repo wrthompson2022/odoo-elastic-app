@@ -76,16 +76,15 @@ Recommended additions:
 - Add ship-to level fields for warehouse, shipping rules, drop-ship approval, carrier/service preferences, and blocked/inactive status.
 - Keep using `elastic.customer.xref`, but allow export-side generation of xrefs so SoldToID/ShipToID values are visible and governed before import.
 
-### 5. Inventory should distinguish available, forecasted, and sellable stock
+### 5. Inventory ATP needs warehouse policy hardening
 
-Inventory exports one row per product per warehouse, using internal quants or `qty_available`. That may not match Elastic's sellable availability rules.
+Inventory now exports time-phased ATP rows per product per warehouse. It starts with current internal on-hand stock, applies open stock moves in date order, optionally includes draft/sent quotation demand, folds overdue moves into the current bucket, and clamps negative CSV quantities to `0`. The running balance is not clamped internally, so later receipts first satisfy earlier shortages. An optional BOM component fallback lets MTO finished goods with no positive finished-goods ATP use buildable quantity from active BOM raw-material stock, considering every active BOM and selecting the best buildable BOM. Existing finished-good demand still consumes BOM-derived fallback supply before export.
 
 Recommended additions:
 
-- Decide whether Elastic needs on-hand, available-to-promise, forecasted, or sellable quantity.
 - Add warehouse inclusion/exclusion and Elastic warehouse code fields.
-- Consider safety stock, reserved quantity, backorder policy, dropship/MTO behavior, and future availability dates.
-- Add tests around multi-warehouse quantities and zero/negative quantities.
+- Consider safety stock, backorder policy, dropship behavior, quote probability/expiration policy, and component demand allocations across several finished goods.
+- Add integration tests around multi-warehouse stock moves, quotation demand, and active BOM component fallback.
 
 ### 6. Reps need explicit external IDs and hierarchy
 

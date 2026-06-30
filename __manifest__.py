@@ -32,6 +32,7 @@ Features
         "product",
         "sale_management",
         "stock",
+        "mrp",
         "knowledge",
     ],
     "external_dependencies": {
