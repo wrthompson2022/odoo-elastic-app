@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from datetime import date
-import base64
 
 from odoo.tests.common import TransactionCase
 
@@ -235,27 +234,58 @@ class TestCatalogMappingExporter(TransactionCase):
 
         self.assertEqual(rows, [['SIZED', 1, 'SIZEDHAT', '210']])
 
-    def test_uploaded_mapping_preserves_file_order(self):
+    def test_regeneration_preserves_manual_sort_edits(self):
+        """Regenerating mapping lines must keep manually edited sequence and
+        catalog position on surviving lines, drop lines whose products left
+        the catalog, and add lines for new members."""
+        color_attr = self.env['product.attribute'].create({'name': 'Color'})
+        black = self.env['product.attribute.value'].create({
+            'name': 'Black Gloss',
+            'attribute_id': color_attr.id,
+            'elastic_color_code': '210',
+        })
+        blue = self.env['product.attribute.value'].create({
+            'name': 'Light Blue',
+            'attribute_id': color_attr.id,
+            'elastic_color_code': '5KF',
+        })
+        template = self.env['product.template'].create({
+            'name': 'Elastic Sorted Frame',
+            'sale_ok': True,
+            'attribute_line_ids': [(0, 0, {
+                'attribute_id': color_attr.id,
+                'value_ids': [(6, 0, [black.id, blue.id])],
+            })],
+        })
+        black_variant = template.product_variant_ids.filtered(
+            lambda v: black
+            in v.product_template_attribute_value_ids.product_attribute_value_id
+        )
+        blue_variant = template.product_variant_ids - black_variant
+        black_variant.default_code = 'SORT-BLK'
+        blue_variant.default_code = 'SORT-BLU'
         catalog = self.env['elastic.catalog'].create({
-            'name': 'Uploaded Catalog',
-            'code': 'DUCKS',
-            'mapping_source': 'uploaded',
-            'mapping_upload': base64.b64encode(
-                b'CatalogKey,CatalogPosition,ItemNumber,ColorCode\n'
-                b'ALL,1,IGNORED,000\n'
-                b'DUCKS,1,STYLE-B,210\n'
-                b'DUCKS,1,STYLE-A,5KF\n'
-            ),
-            'mapping_upload_filename': 'catalog_mapping.csv',
+            'name': 'Sorted Catalog',
+            'code': 'SORTED',
+            'variant_ids': [(6, 0, [black_variant.id, blue_variant.id])],
         })
 
-        catalog.action_import_mapping_upload()
-        rows = self._build_exporter()._build_data_rows(catalog)
-
-        self.assertEqual(
-            rows,
-            [
-                ['DUCKS', 1, 'STYLE-B', '210'],
-                ['DUCKS', 1, 'STYLE-A', '5KF'],
-            ],
+        catalog.action_generate_mapping_lines()
+        black_line = catalog.mapping_line_ids.filtered(
+            lambda l: l.item_number == 'SORT-BLK'
         )
+        # User drags the black line to the top and adjusts its position.
+        black_line.write({'sequence': 1, 'catalog_position': 7})
+
+        # Blue variant leaves the catalog; regenerate.
+        catalog.variant_ids = [(6, 0, [black_variant.id])]
+        catalog.action_generate_mapping_lines()
+
+        self.assertEqual(len(catalog.mapping_line_ids), 1)
+        surviving = catalog.mapping_line_ids
+        self.assertEqual(surviving.item_number, 'SORT-BLK')
+        self.assertEqual(surviving.sequence, 1)
+        self.assertEqual(surviving.catalog_position, 7)
+
+        rows = self._build_exporter()._build_data_rows(catalog)
+        self.assertEqual(rows, [['SORTED', 7, 'SORT-BLK', '210']])

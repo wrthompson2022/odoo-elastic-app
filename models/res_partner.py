@@ -56,6 +56,12 @@ class ResPartner(models.Model):
         help='Assigned sales representative for Elastic integration',
         tracking=True
     )
+    elastic_warehouse_id = fields.Many2one(
+        'stock.warehouse',
+        string='Elastic Warehouse',
+        help='Warehouse code sent to Elastic for this customer. Falls back '
+             'to the first active warehouse when empty.'
+    )
     elastic_payment_terms = fields.Char(
         string='Elastic Payment Terms',
         help='Payment terms code for Elastic system'

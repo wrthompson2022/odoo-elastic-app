@@ -65,8 +65,35 @@ class RepExporter(BaseExporter):
             'CatalogPermissionGroup': lambda r: 'DEFAULT',
             'ProductPermissionGroup': lambda r: 'DEFAULT',
             'Language': lambda r: 'EN',
-            'Warehouse': lambda r: 'DEFAULT',
+            'Warehouse': lambda r: self._get_warehouse_code(r),
         }
+
+    def _get_warehouse_code(self, user):
+        """Warehouse code from the user's default warehouse (sale_stock),
+        falling back to the first active warehouse in Odoo."""
+        warehouse = None
+        if 'property_warehouse_id' in user._fields:
+            warehouse = user.property_warehouse_id
+        if warehouse:
+            return self.config.elastic_warehouse_code(warehouse)
+        return self.config.get_default_warehouse_code()
+
+    def get_extra_rows(self):
+        """Synthetic house-account rep row so rep_mappings.csv fallback
+        rows always reference a rep that exists in reps.csv."""
+        if not self.config.rep_house_account_enabled:
+            return []
+        return [[
+            'GLOBAL',
+            self.config.rep_house_account_code or 'HOU',
+            self.config.rep_house_account_name or 'HOUSE ACCOUNTS',
+            'USD',
+            'LP',
+            'DEFAULT',
+            'DEFAULT',
+            'EN',
+            self.config.get_default_warehouse_code(),
+        ]]
 
     def _get_rep_id(self, user):
         """
@@ -116,12 +143,18 @@ class RepMappingExporter(BaseExporter):
         return 'rep_mappings'
 
     def get_export_domain(self):
-        """Get domain for filtering customers with assigned reps"""
+        """Get domain for filtering customers to map.
+
+        With the house-account rep enabled, every exported customer gets a
+        mapping row (house rep sees all accounts), so no rep filter applies.
+        Otherwise only customers with an assigned rep are mapped."""
         domain = [
             ('is_company', '=', True),
             ('customer_rank', '>', 0),
-            ('elastic_rep_id', '!=', False),  # Must have an assigned rep
         ]
+
+        if not self.config.rep_house_account_enabled:
+            domain.append(('elastic_rep_id', '!=', False))
 
         if self.config.export_only_synced_customers:
             domain.append(('elastic_sync_enabled', '=', True))
@@ -166,45 +199,48 @@ class RepMappingExporter(BaseExporter):
         try:
             _logger.info(f"Starting {export_type} export...")
 
-            # Get customers with assigned reps
+            # Get customers to map
             domain = self.get_export_domain()
             customers = self.env[model_name].search(domain)
 
             if not customers:
-                message = f"No {export_type} records found to export"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No {export_type} records found to export; nothing uploaded"
+                )
 
-            _logger.info(f"Found {len(customers)} customer(s) with assigned reps")
+            _logger.info(f"Found {len(customers)} customer(s) to map")
 
             # Pre-export hook
             self.pre_export_hook(customers)
 
+            house_enabled = self.config.rep_house_account_enabled
+            house_code = self.config.rep_house_account_code or 'HOU'
+
             # Build data rows
             data_rows = []
+            seen = set()
+
+            def _append(rep_id, sold_to_id):
+                key = (rep_id, sold_to_id)
+                if rep_id and sold_to_id and key not in seen:
+                    seen.add(key)
+                    data_rows.append([rep_id, sold_to_id])
+
             for customer in customers:
                 sold_to_id = customer._get_sold_to_id()
 
                 # Add the assigned rep mapping
                 if customer.elastic_rep_id:
-                    rep_id = self._get_rep_id(customer.elastic_rep_id)
-                    data_rows.append([rep_id, sold_to_id])
+                    _append(self._get_rep_id(customer.elastic_rep_id), sold_to_id)
 
-                # Also add house account mapping (HOU)
-                data_rows.append(['HOU', sold_to_id])
+                # House-account rep sees every exported customer
+                if house_enabled:
+                    _append(house_code, sold_to_id)
 
             if not data_rows:
-                message = f"No valid {export_type} records after transformation"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No valid {export_type} records after transformation; nothing uploaded"
+                )
 
             _logger.info(f"Generated {len(data_rows)} rep mapping records")
 
@@ -223,13 +259,17 @@ class RepMappingExporter(BaseExporter):
             success, upload_message = self.sftp_service.upload_file(
                 local_file_content=file_content,
                 remote_filename=filename,
-                remote_directory=self.config.sftp_export_path
+                remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
 
             if not success:
                 error_message = f"Failed to upload {export_type} file: {upload_message}"
                 _logger.error(error_message)
                 self.post_export_hook(customers, False, error_message)
+                self._log_upload_failure(
+                    export_type, model_name, len(data_rows), error_message
+                )
                 return {
                     'success': False,
                     'message': error_message,

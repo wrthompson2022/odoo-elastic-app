@@ -92,9 +92,9 @@ class LocationExporter(BaseExporter):
             customers = self.env[model_name].search(self.get_export_domain())
 
             if not customers:
-                message = f'No {export_type} records found to export'
-                _logger.warning(message)
-                return {'success': False, 'message': message, 'record_count': 0}
+                return self._empty_result(
+                    f'No {export_type} records found to export; nothing uploaded'
+                )
 
             self.pre_export_hook(customers)
 
@@ -120,6 +120,7 @@ class LocationExporter(BaseExporter):
                 local_file_content=file_content,
                 remote_filename=filename,
                 remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
 
             if not success:

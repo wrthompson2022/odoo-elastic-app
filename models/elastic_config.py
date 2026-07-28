@@ -215,19 +215,29 @@ class ElasticConfig(models.Model):
         help='When enabled, use the Legacy Account Number field on customers for SoldToID before falling back to Odoo Contact ID'
     )
 
-    date_format = fields.Char(
-        string='Date Format',
-        default='%Y-%m-%d',
-        required=True,
-
-        help='Python strftime format for dates (e.g., %Y-%m-%d for 2024-01-31)'
+    rep_house_account_enabled = fields.Boolean(
+        string='House Account Rep',
+        default=True,
+        help='Emit a generic house-account rep in reps.csv and map it to every '
+             'exported customer in rep_mappings.csv, so a shared login can see '
+             'all accounts in Elastic.'
     )
-    datetime_format = fields.Char(
-        string='DateTime Format',
-        default='%Y-%m-%d %H:%M:%S',
-        required=True,
-
-        help='Python strftime format for datetimes'
+    rep_house_account_code = fields.Char(
+        string='House Account Rep ID',
+        default='HOU',
+        help='RepID used for the house-account rep row and mappings.'
+    )
+    rep_house_account_name = fields.Char(
+        string='House Account Rep Name',
+        default='HOUSE ACCOUNTS',
+        help='RepName used for the house-account rep row in reps.csv.'
+    )
+    default_catalog_id = fields.Many2one(
+        'elastic.catalog',
+        string='Default Catalog',
+        help='Catalog whose key is used in prices.csv for products that '
+             'belong to no Elastic catalog. Leave empty to use the literal '
+             'key "ALL" (only valid when a catalog with that code exists).'
     )
 
     # ============================================
@@ -778,6 +788,32 @@ class ElasticConfig(models.Model):
             encoding=self.export_encoding,
             include_header=self.export_include_header
         )
+
+    # ============================================
+    # Shared Code Derivation
+    # ============================================
+    @api.model
+    def elastic_warehouse_code(self, warehouse):
+        """Single warehouse-code rule shared by every feed that emits a
+        Warehouse column, so customers/reps/inventory always agree."""
+        if warehouse:
+            return warehouse.code or warehouse.name or 'DEFAULT'
+        return 'DEFAULT'
+
+    def get_default_warehouse_code(self):
+        """Warehouse code used when a record has no explicit warehouse:
+        the first active warehouse in Odoo (matching what inventory.csv
+        exports), or 'DEFAULT' on databases without warehouses."""
+        self.ensure_one()
+        warehouse = self.env['stock.warehouse'].search([], limit=1, order='sequence, id')
+        return self.elastic_warehouse_code(warehouse)
+
+    def get_default_catalog_key(self):
+        """CatalogKey for products that belong to no Elastic catalog."""
+        self.ensure_one()
+        if self.default_catalog_id and self.default_catalog_id.code:
+            return self.default_catalog_id.code
+        return 'ALL'
 
     # ============================================
     # Convenience Properties for Active Connection

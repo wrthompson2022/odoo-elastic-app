@@ -328,11 +328,8 @@ class InventoryExporter(BaseExporter):
         ]
 
     def _get_warehouse_code(self, warehouse):
-        """Get warehouse code for Elastic"""
-        # Use warehouse code if available, otherwise use name or DEFAULT
-        if warehouse:
-            return warehouse.code or warehouse.name or 'DEFAULT'
-        return 'DEFAULT'
+        """Get warehouse code for Elastic (shared rule on elastic.config)"""
+        return self.config.elastic_warehouse_code(warehouse)
 
     def export(self):
         """
@@ -350,13 +347,9 @@ class InventoryExporter(BaseExporter):
             products = self.env[model_name].search(domain)
 
             if not products:
-                message = f"No {export_type} records found to export"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No {export_type} records found to export; nothing uploaded"
+                )
 
             _logger.info(f"Found {len(products)} product(s) for inventory export")
 
@@ -398,13 +391,9 @@ class InventoryExporter(BaseExporter):
                         )
 
             if not data_rows:
-                message = f"No valid {export_type} records after transformation"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No valid {export_type} records after transformation; nothing uploaded"
+                )
 
             # Generate file content
             headers = self.get_export_headers()
@@ -421,13 +410,17 @@ class InventoryExporter(BaseExporter):
             success, upload_message = self.sftp_service.upload_file(
                 local_file_content=file_content,
                 remote_filename=filename,
-                remote_directory=self.config.sftp_export_path
+                remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
 
             if not success:
                 error_message = f"Failed to upload {export_type} file: {upload_message}"
                 _logger.error(error_message)
                 self.post_export_hook(products, False, error_message)
+                self._log_upload_failure(
+                    export_type, model_name, len(data_rows), error_message
+                )
                 return {
                     'success': False,
                     'message': error_message,

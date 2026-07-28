@@ -16,11 +16,19 @@ staging, retry, logging, and Beta/Production environment support.
 - Password or SSH private-key authentication.
 - Stored host-key verification, host-key fingerprint capture, and a legacy
   Trust-on-First-Connect upgrade path.
-- Configurable export delimiter, encoding, header row behavior, and date/time
-  formats.
+- Configurable export delimiter, file encoding (applied to SFTP uploads),
+  header row behavior, and composite ItemNumber separator. Feed dates always
+  use Elastic's fixed `YYYYMMDD` format.
+- Optional house-account rep: a configurable generic rep is emitted in
+  `reps.csv` and mapped to every exported customer in `rep_mappings.csv`, so a
+  shared login can see all accounts.
+- Default catalog selection for `prices.csv` rows of products that belong to
+  no Elastic catalog.
 - Per-feed enable/disable toggles for exports and order import.
 - Active environment switching from a single Elastic settings record.
-- Detailed export and import logs.
+- Detailed export and import logs, including failed-upload log entries. An
+  empty feed counts as a successful run with zero records; nothing is
+  uploaded and Export All does not raise an alert.
 
 ### Outbound Exports
 
@@ -94,11 +102,17 @@ and timed by an administrator.
 - Legacy account number support for SoldToID exports.
 - Elastic customer ID, catalog assignments, rep assignment, payment terms,
   price level, credit limit, notes, and drop-ship approval.
+- Customer warehouse assignment: `customers.csv` sends the customer's Elastic
+  Warehouse code, falling back to the first active Odoo warehouse so the code
+  always matches `inventory.csv`. Rep warehouses use the user's default
+  warehouse the same way.
 - Connection-scoped and global customer cross-reference mappings.
 - Catalog metadata including permission group, ship/cancel dates, season,
-  brand, classification, price group, and generated or uploaded mapping lines.
-  Generated mapping lines are deduplicated to one row per ItemNumber and
-  ColorCode, matching the Elastic style/color mapping grain.
+  brand, classification, and price group. Catalog mapping lines are generated
+  from catalog membership (template or variant level) — the same membership
+  source that drives `prices.csv` CatalogKeys — deduplicated to one row per
+  ItemNumber and ColorCode. Manual sort edits on mapping lines survive
+  regeneration, so the mapping-lines view doubles as the catalog sort editor.
 - Per-pricelist **Send to Elastic** toggle and unique Elastic price-group code.
 - Variant-aware pricing export, with list-price fallback when no pricelists are
   flagged.

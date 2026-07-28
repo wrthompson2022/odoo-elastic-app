@@ -83,13 +83,9 @@ class CustomerCustomFieldsExporter(BaseExporter):
             records = self.env[model_name].search(domain)
 
             if not records:
-                message = f"No {export_type} records found to export"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No {export_type} records found to export; nothing uploaded"
+                )
 
             _logger.info(f"Found {len(records)} customer(s) for custom fields export")
 
@@ -98,10 +94,12 @@ class CustomerCustomFieldsExporter(BaseExporter):
 
             # Build data rows - one row per custom field per customer
             data_rows = []
+            exported_records = self.env[model_name].browse()
             for record in records:
                 transformed = self.transform_record(record)
                 if not transformed:
                     continue
+                exported_records |= record
 
                 # Add drop_ship custom field row
                 data_rows.append([
@@ -122,13 +120,9 @@ class CustomerCustomFieldsExporter(BaseExporter):
                 #     ])
 
             if not data_rows:
-                message = f"No valid {export_type} records after transformation"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No valid {export_type} records after transformation; nothing uploaded"
+                )
 
             # Generate file content
             headers = self.get_export_headers()
@@ -145,22 +139,26 @@ class CustomerCustomFieldsExporter(BaseExporter):
             success, upload_message = self.sftp_service.upload_file(
                 local_file_content=file_content,
                 remote_filename=filename,
-                remote_directory=self.config.sftp_export_path
+                remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
 
             if not success:
                 error_message = f"Failed to upload {export_type} file: {upload_message}"
                 _logger.error(error_message)
                 self.post_export_hook(records, False, error_message)
+                self._log_upload_failure(
+                    export_type, model_name, len(data_rows), error_message
+                )
                 return {
                     'success': False,
                     'message': error_message,
                     'record_count': len(data_rows)
                 }
 
-            # Update last sync timestamp on records
+            # Update last sync timestamp on the records actually exported
             from odoo import fields
-            records.write({'elastic_last_sync': fields.Datetime.now()})
+            exported_records.write({'elastic_last_sync': fields.Datetime.now()})
 
             success_message = f"Successfully exported {len(data_rows)} {export_type} record(s) to {filename}"
             _logger.info(success_message)

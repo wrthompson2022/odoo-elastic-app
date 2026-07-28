@@ -83,13 +83,20 @@ class CustomerExporter(BaseExporter):
             'State': lambda r: r.state_id.code if r.state_id else '',
             'PostalCode': 'zip',
             'Country': lambda r: r.country_id.name if r.country_id else 'USA',
-            'Warehouse': lambda r: 'DEFAULT',  # Default warehouse
+            'Warehouse': lambda r: self._get_warehouse_code(r),
             'Language': lambda r: self._get_language_code(r),
         }
 
     def _get_product_permission_group(self, record):
         """Get product permission group - defaults to DEFAULT"""
         return 'DEFAULT'
+
+    def _get_warehouse_code(self, record):
+        """Warehouse code from the customer's Elastic Warehouse, falling
+        back to the first active warehouse (matching inventory.csv codes)."""
+        if record.elastic_warehouse_id:
+            return self.config.elastic_warehouse_code(record.elastic_warehouse_id)
+        return self.config.get_default_warehouse_code()
 
     def _get_catalog_permission_group(self, record):
         """

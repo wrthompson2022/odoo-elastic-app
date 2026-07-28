@@ -173,9 +173,10 @@ class CatalogMappingExporter(BaseExporter):
         return product._get_elastic_color_code()
 
     def pre_export_hook(self, records):
-        generated_catalogs = records.filtered(lambda catalog: catalog.mapping_source == 'generated')
-        if generated_catalogs:
-            generated_catalogs.action_generate_mapping_lines()
+        # Mapping lines always regenerate from catalog membership (manual
+        # sequence edits on surviving lines are preserved).
+        if records:
+            records.action_generate_mapping_lines()
 
     def _build_data_rows(self, catalogs):
         data_rows = []
@@ -212,13 +213,9 @@ class CatalogMappingExporter(BaseExporter):
             catalogs = self.env[model_name].search(domain)
 
             if not catalogs:
-                message = f"No {export_type} records found to export"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No {export_type} records found to export; nothing uploaded"
+                )
 
             # Pre-export hook
             self.pre_export_hook(catalogs)
@@ -226,13 +223,9 @@ class CatalogMappingExporter(BaseExporter):
             data_rows = self._build_data_rows(catalogs)
 
             if not data_rows:
-                message = f"No valid {export_type} records after transformation"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No valid {export_type} records after transformation; nothing uploaded"
+                )
 
             _logger.info(f"Generated {len(data_rows)} catalog mapping records")
 
@@ -251,13 +244,17 @@ class CatalogMappingExporter(BaseExporter):
             success, upload_message = self.sftp_service.upload_file(
                 local_file_content=file_content,
                 remote_filename=filename,
-                remote_directory=self.config.sftp_export_path
+                remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
 
             if not success:
                 error_message = f"Failed to upload {export_type} file: {upload_message}"
                 _logger.error(error_message)
                 self.post_export_hook(catalogs, False, error_message)
+                self._log_upload_failure(
+                    export_type, model_name, len(data_rows), error_message
+                )
                 return {
                     'success': False,
                     'message': error_message,
