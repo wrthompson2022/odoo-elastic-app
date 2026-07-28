@@ -33,16 +33,12 @@ class CustomerCustomFieldsExporter(BaseExporter):
 
     def get_export_domain(self):
         """Get domain for filtering customers to export"""
-        domain = [
+        return [
             ('is_company', '=', True),  # Only export companies/customers
             ('customer_rank', '>', 0),   # Must be a customer
+            # "Push to Elastic" is always authoritative.
+            ('elastic_sync_enabled', '=', True),
         ]
-
-        # Optionally filter to only synced customers
-        if self.config.export_only_synced_customers:
-            domain.append(('elastic_sync_enabled', '=', True))
-
-        return domain
 
     def get_export_headers(self):
         """Headers matching the Elastic customer_custom_fields.csv format"""

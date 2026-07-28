@@ -140,18 +140,13 @@ class ElasticCatalog(models.Model):
     def _get_exportable_mapping_products(self):
         self.ensure_one()
         products = self._get_member_variants()
-        config = self.env['elastic.config'].get_config()
+        # "Push to Elastic" is always authoritative, at both levels.
         return products.filtered(
             lambda product: product.active
             and product.sale_ok
+            and product.elastic_sync_enabled
+            and product.product_tmpl_id.elastic_sync_enabled
             and product._get_elastic_item_number()
-            and (
-                not config.export_only_synced_products
-                or (
-                    product.elastic_sync_enabled
-                    and product.product_tmpl_id.elastic_sync_enabled
-                )
-            )
         )
 
     def _get_mapping_color_code(self, product):

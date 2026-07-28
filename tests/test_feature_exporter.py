@@ -62,7 +62,6 @@ class TestFeatureExporter(TransactionCase):
         self.assertEqual(exporter._item_number(self.product), 'FE-001')
 
     def test_synced_product_filter_skips_disabled_template(self):
-        self.config.export_only_synced_products = True
         self.template.elastic_sync_enabled = False
 
         exporter = self._build_exporter()
@@ -71,7 +70,6 @@ class TestFeatureExporter(TransactionCase):
         self.assertFalse(products)
 
     def test_synced_product_filter_skips_disabled_variant(self):
-        self.config.export_only_synced_products = True
         self.product.elastic_sync_enabled = False
 
         exporter = self._build_exporter()

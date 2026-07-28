@@ -163,14 +163,20 @@ class BaseExporter:
 
             # Transform records
             transformed_records = []
+            skipped_count = 0
             for record in records:
                 transformed = self.transform_record(record)
                 if transformed:
                     transformed_records.append(transformed)
+                else:
+                    skipped_count += 1
 
             if not transformed_records:
                 return self._empty_result(
-                    f"No valid {export_type} records after transformation; nothing uploaded"
+                    f"No valid {export_type} records after transformation; "
+                    f"{skipped_count} record(s) were skipped (missing ItemNumber "
+                    f"or StockItemKey — see the server log for each record). "
+                    f"Nothing uploaded."
                 )
 
             # Generate file content
@@ -220,6 +226,11 @@ class BaseExporter:
                 sync_records.write({'elastic_last_sync': fields.Datetime.now()})
 
             success_message = f"Successfully exported {len(transformed_records)} {export_type} record(s) to {filename}"
+            if skipped_count:
+                success_message += (
+                    f" — {skipped_count} record(s) skipped for missing "
+                    f"ItemNumber/StockItemKey (see server log)"
+                )
             _logger.info(success_message)
 
             # Post-export hook

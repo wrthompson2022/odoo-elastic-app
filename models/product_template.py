@@ -42,8 +42,22 @@ class ProductTemplate(models.Model):
         'product_id',
         'catalog_id',
         string='Elastic Catalogs',
-        help='Catalogs this product belongs to in Elastic'
+        help='Catalogs every variant of this product belongs to in Elastic. '
+             'Selecting a catalog generates its catalog mapping rows. '
+             'Individual variants can additionally be assigned on the '
+             'variant form.'
     )
+
+    def write(self, vals):
+        catalogs_before = self.env['elastic.catalog']
+        if 'elastic_catalog_ids' in vals:
+            catalogs_before = self.elastic_catalog_ids
+        res = super().write(vals)
+        if 'elastic_catalog_ids' in vals:
+            catalogs = (catalogs_before | self.elastic_catalog_ids).filtered('active')
+            if catalogs:
+                catalogs.action_generate_mapping_lines()
+        return res
     elastic_features = fields.Text(
         string='Elastic Product Tag Text',
         help='Optional text field that can be selected by Product Tag Mappings.'

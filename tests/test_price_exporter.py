@@ -44,7 +44,6 @@ class TestPriceExporter(TransactionCase):
         self.assertEqual(retail, 100.0)
 
     def test_export_domain_honors_template_and_variant_sync_flags(self):
-        self.config.export_only_synced_products = True
         exporter = self._build_exporter()
 
         self.assertIn(('elastic_sync_enabled', '=', True), exporter.get_export_domain())

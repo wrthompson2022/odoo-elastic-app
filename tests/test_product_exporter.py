@@ -144,7 +144,6 @@ class TestProductExporter(TransactionCase):
         self.assertEqual(exporter._get_available_date(self.product), '20260715')
 
     def test_export_domain_honors_template_and_variant_sync_flags(self):
-        self.config.export_only_synced_products = True
         exporter = self._build_exporter()
 
         self.assertIn(('elastic_sync_enabled', '=', True), exporter.get_export_domain())
@@ -152,6 +151,28 @@ class TestProductExporter(TransactionCase):
             ('product_tmpl_id.elastic_sync_enabled', '=', True),
             exporter.get_export_domain(),
         )
+
+    def test_domain_excludes_service_products(self):
+        """Delivery/shipping-fee service products must not reach products.csv."""
+        exporter = self._build_exporter()
+        self.assertIn(('type', '=', 'consu'), exporter.get_export_domain())
+
+    def test_skipped_records_surface_in_result_message(self):
+        """Variants skipped for missing keys must be visible in the export
+        result, not only in server-log warnings."""
+        self.template.elastic_product_id = 'STYLE-OK'
+        self.env['product.template'].create({
+            'name': 'Keyless Style',
+            'sale_ok': True,
+            'elastic_product_id': 'NOKEY',
+        })
+        exporter = self._build_exporter()
+        exporter.sftp_service.upload_file.return_value = (True, 'uploaded')
+
+        result = exporter.export()
+
+        self.assertTrue(result['success'])
+        self.assertIn('skipped', result['message'])
 
     def test_empty_feed_returns_success_without_upload(self):
         exporter = self._build_exporter()

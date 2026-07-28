@@ -243,12 +243,6 @@ class ElasticConfig(models.Model):
     # ============================================
     # Filter Settings
     # ============================================
-    export_only_synced_products = fields.Boolean(
-        string='Export Only Synced Products',
-        default=False,
-
-        help='Only export products where "Push to Elastic" is enabled'
-    )
     inventory_include_quotation_demand = fields.Boolean(
         string='Include Quotations in ATP Demand',
         default=False,
@@ -258,12 +252,6 @@ class ElasticConfig(models.Model):
         string='Use BOM Component Fallback for ATP',
         default=False,
         help='When enabled, products with no finished-goods ATP fall back to buildable quantity from active BOM component stock.'
-    )
-    export_only_synced_customers = fields.Boolean(
-        string='Export Only Synced Customers',
-        default=False,
-
-        help='Only export customers where "Push to Elastic" is enabled'
     )
 
     # ============================================
