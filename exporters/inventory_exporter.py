@@ -38,18 +38,14 @@ class InventoryExporter(BaseExporter):
 
     def get_export_domain(self):
         """Get domain for filtering products to export inventory for"""
-        domain = [
+        return [
             ('is_storable', '=', True),  # Only storable products (v18: replaces type='product')
             ('sale_ok', '=', True),      # Align population with products.csv
             ('active', '=', True),
+            # "Push to Elastic" is always authoritative, at both levels.
+            ('elastic_sync_enabled', '=', True),
+            ('product_tmpl_id.elastic_sync_enabled', '=', True),
         ]
-
-        # Optionally filter to only synced products
-        if self.config.export_only_synced_products:
-            domain.append(('elastic_sync_enabled', '=', True))
-            domain.append(('product_tmpl_id.elastic_sync_enabled', '=', True))
-
-        return domain
 
     def get_export_headers(self):
         """Headers matching the Elastic inventory.csv format"""

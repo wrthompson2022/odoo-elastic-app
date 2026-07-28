@@ -259,9 +259,11 @@ class ShopifyFeatureImporter:
             return True
         if not template.elastic_sync_enabled:
             return False
-        products = template.product_variant_ids.filtered(lambda product: product.active and product.sale_ok)
-        if self.config.export_only_synced_products:
-            products = products.filtered('elastic_sync_enabled')
+        products = template.product_variant_ids.filtered(
+            lambda product: product.active
+            and product.sale_ok
+            and product.elastic_sync_enabled
+        )
         return bool(products)
 
     @staticmethod

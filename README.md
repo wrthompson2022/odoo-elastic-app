@@ -51,9 +51,13 @@ areas:
 | Rep mappings | `rep_mappings.csv` | Customer-to-rep relationships |
 
 The product, price, and inventory feeds share one population rule: a variant
-is exported only when it has both an ItemNumber and a stable StockItemKey
-(Elastic Stock Item Key, barcode, or internal reference), so a variant is
-either present in all three feeds or absent from all three. Product tag and
+is exported only when **Push to Elastic** is enabled on both the variant and
+its template, the product is a sellable good (service products such as
+delivery fees are excluded), and it has both an ItemNumber and a stable
+StockItemKey (Elastic Stock Item Key, barcode, or internal reference) — so a
+variant is either present in all three feeds or absent from all three. The
+Push to Elastic checkbox is always authoritative; customer feeds honor the
+customer-level checkbox the same way. Product tag and
 feature rows are deduplicated to ItemNumber (and ColorCode) grain, so
 template-level values are not repeated per size or material variant.
 
@@ -111,8 +115,10 @@ and timed by an administrator.
   brand, classification, and price group. Catalog mapping lines are generated
   from catalog membership (template or variant level) — the same membership
   source that drives `prices.csv` CatalogKeys — deduplicated to one row per
-  ItemNumber and ColorCode. Manual sort edits on mapping lines survive
-  regeneration, so the mapping-lines view doubles as the catalog sort editor.
+  ItemNumber and ColorCode. Selecting a catalog on a product or variant
+  immediately regenerates that catalog's mapping lines. Manual sort edits on
+  mapping lines survive regeneration, so the mapping-lines view doubles as
+  the catalog sort editor.
 - Per-pricelist **Send to Elastic** toggle and unique Elastic price-group code.
 - Variant-aware pricing export, with list-price fallback when no pricelists are
   flagged.

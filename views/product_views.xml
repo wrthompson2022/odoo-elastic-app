@@ -70,6 +70,9 @@
                             <field name="elastic_product_permission_group"/>
                             <field name="elastic_available_date"/>
                         </group>
+                        <group string="Catalog Assignment">
+                            <field name="elastic_catalog_ids" widget="many2many_tags"/>
+                        </group>
                     </group>
                 </page>
             </xpath>

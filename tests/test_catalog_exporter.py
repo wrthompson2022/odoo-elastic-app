@@ -234,6 +234,29 @@ class TestCatalogMappingExporter(TransactionCase):
 
         self.assertEqual(rows, [['SIZED', 1, 'SIZEDHAT', '210']])
 
+    def test_variant_catalog_assignment_generates_mapping_row(self):
+        """Selecting a catalog on the variant must immediately produce that
+        variant's mapping row, and 'Push to Elastic' off must exclude it."""
+        product = self.env['product.product'].create({
+            'name': 'Variant Assigned',
+            'default_code': 'VAR-ASSIGN',
+            'sale_ok': True,
+        })
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Variant Assignment Catalog',
+            'code': 'VARCAT',
+        })
+
+        product.write({'elastic_catalog_ids': [(4, catalog.id)]})
+
+        self.assertEqual(len(catalog.mapping_line_ids), 1)
+        self.assertEqual(catalog.mapping_line_ids.item_number, 'VAR-ASSIGN')
+
+        # Unchecking "Push to Elastic" removes the row on regeneration.
+        product.elastic_sync_enabled = False
+        catalog.action_generate_mapping_lines()
+        self.assertFalse(catalog.mapping_line_ids)
+
     def test_regeneration_preserves_manual_sort_edits(self):
         """Regenerating mapping lines must keep manually edited sequence and
         catalog position on surviving lines, drop lines whose products left

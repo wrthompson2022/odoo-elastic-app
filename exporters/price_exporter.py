@@ -47,15 +47,14 @@ class PriceExporter(BaseExporter):
         return 'prices'
 
     def get_export_domain(self):
-        domain = [
+        return [
             ('sale_ok', '=', True),
             ('active', '=', True),
             ('type', '=', 'consu'),  # Goods only — no delivery/service/combo products
+            # "Push to Elastic" is always authoritative, at both levels.
+            ('elastic_sync_enabled', '=', True),
+            ('product_tmpl_id.elastic_sync_enabled', '=', True),
         ]
-        if self.config.export_only_synced_products:
-            domain.append(('elastic_sync_enabled', '=', True))
-            domain.append(('product_tmpl_id.elastic_sync_enabled', '=', True))
-        return domain
 
     def get_export_headers(self):
         return [

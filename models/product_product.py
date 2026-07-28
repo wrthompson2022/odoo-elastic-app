@@ -56,6 +56,27 @@ class ProductProduct(models.Model):
         string='Elastic Available Date',
         help='Variant-level available date. Falls back to the product template value.'
     )
+    elastic_catalog_ids = fields.Many2many(
+        'elastic.catalog',
+        'product_product_elastic_catalog_rel',
+        'product_id',
+        'catalog_id',
+        string='Elastic Catalogs',
+        help='Catalogs this variant belongs to. Selecting a catalog generates '
+             'its catalog mapping row. Template-level catalog assignments '
+             'additionally include every variant of the template.'
+    )
+
+    def write(self, vals):
+        catalogs_before = self.env['elastic.catalog']
+        if 'elastic_catalog_ids' in vals:
+            catalogs_before = self.elastic_catalog_ids
+        res = super().write(vals)
+        if 'elastic_catalog_ids' in vals:
+            catalogs = (catalogs_before | self.elastic_catalog_ids).filtered('active')
+            if catalogs:
+                catalogs.action_generate_mapping_lines()
+        return res
 
     # ============================================
     # Helper Methods

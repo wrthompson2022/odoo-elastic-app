@@ -151,13 +151,12 @@ class RepMappingExporter(BaseExporter):
         domain = [
             ('is_company', '=', True),
             ('customer_rank', '>', 0),
+            # "Push to Elastic" is always authoritative.
+            ('elastic_sync_enabled', '=', True),
         ]
 
         if not self.config.rep_house_account_enabled:
             domain.append(('elastic_rep_id', '!=', False))
-
-        if self.config.export_only_synced_customers:
-            domain.append(('elastic_sync_enabled', '=', True))
 
         return domain
 
