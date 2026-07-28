@@ -1,8 +1,8 @@
-# Elastic Export Completeness Notes
+# Elastic Export Completeness And Hardening Notes
 
 ## Current export coverage
 
-The module has working exporter classes for the major flat-file areas:
+The module includes working exporter classes for the major flat-file areas:
 
 - `products.csv` via `exporters/product_exporter.py`
 - `customers.csv` via `exporters/customer_exporter.py`
@@ -13,118 +13,141 @@ The module has working exporter classes for the major flat-file areas:
 - `catalogs.csv` and `catalog_mapping.csv` via `exporters/catalog_exporter.py`
 - `reps.csv` and `rep_mappings.csv` via `exporters/rep_exporter.py`
 - `product_tags.csv` via `exporters/product_tags_exporter.py`
+- `features.csv` via `exporters/feature_exporter.py`
 
-Order import is also present, with staging, retry, duplicate detection, customer cross-reference lookup, and configurable product matching.
+Order import is also present, with SFTP polling, staging, retry, duplicate
+detection, customer cross-reference lookup, sale-order creation, and configurable
+product matching.
 
-The README and `ANALYSIS.md` are out of date. They describe core exporters and tests as future work, but this checkout now includes several concrete exporters and tests.
+The module ships inactive scheduled actions for both order import and
+Export-All-Enabled automation. Administrators can enable and time those cron
+jobs after connection and data mapping validation.
 
-## Main completeness gaps
+## Remaining hardening areas
 
-### 1. Product master data is too heuristic
+### 1. Product master data governance
 
-The product export maps the required Elastic fields, but several values are derived from generic Odoo attributes or fixed defaults:
+The product export maps the required Elastic fields and now supports governed
+Elastic color and size metadata. Production deployments should still make sure
+that every meaningful product has stable, intentional values for:
 
-- `ProductPermissionGroup` is always `DEFAULT`.
-- `ColorCode` is guessed by truncating the color attribute value.
-- `AvailableDate` is always today's date.
-- `AlternateSize` is always blank.
-- Size/color detection depends on attribute names like `Color`, `Colour`, `Size`, or `Talla`.
+- ItemNumber
+- StockItemKey
+- ProductPermissionGroup
+- AvailableDate
+- ColorCode, color family/name, and color sort
+- SizeName, SizeNum, and AlternateSize
 
-Recommended additions:
+If governed metadata is missing, the exporter falls back to Odoo attributes and
+defaults where possible. That is useful during implementation, but less ideal
+for a production B2B catalog.
 
-- Add an Elastic product metadata model or fields for item number, stock item key policy, permission group, available date, alternate size, and publish status.
-- Add an Elastic color model with code, display name, sort order, color group/family, swatch/hex, active flag, and optional external color ID.
-- Add an Elastic size scale model with size code/name/sort/alternate size so size exports are not dependent on raw Odoo attribute sequences.
-- Store a controlled `elastic_stock_item_key` or explicit key policy per product/variant to keep product, inventory, price, and order import matching aligned.
+### 2. Features and technology taxonomy
 
-### 2. Features and technology need first-class taxonomy
+The module has first-class `elastic.feature`, `elastic.feature.value`, and
+`elastic.product.feature.assignment` models plus a `features.csv` exporter.
+Before go-live, confirm whether Elastic expects feature-definition files,
+product-feature rows, or both.
 
-`enable_feature_export` is explicitly reserved for a future `features.csv` export, while `product_tags.csv` currently derives rows from non-color/size attributes, Odoo product tags, and category.
+Keep merchandising tags, technical features, technology values, and category
+labels conceptually separate. They may look similar in a flat file but often
+drive different behavior in Elastic search, filtering, merchandising, and
+client-facing display.
 
-Recommended additions:
+### 3. Catalog policy and mapping behavior
 
-- Implement `features.csv` if Elastic expects a feature-definition file, not only product-feature rows.
-- Add `elastic.feature` and `elastic.feature.value` models for feature code, label, display order, data type, group, filter/search flags, and active status.
-- Add `elastic.technology` or reuse `elastic.feature` with a `technology` feature group if technology is mostly a product facet.
-- Add many-to-many assignments from product templates/variants to feature values, with optional catalog or brand scoping.
-- Keep `product_tags.csv` for merchandising tags, but separate tags from technical features and product-category labels.
+Catalog metadata and mapping exports are implemented. Client-specific review
+should confirm:
 
-### 3. Catalogs are structurally present but business fields are mostly placeholders
+- Start/end, first/last ship, and cancel-date expectations.
+- CatalogPermissionGroup and ProductPermissionGroup interactions.
+- Season, brand, classification, warehouse, and price-group values.
+- Generated mapping sort method versus uploaded pre-sorted mappings.
+- Whether mapping rows need variant/color-level merchandising beyond the current
+  ItemNumber plus ColorCode shape.
 
-The catalog exporter has the broad Elastic schema, but it fills many fields with fixed values, current-date windows, blank values, or `ALL`/`DEFAULT` style defaults.
+### 4. Customer and ship-to account policies
 
-Recommended additions:
+Customer export is functional and uses the configured SoldToID strategy.
+Connection-scoped and global cross-reference rows help align Elastic IDs,
+legacy account numbers, and Odoo partners.
 
-- Expand `elastic.catalog` with start/end date, first/last ship date, cancel rules, season code, warehouse, ship windows, brand, classification, price group, review flag, and display position.
-- Add customer catalog permission groups as a separate model instead of using comma-separated catalog codes on customers.
-- Add catalog lines or merchandising positions rather than using catalog record IDs as positions.
-- Make catalog-to-product mappings variant/color aware, not just template plus the first variant's color.
+Remaining client-specific account policies may include:
 
-### 4. Customer and location exports need richer account policies
+- Product permission group
+- Catalog permission group
+- Default warehouse
+- Language
+- Access key/login behavior
+- Price group/pricelist mapping
+- Ship-to warehouse, carrier, service, drop-ship, or blocked-account rules
 
-Customer export is functional and uses SoldToID logic, but several account-level values are still fixed:
+These should be made explicit when a client requires more than the current
+defaults.
 
-- Product permission group defaults to `DEFAULT`.
-- Warehouse defaults to `DEFAULT`.
-- Access key is generated from SoldToID plus a fixed suffix.
-- Price group is a free text customer field rather than tied to exported pricelists.
+### 5. Inventory ATP policy
 
-Recommended additions:
+Inventory exports time-phased ATP rows per product and warehouse. It starts with
+current internal on-hand stock, applies open stock moves in date order,
+optionally includes draft/sent quotation demand, folds overdue moves into the
+current bucket, and clamps negative exported quantities to `0`.
 
-- Add explicit customer account settings for product permission group, catalog permission group, default warehouse, language, access key/login behavior, and price group/pricelist mapping.
-- Extend customer custom fields beyond `drop_ship` through a configurable `elastic.customer.custom_field` model instead of hard-coded rows.
-- Add ship-to level fields for warehouse, shipping rules, drop-ship approval, carrier/service preferences, and blocked/inactive status.
-- Keep using `elastic.customer.xref`, but allow export-side generation of xrefs so SoldToID/ShipToID values are visible and governed before import.
+The optional BOM component fallback lets make-to-order finished goods with no
+positive finished-goods ATP use buildable quantity from active BOM component
+stock.
 
-### 5. Inventory ATP needs warehouse policy hardening
+Future hardening may include:
 
-Inventory now exports time-phased ATP rows per product per warehouse. It starts with current internal on-hand stock, applies open stock moves in date order, optionally includes draft/sent quotation demand, folds overdue moves into the current bucket, and clamps negative CSV quantities to `0`. The running balance is not clamped internally, so later receipts first satisfy earlier shortages. An optional BOM component fallback lets MTO finished goods with no positive finished-goods ATP use buildable quantity from active BOM raw-material stock, considering every active BOM and selecting the best buildable BOM. Existing finished-good demand still consumes BOM-derived fallback supply before export.
+- Warehouse inclusion/exclusion and explicit Elastic warehouse codes.
+- Safety stock.
+- Backorder policy.
+- Dropship behavior.
+- Quote probability or expiration rules.
+- Component allocation across multiple finished goods.
 
-Recommended additions:
+### 6. Sales rep stability
 
-- Add warehouse inclusion/exclusion and Elastic warehouse code fields.
-- Consider safety stock, backorder policy, dropship behavior, quote probability/expiration policy, and component demand allocations across several finished goods.
-- Add integration tests around multi-warehouse stock moves, quotation demand, and active BOM component fallback.
+Rep and rep-mapping exports are implemented. For production stability, use
+explicit external rep codes if rep IDs are meaningful outside Odoo. Derived IDs
+from login/name/id are useful as fallback behavior but can create drift if user
+records are renamed.
 
-### 6. Reps need explicit external IDs and hierarchy
+### 7. Observability
 
-Rep export derives `RepID` from login/name/id and defaults currency, price group, catalog/product permission group, language, and warehouse.
+Export and import logs are implemented. Production operations may benefit from:
 
-Recommended additions:
+- Batch-level run grouping for each Export All run.
+- Last-run and next-run visibility on the configuration page.
+- Alerting for failed cron runs.
+- Summary dashboards by feed type, file, state, and record count.
 
-- Add `elastic_rep_code`, default warehouse, default price group, region, language, active-for-Elastic, and optional manager/team fields on `res.users` or a dedicated `elastic.sales.rep` model.
-- Avoid generated rep IDs for production exports; they can change when a user login/name changes.
-- Include house account behavior as configuration rather than always adding `HOU`.
+## Suggested implementation order for client go-live
 
-### 7. Scheduling is incomplete for outbound exports
+1. Normalize stable external IDs: product item/stock keys, customer SoldTo and
+   ShipTo IDs, rep IDs, warehouse codes, catalog codes, and price groups.
+2. Populate governed product taxonomy: colors, sizes, features, technology
+   values, and merchandising tags.
+3. Confirm customer, ship-to, rep, warehouse, and catalog permission policies.
+4. Validate catalog ship/cancel windows and mapping sort behavior.
+5. Enable scheduled imports/exports only after Beta environment file validation.
+6. Add client-specific tests for every mapping rule that differs from default
+   connector behavior.
 
-There is a cron for order imports only. Manual export actions and `action_export_all` exist, but there is no scheduled export cron.
+## Testing gaps to consider
 
-Recommended additions:
+Current tests cover host-key handling, config singleton behavior, pricelist
+export behavior, locations, customer xrefs, product export, catalog export,
+inventory export, order import, feature export, Shopify feature import, file
+generation, and SFTP service behavior.
 
-- Add one scheduled action for `action_export_all`, plus optional per-export scheduled actions if Elastic requires different cadences.
-- Add last-run timestamps and next-run visibility to the configuration.
-- Add export run grouping so logs from one `Export All` run are traceable as a batch.
+Additional tests should follow the client's final mapping policy, especially
+around:
 
-## Testing gaps
-
-Current tests cover host-key handling, config singleton behavior, pricelist export behavior, locations, and customer xrefs. Add focused tests for:
-
-- Product color/size/availability mapping.
-- Product tags and feature row generation.
-- Catalog field mappings and catalog mapping color behavior.
-- Inventory multi-warehouse quantities.
-- Customer exporter permission groups, access key, warehouse, language, and price group behavior.
-- Customer custom field row generation beyond `drop_ship`.
-- Rep ID generation and rep mapping behavior.
-- `action_export_all` success/failure aggregation.
-- File naming/upload/log creation for custom exporters.
-
-## Suggested implementation order
-
-1. Normalize IDs first: product item/stock keys, customer SoldTo/ShipTo IDs, rep IDs, warehouse codes.
-2. Add controlled product taxonomy: color groups, size scales, feature values, technology values, and merchandising tags.
-3. Expand catalog metadata and catalog line/mapping behavior.
-4. Replace hard-coded account defaults with customer, ship-to, rep, and warehouse configuration fields.
-5. Add outbound export cron and batch-level observability.
-6. Fill tests around every export that currently relies on defaults or custom export logic.
+- Governed product color/size/availability values.
+- Feature rows with multiple assignment sources.
+- Catalog mapping color behavior and uploaded mapping files.
+- Multi-warehouse ATP and BOM fallback edge cases.
+- Customer permission group, access key, warehouse, language, and price group
+  behavior.
+- Rep ID generation and explicit rep-code behavior.
+- Export All success/failure aggregation.

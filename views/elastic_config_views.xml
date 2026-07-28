@@ -88,6 +88,7 @@
                                     <field name="export_delimiter"/>
                                     <field name="export_encoding"/>
                                     <field name="export_include_header"/>
+                                    <field name="export_item_number_separator"/>
                                 </group>
                                 <group string="Date/Time Formatting">
                                     <field name="date_format"/>

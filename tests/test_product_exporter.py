@@ -152,3 +152,139 @@ class TestProductExporter(TransactionCase):
             ('product_tmpl_id.elastic_sync_enabled', '=', True),
             exporter.get_export_domain(),
         )
+
+    def test_transform_skips_variant_without_stable_stock_item_key(self):
+        """A variant with an ItemNumber but no stable StockItemKey source must
+        be skipped, matching the price/inventory feed populations (no str(id)
+        fallback keys)."""
+        self.template.elastic_product_id = 'STYLE-X'
+        exporter = self._build_exporter()
+
+        self.assertEqual(exporter.transform_record(self.product), self.product)
+
+        self.product.write({'barcode': False, 'default_code': False})
+        self.assertIsNone(exporter.transform_record(self.product))
+
+
+class TestCompositeItemNumber(TransactionCase):
+    """Eyewear-shaped template: composite ItemNumber per frame color, with
+    Lens Color playing the Color role and Lens Material playing the Size role."""
+
+    def setUp(self):
+        super().setUp()
+        self.config = self.env['elastic.config'].get_config()
+
+        self.frame_color = self.env['product.attribute'].create({'name': 'Frame Color'})
+        self.lens_color = self.env['product.attribute'].create({'name': 'Lens Color'})
+        self.lens_material = self.env['product.attribute'].create({'name': 'Lens Material'})
+
+        self.black_matte = self.env['product.attribute.value'].create({
+            'name': 'Black Matte',
+            'attribute_id': self.frame_color.id,
+            'elastic_attribute_code': 'BLKM',
+        })
+        self.blue_mirror = self.env['product.attribute.value'].create({
+            'name': 'Blue Mirror',
+            'attribute_id': self.lens_color.id,
+            'elastic_color_code': 'BLU',
+        })
+        self.glass = self.env['product.attribute.value'].create({
+            'name': 'Glass',
+            'attribute_id': self.lens_material.id,
+            'sequence': 1,
+        })
+        self.pc = self.env['product.attribute.value'].create({
+            'name': 'PC',
+            'attribute_id': self.lens_material.id,
+            'sequence': 2,
+        })
+
+        self.template = self.env['product.template'].create({
+            'name': 'Bales Beach',
+            'sale_ok': True,
+            'elastic_product_id': 'BALESBEACH',
+            'elastic_use_composite_item_number': True,
+            'attribute_line_ids': [
+                (0, 0, {
+                    'attribute_id': self.frame_color.id,
+                    'value_ids': [(6, 0, [self.black_matte.id])],
+                }),
+                (0, 0, {
+                    'attribute_id': self.lens_color.id,
+                    'value_ids': [(6, 0, [self.blue_mirror.id])],
+                }),
+                (0, 0, {
+                    'attribute_id': self.lens_material.id,
+                    'value_ids': [(6, 0, [self.glass.id, self.pc.id])],
+                }),
+            ],
+        })
+        self.template.write({
+            'elastic_composite_attribute_ids': [(6, 0, [self.frame_color.id])],
+            'elastic_color_attribute_id': self.lens_color.id,
+            'elastic_size_attribute_id': self.lens_material.id,
+        })
+        self.glass_variant = self.template.product_variant_ids.filtered(
+            lambda v: self.glass
+            in v.product_template_attribute_value_ids.product_attribute_value_id
+        )
+        self.pc_variant = self.template.product_variant_ids - self.glass_variant
+
+    def _build_exporter(self):
+        exporter = ProductExporter.__new__(ProductExporter)
+        exporter.env = self.env
+        exporter.config = self.config
+        exporter.file_generator = MagicMock()
+        exporter.sftp_service = MagicMock()
+        return exporter
+
+    def test_composite_item_number_appends_frame_color_code(self):
+        self.assertEqual(
+            self.glass_variant._get_elastic_item_number(), 'BALESBEACH-BLKM'
+        )
+        # Both lens materials of the same frame color share one product page.
+        self.assertEqual(
+            self.pc_variant._get_elastic_item_number(), 'BALESBEACH-BLKM'
+        )
+
+    def test_composite_product_name_appends_composite_value_names(self):
+        self.assertEqual(
+            self.glass_variant._get_elastic_product_name(), 'Bales Beach Black Matte'
+        )
+
+    def test_blank_separator_joins_codes_directly(self):
+        self.config.export_item_number_separator = False
+        self.assertEqual(
+            self.glass_variant._get_elastic_item_number(), 'BALESBEACHBLKM'
+        )
+
+    def test_variant_override_wins_over_composite(self):
+        self.glass_variant.elastic_item_number = 'CUSTOM-GLASS'
+        self.assertEqual(
+            self.glass_variant._get_elastic_item_number(), 'CUSTOM-GLASS'
+        )
+
+    def test_color_role_override_uses_lens_color_not_frame_color(self):
+        exporter = self._build_exporter()
+        self.assertEqual(exporter._get_color_code(self.glass_variant), 'BLU')
+        self.assertEqual(exporter._get_color_name(self.glass_variant), 'Blue Mirror')
+
+    def test_size_role_override_uses_lens_material(self):
+        exporter = self._build_exporter()
+        self.assertEqual(exporter._get_size_name(self.glass_variant), 'Glass')
+        self.assertEqual(exporter._get_size_name(self.pc_variant), 'PC')
+        self.assertEqual(exporter._get_size_num(self.glass_variant), 1)
+        self.assertEqual(exporter._get_size_num(self.pc_variant), 2)
+
+    def test_composite_code_falls_back_to_truncated_value_name(self):
+        tortoise = self.env['product.attribute.value'].create({
+            'name': 'Tortoise Shell',
+            'attribute_id': self.frame_color.id,
+        })
+        gold = self.env['product.attribute.value'].create({
+            'name': 'Gold',
+            'attribute_id': self.frame_color.id,
+        })
+        product = self.glass_variant
+        self.assertEqual(product._get_elastic_attribute_value_code(tortoise), 'TOR')
+        self.assertEqual(product._get_elastic_attribute_value_code(gold), 'Gold')

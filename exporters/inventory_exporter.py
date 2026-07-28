@@ -40,6 +40,7 @@ class InventoryExporter(BaseExporter):
         """Get domain for filtering products to export inventory for"""
         domain = [
             ('is_storable', '=', True),  # Only storable products (v18: replaces type='product')
+            ('sale_ok', '=', True),      # Align population with products.csv
             ('active', '=', True),
         ]
 
@@ -73,7 +74,7 @@ class InventoryExporter(BaseExporter):
 
     @staticmethod
     def _get_stock_item_key(product):
-        return product.elastic_stock_item_key or product.barcode or product.default_code or str(product.id)
+        return product._get_elastic_stock_item_key()
 
     def _get_available_qty(self, product, warehouse=None):
         """
@@ -479,10 +480,15 @@ class InventoryExporter(BaseExporter):
     def transform_record(self, record):
         """
         Validate and transform product record before export.
-        Skip records that don't meet minimum requirements.
+        Skip records that don't meet minimum requirements. The same two keys
+        gate the product and price feeds, keeping the populations aligned.
         """
-        # Must have either a barcode or default_code for StockItemKey
-        if not (record.elastic_stock_item_key or record.barcode or record.default_code):
+        if not record._get_elastic_item_number():
+            _logger.warning('Skipping product %s: missing Elastic ItemNumber', record.id)
+            return None
+
+        # Must have a stable source for StockItemKey
+        if not record._get_elastic_stock_item_key():
             _logger.warning(
                 'Skipping product %s: missing Elastic Stock Item Key, barcode, and default_code',
                 record.id,

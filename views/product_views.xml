@@ -19,6 +19,18 @@
                         </group>
                     </group>
                     <group>
+                        <group string="Variant Mapping">
+                            <field name="elastic_template_attribute_ids" invisible="1"/>
+                            <field name="elastic_use_composite_item_number"/>
+                            <field name="elastic_composite_attribute_ids"
+                                   widget="many2many_tags"
+                                   invisible="not elastic_use_composite_item_number"
+                                   domain="[('id', 'in', elastic_template_attribute_ids)]"/>
+                            <field name="elastic_color_attribute_id"
+                                   domain="[('id', 'in', elastic_template_attribute_ids)]"/>
+                            <field name="elastic_size_attribute_id"
+                                   domain="[('id', 'in', elastic_template_attribute_ids)]"/>
+                        </group>
                         <group string="Shopify">
                             <field name="shopify_product_id"/>
                             <field name="shopify_handle"/>

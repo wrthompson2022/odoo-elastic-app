@@ -80,7 +80,7 @@ class PriceExporter(BaseExporter):
 
     @staticmethod
     def _get_stock_item_key(product):
-        return product.elastic_stock_item_key or product.barcode or product.default_code or str(product.id)
+        return product._get_elastic_stock_item_key()
 
     # ------------------------------------------------------------------
     # Catalog resolution
@@ -297,7 +297,10 @@ class PriceExporter(BaseExporter):
             return {'success': False, 'message': error_message, 'record_count': 0}
 
     def transform_record(self, record):
-        if not (record.elastic_stock_item_key or record.barcode or record.default_code):
+        if not record._get_elastic_item_number():
+            _logger.warning('Skipping product %s: missing Elastic ItemNumber', record.id)
+            return None
+        if not record._get_elastic_stock_item_key():
             _logger.warning(
                 'Skipping product %s: missing Elastic Stock Item Key, barcode, and default_code',
                 record.id,

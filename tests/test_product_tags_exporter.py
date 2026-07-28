@@ -101,6 +101,53 @@ class TestProductTagsExporter(TransactionCase):
             exporter.get_export_domain(),
         )
 
+    def test_export_dedupes_tag_rows_to_item_number_color_grain(self):
+        """Two size variants of one style/color must emit each tag once, not
+        once per variant."""
+        size_attr = self.env['product.attribute'].create({'name': 'Size'})
+        small = self.env['product.attribute.value'].create({
+            'name': 'Small',
+            'attribute_id': size_attr.id,
+        })
+        medium = self.env['product.attribute.value'].create({
+            'name': 'Medium',
+            'attribute_id': size_attr.id,
+        })
+        self.env['product.template'].create({
+            'name': 'Tag Dedup Style',
+            'sale_ok': True,
+            'elastic_product_id': 'TAGSTYLE',
+            'elastic_features': 'Bullet A',
+            'attribute_line_ids': [
+                (0, 0, {
+                    'attribute_id': self.frame_color_attr.id,
+                    'value_ids': [(6, 0, [self.color_black.id])],
+                }),
+                (0, 0, {
+                    'attribute_id': size_attr.id,
+                    'value_ids': [(6, 0, [small.id, medium.id])],
+                }),
+            ],
+        })
+        self.env['elastic.product.tag.mapping'].create({
+            'tag_name': 'Features',
+            'source_model': 'product.template',
+            'field_id': self._field('product.template', 'elastic_features').id,
+            'split_mode': 'lines',
+        })
+
+        exporter = self._build_exporter()
+        exporter.sftp_service.upload_file.return_value = (True, 'uploaded')
+        result = exporter.export()
+
+        self.assertTrue(result['success'])
+        headers, data_rows = exporter.file_generator.generate_csv.call_args[0]
+        style_rows = [row for row in data_rows if row[2] == 'TAGSTYLE']
+        self.assertEqual(
+            style_rows,
+            [['GLOBAL', 'ALL', 'TAGSTYLE', 'BLACK', 'Features', 'Bullet A']],
+        )
+
     def test_only_five_active_tag_mappings_are_allowed(self):
         field_id = self._field('product.product', 'default_code').id
         for index in range(5):

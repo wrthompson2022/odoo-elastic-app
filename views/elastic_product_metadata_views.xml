@@ -9,6 +9,7 @@
                 <field name="attribute_id"/>
                 <field name="name"/>
                 <field name="sequence"/>
+                <field name="elastic_attribute_code" optional="hide"/>
                 <field name="elastic_color_code"/>
                 <field name="elastic_color_group"/>
                 <field name="elastic_color_name"/>
@@ -34,6 +35,9 @@
                         <group>
                             <field name="attribute_id"/>
                             <field name="sequence"/>
+                        </group>
+                        <group string="Composite ItemNumber">
+                            <field name="elastic_attribute_code"/>
                         </group>
                     </group>
                     <group>

@@ -1,332 +1,187 @@
 # Odoo-Elastic Integration App
 
-App meant to integrate Elastic B2B and Odoo via SFTP flat file exports/imports.
+Odoo 18.0 addon for integrating Odoo with the Elastic B2B platform through
+SFTP-based flat-file exchanges.
 
-## Overview
+The module behaves like an ERP connector bundle: it extends products,
+variants, customers, catalogs, pricelists, and order handling with Elastic
+fields, then provides governed outbound exports and inbound order import with
+staging, retry, logging, and Beta/Production environment support.
 
-This Odoo 18.0 module provides comprehensive integration with Elastic B2B through SFTP-based flat file exports and imports. It functions similarly to a NetSuite bundle, adding custom fields to products, variants, and customers while providing scheduled exports and automated order imports.
+## Current Capabilities
 
-## Phase 1: Foundation (COMPLETED)
+### Connection And Configuration
 
-### Features Implemented
+- Separate Beta/Sandbox and Production SFTP connection profiles.
+- Password or SSH private-key authentication.
+- Stored host-key verification, host-key fingerprint capture, and a legacy
+  Trust-on-First-Connect upgrade path.
+- Configurable export delimiter, encoding, header row behavior, and date/time
+  formats.
+- Per-feed enable/disable toggles for exports and order import.
+- Active environment switching from a single Elastic settings record.
+- Detailed export and import logs.
 
-#### 1. SFTP Service (`services/sftp_service.py`)
-- Secure SFTP connection management with password or SSH key authentication
-- File upload/download operations
-- Directory management
-- Connection testing
-- File listing and moving capabilities
+### Outbound Exports
 
-#### 2. File Generator (`services/file_generator.py`)
-- Configurable delimited file generation (pipe, comma, tab)
-- CSV export from Odoo recordsets
-- Field mapping support
-- Automatic data type handling and formatting
+The module currently includes concrete exporters for the major Elastic feed
+areas:
 
-#### 3. Multi-Environment SFTP Connections (`models/elastic_connection.py`)
-- **Separate connection profiles** for Beta (sandbox) and Production environments
-- **Per-connection settings**: Host, port, credentials, directory paths
-- **Environment switching**: Easily toggle between Beta and Production
-- **Independent testing**: Test each connection separately before use
-- **SSH Key or Password authentication** supported per connection
+| Feed | File | Source |
+| --- | --- | --- |
+| Products | `products.csv` | Odoo product variants |
+| Product tags | `product_tags.csv` | Odoo tags, categories, attributes, and mapped text |
+| Features | `features.csv` | Governed Elastic feature assignments |
+| Customers | `customers.csv` | Odoo company customers |
+| Customer custom fields | `customer_custom_fields.csv` | Customer-level supplemental fields |
+| Locations | `locations.csv` | Odoo stock locations/warehouses |
+| Prices | `prices.csv` | Odoo pricelists or list price fallback |
+| Inventory | `inventory.csv` | Time-phased available-to-promise inventory |
+| Catalogs | `catalogs.csv` | Elastic catalog definitions |
+| Catalog mappings | `catalog_mapping.csv` | Catalog-to-product/color mappings |
+| Sales reps | `reps.csv` | Odoo users/sales representatives |
+| Rep mappings | `rep_mappings.csv` | Customer-to-rep relationships |
 
-#### 4. Configuration Model (`models/elastic_config.py`)
-- **Environment Selection**: Choose active environment (Beta/Production)
-- **Connection References**: Link to Beta and Production connection profiles
-- **Export Settings**: File format, encoding, delimiter configuration
-- **Export Toggles**: Enable/disable per entity type (products, catalogs, customers, etc.)
-- **Import Settings**: Order import configuration, auto-confirmation, archiving
-- **Business Logic**:
-  - ✅ **Use Legacy Account Number for SoldToID** - Priority field for customer identification
-  - Date/time formatting preferences
-- **Singleton pattern** for easy configuration access
-- Built-in connection test functionality for active environment
+The product, price, and inventory feeds share one population rule: a variant
+is exported only when it has both an ItemNumber and a stable StockItemKey
+(Elastic Stock Item Key, barcode, or internal reference), so a variant is
+either present in all three feeds or absent from all three. Product tag and
+feature rows are deduplicated to ItemNumber (and ColorCode) grain, so
+template-level values are not repeated per size or material variant.
 
-#### 4. Custom Fields on Products
-**Product Template (`product.template`):**
-- `elastic_sync_enabled` - Enable/disable sync per product
-- `elastic_product_id` - Template-level Elastic ItemNumber / style number
-- `elastic_catalog_ids` - Catalog assignments
-- `elastic_features` - Optional product tag source text
+Exports can be run manually from **Elastic > Configuration > Settings** using
+the individual feed buttons or **Export All Enabled**. The addon also ships an
+inactive scheduled action, **Elastic: Export All Enabled**, that can be enabled
+and timed by an administrator.
 
-**Product Variant (`product.product`):**
-- `elastic_sync_enabled` - Variant-level sync control
-- `elastic_last_sync` - Last successful variant export timestamp
-- `elastic_sku` - Elastic-specific SKU
-- `elastic_item_number` - Variant-level ItemNumber fallback when the template style number is blank
-- `elastic_stock_item_key` - Stable StockItemKey override for product, price, inventory, and order matching
-- `elastic_product_permission_group` - Variant-level permission group override
-- `elastic_available_date` - Variant-level available date override
+### Inbound Order Import
 
-#### 5. Custom Fields on Customers (`res.partner`)
-- `elastic_sync_enabled` - Enable/disable customer sync
-- `elastic_last_sync` - Sync timestamp
-- `elastic_customer_id` - External Elastic ID
-- **`legacy_account_number`** - ⭐ **KEY FIELD** for SoldToID logic
-- `elastic_catalog_ids` - Customer catalog assignments
-- `elastic_rep_id` - Assigned sales representative
-- `elastic_payment_terms` - Payment terms code
-- `elastic_price_level` - Customer pricing tier
-- `elastic_credit_limit` - Credit limit
-- `elastic_notes` - Integration notes
+- Polls the active SFTP import directory for order files.
+- Groups incoming rows by Elastic order number and shipment number.
+- Stages each grouped order in `elastic.order.staging` before creating an Odoo
+  sale order.
+- Detects duplicate orders using Elastic order and shipment keys.
+- Supports manual retry for failed staged orders.
+- Resolves Sold-To and Ship-To customers through scoped cross-reference rows,
+  global cross-reference rows, and legacy account-number fallback.
+- Archives processed source files when configured.
+- Ships an inactive scheduled action, **Elastic: Import Orders**, for automated
+  polling.
 
-**SoldToID Logic Implementation:**
-```python
-def _get_sold_to_id(self):
-    """Returns Legacy Account Number if configured, otherwise Odoo ID"""
-    config = self.env['elastic.config'].get_config()
-    if config.use_legacy_account_number and self.legacy_account_number:
-        return self.legacy_account_number
-    return str(self.id)
-```
+### Product And Merchandising Data
 
-#### 6. Catalog Management (`models/elastic_catalog.py`)
-- Organize products and customers into catalogs
-- Track product/customer counts
-- Many2many relationships with products and partners
+- Product template and variant level Elastic sync flags.
+- Template and variant ItemNumber support.
+- Optional composite ItemNumber: build the exported ItemNumber from the style
+  ItemNumber plus selected attribute value codes, so each combination (for
+  example, each frame color of an eyewear style) becomes its own Elastic
+  product page. A configurable separator joins the parts.
+- Per-template attribute role selection: choose which attribute is exported as
+  the Elastic Color dimension and which as the Size dimension (for example,
+  Lens Color as color and Lens Material as size), with name-based auto-detect
+  when unset.
+- Stable StockItemKey override for product, price, inventory, and order
+  matching.
+- Product permission group and available-date controls.
+- Governed Elastic color records and Odoo attribute-value color overrides.
+- Governed Elastic size scales and size values.
+- Governed feature, technology, and merchandising taxonomies.
+- Optional Shopify feature import mappings for populating Elastic product
+  feature assignments.
 
-#### 7. Logging Models
-**Export Logs (`elastic.export.log`):**
-- Track all export operations
-- Record count, filename, status
-- Error message capture
-- Filterable by type, status, date
+### Customer, Catalog, And Price Controls
 
-**Import Logs (`elastic.import.log`):**
-- Track all import operations
-- File count, record count, error count
-- Status tracking (success/failed/partial)
-- Detailed error messages
+- Legacy account number support for SoldToID exports.
+- Elastic customer ID, catalog assignments, rep assignment, payment terms,
+  price level, credit limit, notes, and drop-ship approval.
+- Connection-scoped and global customer cross-reference mappings.
+- Catalog metadata including permission group, ship/cancel dates, season,
+  brand, classification, price group, and generated or uploaded mapping lines.
+  Generated mapping lines are deduplicated to one row per ItemNumber and
+  ColorCode, matching the Elastic style/color mapping grain.
+- Per-pricelist **Send to Elastic** toggle and unique Elastic price-group code.
+- Variant-aware pricing export, with list-price fallback when no pricelists are
+  flagged.
 
-#### 8. Base Exporter/Importer Classes
-**Base Exporter (`exporters/base_exporter.py`):**
-- Abstract class for all export operations
-- Handles file generation, SFTP upload, logging
-- Pre/post export hooks
-- Record transformation pipeline
-- Automatic sync timestamp updates
+### Inventory ATP
 
-**Base Importer (`importers/base_importer.py`):**
-- Abstract class for all import operations
-- File download and parsing
-- Row-by-row validation and processing
-- Error handling and logging
-- Automatic file archiving
+The `inventory.csv` export sends time-phased available-to-promise rows by
+warehouse. It starts from current internal on-hand stock, applies open incoming
+and outgoing stock moves in date order, and allows the internal running balance
+to go negative so later receipts first satisfy prior shortages. Exported
+quantities are clamped to `0`.
 
-#### 9. User Interface
-- **Elastic Menu** in main navigation
-- **Configuration Submenu**:
-  - Settings (SFTP, exports, imports, business logic)
-  - Catalogs management
-- **Logs Submenu**:
-  - Export logs with filtering
-  - Import logs with filtering
-- **Product Forms**: New "Elastic" tab with sync settings
-- **Customer Forms**: New "Elastic" tab with legacy account number and sync settings
-
-## Directory Structure
-
-```
-odoo-elastic-app/
-├── models/
-│   ├── elastic_connection.py       # SFTP connection profiles (Beta/Production)
-│   ├── elastic_config.py           # Main configuration
-│   ├── elastic_catalog.py          # Catalog management
-│   ├── elastic_export_log.py       # Export logging
-│   ├── elastic_import_log.py       # Import logging
-│   ├── product_template.py         # Product extensions
-│   ├── product_product.py          # Variant extensions
-│   └── res_partner.py              # Customer extensions
-├── services/
-│   ├── sftp_service.py             # SFTP operations
-│   └── file_generator.py           # Flat file generation
-├── exporters/
-│   └── base_exporter.py            # Base export class
-├── importers/
-│   └── base_importer.py            # Base import class
-├── views/
-│   ├── menu.xml                    # Navigation menu
-│   ├── elastic_connection_views.xml # Connection profile UI
-│   ├── elastic_config_views.xml    # Configuration UI
-│   ├── elastic_log_views.xml       # Log views
-│   ├── elastic_catalog_views.xml   # Catalog UI
-│   ├── product_views.xml           # Product form extensions
-│   └── res_partner_views.xml       # Customer form extensions
-├── security/
-│   └── ir.model.access.csv         # Access rights
-├── wizards/                        # (Ready for Phase 3)
-├── __manifest__.py
-└── requirements.txt                # paramiko>=3.4.0
-```
+Optional inventory settings allow draft/sent quotations to reduce ATP demand
+and allow make-to-order finished goods to fall back to buildable quantity from
+active BOM component stock when finished-goods ATP is unavailable.
 
 ## Configuration Steps
 
-1. **Install the module** in Odoo 18.0
-2. Navigate to **Elastic > Configuration > SFTP Connections**
-3. **Create Beta Connection** (for testing):
-   - Click "Create" and select "Beta / Sandbox" environment
-   - Enter SFTP host, port, username for your Elastic Beta environment
-   - Choose password or SSH key authentication
-   - Set directory paths (export, import, archive)
-   - Click "Test Connection" to verify
-4. **Create Production Connection** (for live data):
-   - Click "Create" and select "Production" environment
-   - Enter SFTP host, port, username for your Elastic Production environment
-   - Configure authentication and directory paths
-   - Click "Test Connection" to verify
-5. Navigate to **Elastic > Configuration > Settings**
-6. **Link Connections**:
-   - Select your Beta connection in the "Beta Connection" field
-   - Select your Production connection in the "Production Connection" field
-   - Choose your **Active Environment** (Beta for testing, Production for live)
-7. Configure **Export Settings**:
-   - Set file delimiter (pipe, comma, tab)
-   - Choose encoding
-   - Enable/disable specific export types
-8. Configure **Business Logic**:
-   - Enable "Use Legacy Account Number for SoldToID" if needed
-   - Set date/time formats
-9. Set up **Catalogs** if needed
-10. Add **Legacy Account Numbers** to customers as needed
+1. Install the module in Odoo 18.0.
+2. Go to **Elastic > Configuration > SFTP Connections**.
+3. Create and test the Beta/Sandbox connection.
+4. Create and test the Production connection.
+5. Go to **Elastic > Configuration > Settings**.
+6. Link the Beta and Production connections.
+7. Select the active environment.
+8. Configure file format, export toggles, import settings, and business logic.
+9. Configure products, customers, catalogs, pricelists, feature metadata, and
+   customer cross-reference rows as needed.
+10. Run individual exports or **Export All Enabled** from the settings page.
+11. Enable and schedule the import/export cron jobs when ready for automation.
 
-### Switching Environments
+## Host-Key Upgrade Notes
 
-To switch between Beta and Production:
-1. Go to **Elastic > Configuration > Settings**
-2. Change the **Active Environment** selection
-3. All exports/imports will now use the selected environment's SFTP connection
+When upgrading from an older release to **18.0.1.2.0** or later:
 
-## Key Features
+1. Existing SFTP connections are temporarily pinned to Trust-on-First-Connect so
+   the upgrade does not interrupt operations.
+2. The settings screen shows an advisory when any connections still use the
+   legacy policy.
+3. Use **Upgrade Host Keys** to capture live host keys and move connections to
+   Verify Stored Host Key mode.
+4. Individual connection profiles can also use **Fetch & Save Host Key**.
 
-### Multi-Environment Support (Beta / Production)
-The module supports separate SFTP connection profiles for Beta (sandbox) and Production environments:
+The read-only **Host Key Fingerprint** field can be used to verify the stored
+key after capture.
 
-1. **Separate Connections**: Store different credentials for each environment
-2. **Easy Switching**: Toggle between environments from the Settings page
-3. **Independent Testing**: Test each connection before use
-4. **Safe Development**: Test integrations in Beta before going live
-5. **Environment-Specific Paths**: Each connection can have different directory paths
+When upgrading to **18.0.1.2.2** or later, the module removes obsolete product
+fields that were never consumed by the current exporters/importers: template
+sync timestamps, template Elastic notes, variant external IDs, and free-form
+variant attribute text. Variant export timestamps remain in place.
 
-**Usage in Code:**
-```python
-# Use active environment (based on configuration)
-config = self.env['elastic.config'].get_config()
-sftp = config.get_sftp_service()
+## Architecture
 
-# Override to specific environment
-sftp_beta = config.get_sftp_service(environment='beta')
-sftp_prod = config.get_sftp_service(environment='production')
-```
-
-### Legacy Account Number Priority
-When enabled in configuration, the system will:
-1. First check if customer has a `legacy_account_number`
-2. Use that value for SoldToID in exports
-3. Fall back to Odoo contact ID if not present
-
-This ensures backward compatibility with legacy systems while providing flexibility.
-
-### Upgrading from a previous version
-
-When upgrading to **18.0.1.2.0** or later:
-
-1. The post-migration script automatically pins every existing SFTP
-   connection to **Trust on First Connect** so that nothing breaks during
-   the upgrade window. A warning is logged listing how many connections
-   were affected.
-2. Once the module is upgraded, open **Elastic > Configuration > Settings**.
-   A yellow security advisory shows the count of connections still using
-   the legacy policy.
-3. Click **Upgrade Host Keys** to bulk-capture the live host key for each
-   connection and switch it to **Verify Stored Host Key** mode (recommended).
-   Any connection where the fetch fails (firewall, DNS, etc.) stays on
-   Trust-on-First-Connect with the failure surfaced in the notification —
-   address and re-run.
-4. Or, on each connection profile individually, hit
-   **Fetch & Save Host Key**, then save.
-
-You can confirm a connection's stored key via the read-only
-**Host Key Fingerprint** field on the connection form.
-
-When upgrading to **18.0.1.2.2** or later, the module removes obsolete
-product fields that were never consumed by the current exporters/importers:
-template sync timestamps, template Elastic notes, variant external IDs, and
-free-form variant attribute text. Variant export timestamps remain in place.
-
-### Pricelists / Price Groups
-Each `product.pricelist` carries a **Send to Elastic** flag and an optional
-**Elastic Price Group Code**:
-
-* When at least one pricelist has Send-to-Elastic enabled, the price export
-  produces one row per product per enabled pricelist using the price computed
-  from that pricelist (variant-aware).
-* When no pricelist is flagged, the export falls back to the product list
-  price under the default `LP` price group.
-* If you leave the code blank, the module derives one from the pricelist
-  name (`DEALER`/`WHOLESALE` → `D`, `PROMO` → `PL`, otherwise `LP`).
-* Codes must be unique among Send-to-Elastic pricelists.
-* **CatalogKey** follows the product's Elastic catalog membership (template
-  or variant level): a product assigned to a catalog is priced under that
-  catalog's code (one row per catalog when assigned to several), and
-  products with no catalog assignment fall back to `ALL`.
-* **Retail** is always the product's Odoo sales price (treat it as MSRP);
-  **Price** is the value computed from each Send-to-Elastic pricelist. To
-  reproduce a full Elastic price-group matrix (e.g. `LP, PL, PH, F, E, D, C`),
-  create one Send-to-Elastic pricelist per group.
-
-### Inventory ATP
-The `inventory.csv` export sends time-phased available-to-promise rows by
-warehouse. It starts from current internal on-hand stock, applies open incoming
-and outgoing stock moves in date order, and keeps the internal running balance
-negative when demand exceeds supply so later receipts first cover prior
-shortages. Negative exported quantities are clamped to `0`.
-
-By default ATP demand comes from confirmed stock moves. Enable **Include
-Quotations in ATP Demand** to also subtract draft/sent sales quotations.
-
-Enable **Use BOM Component Fallback for ATP** when MTO finished goods should be
-sellable based on raw goods. If a product has no positive finished-goods ATP,
-the exporter evaluates every active BOM for that product/template, calculates
-the buildable quantity from each BOM's limiting storable component, and uses the
-best active BOM as fallback supply. Existing finished-good demand still consumes
-that fallback supply before quantities are exported.
-
-### Extensible Architecture
-- Base classes make it easy to add new export/import types
-- Field mapping system allows flexible data transformation
-- Hook methods (pre/post export/import) for custom logic
-- Comprehensive logging for audit trails
-
-## Next Steps: Phase 2
-
-Implement core exporters:
-1. Product Exporter
-2. Customer Exporter
-3. Inventory Exporter
-4. Export Scheduler (cron jobs)
-
-## Next Steps: Phase 3
-
-Implement order import:
-1. Order Importer
-2. Order staging model with error tracking
-3. Orders tab with error management UI
-
-## Next Steps: Phase 4
-
-Implement advanced exports:
-1. Catalogs
-2. Catalog Mappings
-3. Features
-4. Sales Reps
-5. Rep Mappings
-6. Locations
+- `models/` extends Odoo records and defines Elastic configuration, metadata,
+  catalog, cross-reference, order staging, and log models.
+- `exporters/` contains concrete feed exporters built on `BaseExporter`.
+- `importers/` contains order and Shopify feature import logic built on reusable
+  importer patterns.
+- `services/` contains SFTP and delimited-file generation services.
+- `views/` adds the Elastic navigation, configuration forms, logs, staging UI,
+  catalog tools, metadata tools, and product/customer/pricelist extensions.
+- `tests/` contains focused Odoo transaction tests for exporters, importers,
+  configuration behavior, customer cross-references, host-key handling, and file
+  generation.
 
 ## Dependencies
 
 - Odoo 18.0
-- Python packages: `paramiko>=3.4.0`
-- Odoo modules: base, sale_management, stock, mrp, contacts, product, mail
+- Python package: `paramiko>=3.4.0`
+- Odoo modules: `base`, `mail`, `contacts`, `product`, `sale_management`,
+  `stock`, `mrp`, and `knowledge`
+
+## Client-Facing Documentation
+
+A client-ready connector overview is available as editable source in
+`docs/elastic_connector_feature_brief.md`. The designed PDF can be regenerated
+with:
+
+```bash
+python3 scripts/generate_connector_feature_brief.py
+```
+
+The generated PDF is written to `output/pdf/elastic_odoo_connector_feature_brief.pdf`.
 
 ## License
 

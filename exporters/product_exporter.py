@@ -11,8 +11,6 @@ from .base_exporter import BaseExporter
 
 _logger = logging.getLogger(__name__)
 
-COLOR_ATTRIBUTE_NAMES = {'color', 'colour', 'frame color', 'product color'}
-
 
 class ProductExporter(BaseExporter):
     """
@@ -71,7 +69,7 @@ class ProductExporter(BaseExporter):
         return {
             'Region': lambda r: 'GLOBAL',
             'ItemNumber': lambda r: self._get_item_number(r),
-            'ProductName': 'name',
+            'ProductName': lambda r: r._get_elastic_product_name(),
             'StockItemKey': lambda r: self._get_stock_item_key(r),
             'SKU': lambda r: r._get_elastic_sku(),
             'UPC': lambda r: r.barcode or '',
@@ -90,7 +88,7 @@ class ProductExporter(BaseExporter):
         return record._get_elastic_item_number()
 
     def _get_stock_item_key(self, record):
-        return record.elastic_stock_item_key or record.barcode or record.default_code or str(record.id)
+        return record._get_elastic_stock_item_key()
 
     def _get_product_permission_group(self, record):
         return (
@@ -99,36 +97,11 @@ class ProductExporter(BaseExporter):
             or 'DEFAULT'
         )
 
-    @staticmethod
-    def _normalize_attribute_name(name):
-        return (name or '').strip().lower()
-
-    def _is_color_attribute(self, attr_name):
-        return self._normalize_attribute_name(attr_name) in COLOR_ATTRIBUTE_NAMES
-
-    def _is_size_attribute(self, attr_name):
-        attr_name = self._normalize_attribute_name(attr_name)
-        return attr_name in {'size', 'talla'} or attr_name.endswith(' size')
-
-    def _get_attribute_value(self, record, matcher):
-        for attr_value in record.product_template_attribute_value_ids:
-            if matcher(attr_value.attribute_id.name):
-                return attr_value.product_attribute_value_id
-        return self.env['product.attribute.value'].browse()
-
     def _get_elastic_color(self, record):
-        value = self._get_attribute_value(record, self._is_color_attribute)
-        if not value:
-            return self.env['elastic.color'].browse()
-        return self.env['elastic.color'].search([
-            '|',
-            ('odoo_attribute_value_id', '=', value.id),
-            ('odoo_attribute_value_ids', 'in', value.id),
-            ('active', '=', True),
-        ], limit=1)
+        return record._find_elastic_color(record._get_elastic_color_attribute_value())
 
     def _get_elastic_size(self, record):
-        value = self._get_attribute_value(record, self._is_size_attribute)
+        value = record._get_elastic_size_attribute_value()
         if not value:
             return self.env['elastic.size.value'].browse()
         return self.env['elastic.size.value'].search([
@@ -139,34 +112,19 @@ class ProductExporter(BaseExporter):
 
     def _get_color_code(self, record):
         """
-        Extract color code from product variant attributes.
-        Returns the attribute value code for Color attribute.
+        Extract color code from the variant's Color-role attribute.
         """
-        value = self._get_attribute_value(record, self._is_color_attribute)
-        if value and value.elastic_color_code:
-            return value.elastic_color_code
-
-        elastic_color = self._get_elastic_color(record)
-        if elastic_color:
-            return elastic_color.code
-
-        if value:
-            code = value.name
-            if len(code) > 5:
-                return code[:3].upper()
-            return code
-        return ''
+        return record._get_elastic_color_code()
 
     def _get_color_value(self, record):
         """
-        Extract color value from product variant attributes.
-        Returns the attribute value name for Color attribute.
+        Extract color value from the variant's Color-role attribute.
         """
-        value = self._get_attribute_value(record, self._is_color_attribute)
+        value = record._get_elastic_color_attribute_value()
         if value and value.elastic_color_group:
             return value.elastic_color_group.upper()
 
-        elastic_color = self._get_elastic_color(record)
+        elastic_color = record._find_elastic_color(value)
         if elastic_color:
             return (elastic_color.color_group or elastic_color.name).upper()
 
@@ -176,13 +134,13 @@ class ProductExporter(BaseExporter):
 
     def _get_color_name(self, record):
         """
-        Get the full color name from product variant attributes.
+        Get the full color name from the variant's Color-role attribute.
         """
-        value = self._get_attribute_value(record, self._is_color_attribute)
+        value = record._get_elastic_color_attribute_value()
         if value and value.elastic_color_name:
             return value.elastic_color_name
 
-        elastic_color = self._get_elastic_color(record)
+        elastic_color = record._find_elastic_color(value)
         if elastic_color:
             return elastic_color.name
 
@@ -192,14 +150,14 @@ class ProductExporter(BaseExporter):
 
     def _get_color_sort(self, record):
         """
-        Get the color sort order from product variant attributes.
+        Get the color sort order from the variant's Color-role attribute.
         Returns the sequence of the color attribute value or 1.
         """
-        value = self._get_attribute_value(record, self._is_color_attribute)
+        value = record._get_elastic_color_attribute_value()
         if value and value.elastic_color_sort_order:
             return value.elastic_color_sort_order
 
-        elastic_color = self._get_elastic_color(record)
+        elastic_color = record._find_elastic_color(value)
         if elastic_color:
             return elastic_color.sort_order
 
@@ -223,10 +181,9 @@ class ProductExporter(BaseExporter):
 
     def _get_size_name(self, record):
         """
-        Extract size name from product variant attributes.
-        Returns the attribute value name for Size attribute.
+        Extract size name from the variant's Size-role attribute.
         """
-        value = self._get_attribute_value(record, self._is_size_attribute)
+        value = record._get_elastic_size_attribute_value()
         if value and value.elastic_size_name:
             return value.elastic_size_name
 
@@ -240,10 +197,10 @@ class ProductExporter(BaseExporter):
 
     def _get_size_num(self, record):
         """
-        Get the size sort order from product variant attributes.
+        Get the size sort order from the variant's Size-role attribute.
         Returns the sequence of the size attribute value or 1.
         """
-        value = self._get_attribute_value(record, self._is_size_attribute)
+        value = record._get_elastic_size_attribute_value()
         if value and value.elastic_size_sort_order:
             return value.elastic_size_sort_order
 
@@ -256,7 +213,7 @@ class ProductExporter(BaseExporter):
         return 1
 
     def _get_alternate_size(self, record):
-        value = self._get_attribute_value(record, self._is_size_attribute)
+        value = record._get_elastic_size_attribute_value()
         if value and value.elastic_alternate_size:
             return value.elastic_alternate_size
 
@@ -268,10 +225,19 @@ class ProductExporter(BaseExporter):
     def transform_record(self, record):
         """
         Validate and transform product record before export.
-        Skip records that don't meet minimum requirements.
+        Skip records that don't meet minimum requirements. The same two keys
+        gate the price and inventory feeds, so a variant is either present in
+        all three feeds or absent from all three.
         """
         if not record._get_elastic_item_number():
             _logger.warning("Skipping product %s: missing Elastic ItemNumber", record.id)
+            return None
+
+        if not record._get_elastic_stock_item_key():
+            _logger.warning(
+                "Skipping product %s: missing Elastic Stock Item Key, barcode, and default_code",
+                record.id,
+            )
             return None
 
         return record
