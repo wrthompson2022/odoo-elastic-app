@@ -43,9 +43,10 @@ class ProductTemplate(models.Model):
         'catalog_id',
         string='Elastic Catalogs',
         help='Catalogs every variant of this product belongs to in Elastic. '
-             'Selecting a catalog generates its catalog mapping rows. '
-             'Individual variants can additionally be assigned on the '
-             'variant form.'
+             'Membership drives all product-related exports: a product in '
+             'no catalog is never pushed. Selecting a catalog generates its '
+             'catalog mapping rows. Individual variants can additionally be '
+             'assigned on the variant form.'
     )
 
     def write(self, vals):
@@ -117,4 +118,7 @@ class ProductTemplate(models.Model):
     # ============================================
     def _get_elastic_item_number(self):
         self.ensure_one()
-        return self.elastic_product_id or self.default_code or ''
+        return (
+            (self.elastic_product_id or '').strip()
+            or (self.default_code or '').strip()
+        )

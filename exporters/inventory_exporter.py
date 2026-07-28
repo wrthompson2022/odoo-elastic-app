@@ -39,6 +39,9 @@ class InventoryExporter(BaseExporter):
     def get_export_domain(self):
         """Get domain for filtering products to export inventory for"""
         return [
+            # Catalog membership (template- or variant-level) drives the
+            # feed, matching the products.csv population.
+            ('id', 'in', self.env['elastic.catalog']._get_elastic_member_variants().ids),
             ('is_storable', '=', True),  # Only storable products (v18: replaces type='product')
             ('sale_ok', '=', True),      # Align population with products.csv
             ('active', '=', True),
@@ -46,6 +49,11 @@ class InventoryExporter(BaseExporter):
             ('elastic_sync_enabled', '=', True),
             ('product_tmpl_id.elastic_sync_enabled', '=', True),
         ]
+
+    def get_empty_feed_message(self):
+        return super().get_empty_feed_message() + self.env[
+            'elastic.catalog'
+        ]._member_feed_empty_hint()
 
     def get_export_headers(self):
         """Headers matching the Elastic inventory.csv format"""
@@ -343,9 +351,7 @@ class InventoryExporter(BaseExporter):
             products = self.env[model_name].search(domain)
 
             if not products:
-                return self._empty_result(
-                    f"No {export_type} records found to export; nothing uploaded"
-                )
+                return self._empty_result(self.get_empty_feed_message())
 
             _logger.info(f"Found {len(products)} product(s) for inventory export")
 

@@ -137,16 +137,44 @@ class ElasticCatalog(models.Model):
         self.ensure_one()
         return self.product_ids.mapped('product_variant_ids') | self.variant_ids
 
+    @api.model
+    def _get_elastic_member_variants(self):
+        """Union of member variants across every active catalog.
+
+        This is the population that drives all product-related feeds
+        (products, prices, product tags, features, inventory): a variant
+        reaches Elastic only through a template- or variant-level catalog
+        assignment. Products outside every catalog are never exported, no
+        matter what their other flags say."""
+        members = self.env['product.product'].browse()
+        for catalog in self.search([('active', '=', True)]):
+            members |= catalog._get_member_variants()
+        return members
+
+    @api.model
+    def _member_feed_empty_hint(self):
+        """Actionable suffix for empty product-feed results."""
+        if not self._get_elastic_member_variants():
+            return (
+                ' No active Elastic catalog has any product or variant '
+                'assigned; catalog membership drives the product feeds.'
+            )
+        return ''
+
     def _get_exportable_mapping_products(self):
         self.ensure_one()
         products = self._get_member_variants()
-        # "Push to Elastic" is always authoritative, at both levels.
+        # Mirror the products.csv gates ("Push to Elastic" flags, goods only,
+        # both export keys) so catalog_mapping.csv can never reference an
+        # ItemNumber that is absent from products.csv.
         return products.filtered(
             lambda product: product.active
             and product.sale_ok
+            and product.type == 'consu'
             and product.elastic_sync_enabled
             and product.product_tmpl_id.elastic_sync_enabled
             and product._get_elastic_item_number()
+            and product._get_elastic_stock_item_key()
         )
 
     def _get_mapping_color_code(self, product):

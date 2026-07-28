@@ -11,10 +11,11 @@ Behavior:
   that pricelist (variant-aware).
 * Otherwise, a single row per product is exported using the product list
   price under the default 'LP' price group.
-* CatalogKey comes from the product's Elastic catalog membership (template
-  or variant level). Products that belong to no catalog are exported under
-  the configured Default Catalog key ('ALL' when unset); products in
-  several catalogs get one row per catalog.
+* Catalog membership (template or variant level) drives the exported
+  population, and CatalogKey comes from that same membership; products in
+  several catalogs get one row per catalog. Members whose only catalog has
+  a blank code fall back to the configured Default Catalog key ('ALL'
+  when unset).
 * Retail is always the product list price (MSRP); Price is the price-group
   price computed from the pricelist.
 """
@@ -48,6 +49,9 @@ class PriceExporter(BaseExporter):
 
     def get_export_domain(self):
         return [
+            # Catalog membership (template- or variant-level) drives the
+            # feed, matching the products.csv population.
+            ('id', 'in', self.env['elastic.catalog']._get_elastic_member_variants().ids),
             ('sale_ok', '=', True),
             ('active', '=', True),
             ('type', '=', 'consu'),  # Goods only — no delivery/service/combo products
@@ -55,6 +59,11 @@ class PriceExporter(BaseExporter):
             ('elastic_sync_enabled', '=', True),
             ('product_tmpl_id.elastic_sync_enabled', '=', True),
         ]
+
+    def get_empty_feed_message(self):
+        return super().get_empty_feed_message() + self.env[
+            'elastic.catalog'
+        ]._member_feed_empty_hint()
 
     def get_export_headers(self):
         return [
@@ -90,7 +99,8 @@ class PriceExporter(BaseExporter):
         """Map product id -> list of Elastic catalog codes the product belongs to.
 
         Membership is checked at both template and variant level. Products
-        absent from the map belong to no catalog and are exported under 'ALL'.
+        absent from the map (only possible when their catalogs have blank
+        codes) fall back to the default catalog key.
         """
         code_map = {}
         catalogs = self.env['elastic.catalog'].search([('active', '=', True)])
@@ -219,9 +229,7 @@ class PriceExporter(BaseExporter):
 
             products = self.env[model_name].search(self.get_export_domain())
             if not products:
-                return self._empty_result(
-                    f'No {export_type} records found to export; nothing uploaded'
-                )
+                return self._empty_result(self.get_empty_feed_message())
 
             _logger.info('Found %d product(s) for price export', len(products))
             self.pre_export_hook(products)

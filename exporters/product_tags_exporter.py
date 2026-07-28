@@ -37,6 +37,9 @@ class ProductTagsExporter(BaseExporter):
 
     def get_export_domain(self):
         return [
+            # Catalog membership (template- or variant-level) drives the
+            # feed, matching the products.csv population.
+            ('id', 'in', self.env['elastic.catalog']._get_elastic_member_variants().ids),
             ('sale_ok', '=', True),
             ('active', '=', True),
             ('type', '=', 'consu'),  # Goods only — no delivery/service/combo products
@@ -44,6 +47,11 @@ class ProductTagsExporter(BaseExporter):
             ('elastic_sync_enabled', '=', True),
             ('product_tmpl_id.elastic_sync_enabled', '=', True),
         ]
+
+    def get_empty_feed_message(self):
+        return super().get_empty_feed_message() + self.env[
+            'elastic.catalog'
+        ]._member_feed_empty_hint()
 
     def get_export_headers(self):
         return [
@@ -135,9 +143,7 @@ class ProductTagsExporter(BaseExporter):
             mappings = self._get_tag_mappings()
 
             if not products:
-                return self._empty_result(
-                    f'No {export_type} records found to export; nothing uploaded'
-                )
+                return self._empty_result(self.get_empty_feed_message())
             if not mappings:
                 return self._empty_result(
                     'No active product tag mappings found to export; nothing uploaded'

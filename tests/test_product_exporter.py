@@ -47,6 +47,12 @@ class TestProductExporter(TransactionCase):
             'default_code': 'FRAME-001',
             'barcode': '840000000001',
         })
+        # Catalog membership drives the product feeds.
+        self.catalog = self.env['elastic.catalog'].create({
+            'name': 'Test Feed Catalog',
+            'code': 'FEED',
+            'product_ids': [(6, 0, [self.template.id])],
+        })
 
         self.size_scale = self.env['elastic.size.scale'].create({
             'name': 'Eyewear',
@@ -76,21 +82,40 @@ class TestProductExporter(TransactionCase):
         exporter.sftp_service = MagicMock()
         return exporter
 
-    def test_template_item_number_wins_over_variant_item_number(self):
+    def test_variant_item_number_override_wins_over_template_item_number(self):
+        """The variant-level ItemNumber override is authoritative, matching
+        its help text and the composite-mode behavior."""
         self.template.elastic_product_id = 'STYLE-ELASTIC'
         self.product.write({
             'elastic_item_number': 'ITEM-ELASTIC',
             'elastic_stock_item_key': 'STOCK-ELASTIC',
         })
         exporter = self._build_exporter()
-        self.assertEqual(exporter._get_item_number(self.product), 'STYLE-ELASTIC')
+        self.assertEqual(exporter._get_item_number(self.product), 'ITEM-ELASTIC')
         self.assertEqual(exporter._get_stock_item_key(self.product), 'STOCK-ELASTIC')
+
+    def test_template_item_number_used_when_variant_override_blank(self):
+        self.template.elastic_product_id = 'STYLE-ELASTIC'
+        exporter = self._build_exporter()
+
+        self.assertEqual(exporter._get_item_number(self.product), 'STYLE-ELASTIC')
 
     def test_variant_item_number_is_fallback_when_template_blank(self):
         self.product.elastic_item_number = 'ITEM-ELASTIC'
         exporter = self._build_exporter()
 
         self.assertEqual(exporter._get_item_number(self.product), 'ITEM-ELASTIC')
+
+    def test_whitespace_identifiers_never_become_export_keys(self):
+        self.template.default_code = False
+        self.product.write({
+            'default_code': '   ',
+            'barcode': False,
+            'elastic_sku': False,
+        })
+
+        self.assertEqual(self.product._get_elastic_item_number(), '')
+        self.assertEqual(self.product._get_elastic_stock_item_key(), '')
 
     def test_linked_color_metadata_wins_over_truncated_attribute_name(self):
         exporter = self._build_exporter()
@@ -157,15 +182,51 @@ class TestProductExporter(TransactionCase):
         exporter = self._build_exporter()
         self.assertIn(('type', '=', 'consu'), exporter.get_export_domain())
 
+    def test_feed_only_includes_catalog_members(self):
+        """Catalog membership drives products.csv: a sellable good outside
+        every catalog (e.g. an imported delivery product) is not exported,
+        while template- and variant-level members are."""
+        outsider = self.env['product.product'].create({
+            'name': 'Shopify Delivery',
+            'default_code': 'DELIVERY-1',
+            'sale_ok': True,
+        })
+        variant_member = self.env['product.product'].create({
+            'name': 'Variant Member',
+            'default_code': 'VAR-MEMBER',
+            'sale_ok': True,
+        })
+        self.catalog.variant_ids = [(4, variant_member.id)]
+
+        exporter = self._build_exporter()
+        products = self.env['product.product'].search(exporter.get_export_domain())
+
+        self.assertIn(self.product, products)
+        self.assertIn(variant_member, products)
+        self.assertNotIn(outsider, products)
+
+    def test_empty_member_population_hint_in_result_message(self):
+        """When no catalog has members, the export result must say so
+        instead of a bare 'no records found'."""
+        self.catalog.product_ids = [(5, 0, 0)]
+        exporter = self._build_exporter()
+
+        result = exporter.export()
+
+        self.assertTrue(result['success'])
+        self.assertEqual(result['record_count'], 0)
+        self.assertIn('catalog', result['message'])
+
     def test_skipped_records_surface_in_result_message(self):
         """Variants skipped for missing keys must be visible in the export
         result, not only in server-log warnings."""
         self.template.elastic_product_id = 'STYLE-OK'
-        self.env['product.template'].create({
+        keyless = self.env['product.template'].create({
             'name': 'Keyless Style',
             'sale_ok': True,
             'elastic_product_id': 'NOKEY',
         })
+        self.catalog.product_ids = [(4, keyless.id)]
         exporter = self._build_exporter()
         exporter.sftp_service.upload_file.return_value = (True, 'uploaded')
 

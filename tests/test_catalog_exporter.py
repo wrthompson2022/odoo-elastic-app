@@ -223,6 +223,8 @@ class TestCatalogMappingExporter(TransactionCase):
             ],
         })
         self.assertEqual(len(template.product_variant_ids), 2)
+        for index, product in enumerate(template.product_variant_ids, start=1):
+            product.default_code = f'SIZEDHAT-{index}'
         catalog = self.env['elastic.catalog'].create({
             'name': 'Sized Catalog',
             'code': 'SIZED',
@@ -256,6 +258,37 @@ class TestCatalogMappingExporter(TransactionCase):
         product.elastic_sync_enabled = False
         catalog.action_generate_mapping_lines()
         self.assertFalse(catalog.mapping_line_ids)
+
+    def test_mapping_lines_only_reference_products_feed_members(self):
+        """catalog_mapping.csv must never reference an ItemNumber that is
+        absent from products.csv: service products and variants without a
+        stable StockItemKey source are excluded from mapping lines."""
+        service_template = self.env['product.template'].create({
+            'name': 'Shipping Fee',
+            'type': 'service',
+            'sale_ok': True,
+            'default_code': 'SHIP-FEE',
+        })
+        keyless_template = self.env['product.template'].create({
+            'name': 'Keyless Style',
+            'sale_ok': True,
+            'elastic_product_id': 'NOKEY',
+        })
+        good = self.env['product.product'].create({
+            'name': 'Real Good',
+            'default_code': 'GOOD-001',
+            'sale_ok': True,
+        })
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Coherence Catalog',
+            'code': 'COHERE',
+            'product_ids': [(6, 0, [service_template.id, keyless_template.id])],
+            'variant_ids': [(6, 0, [good.id])],
+        })
+
+        catalog.action_generate_mapping_lines()
+
+        self.assertEqual(catalog.mapping_line_ids.mapped('item_number'), ['GOOD-001'])
 
     def test_regeneration_preserves_manual_sort_edits(self):
         """Regenerating mapping lines must keep manually edited sequence and

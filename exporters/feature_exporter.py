@@ -55,15 +55,27 @@ class FeatureExporter(BaseExporter):
     def _item_number(product):
         return product._get_elastic_item_number()
 
+    def _get_member_variants(self):
+        """Catalog membership computed once per export run — the same
+        population that drives products.csv."""
+        if not hasattr(self, '_member_variants_cache'):
+            self._member_variants_cache = (
+                self.env['elastic.catalog']._get_elastic_member_variants()
+            )
+        return self._member_variants_cache
+
     def _products_for_assignment(self, assignment):
         # "Push to Elastic" is always authoritative, at both levels.
         if not assignment.product_tmpl_id.elastic_sync_enabled:
             return self.env['product.product'].browse()
         if assignment.product_id:
-            return assignment.product_id.filtered('elastic_sync_enabled')
-        return assignment.product_tmpl_id.product_variant_ids.filtered(
-            lambda p: p.active and p.elastic_sync_enabled
-        )
+            products = assignment.product_id.filtered('elastic_sync_enabled')
+        else:
+            products = assignment.product_tmpl_id.product_variant_ids.filtered(
+                lambda p: p.active and p.elastic_sync_enabled
+            )
+        # Catalog membership drives the feed, matching products.csv.
+        return products & self._get_member_variants()
 
     @staticmethod
     def _sort_number(value):
@@ -149,7 +161,9 @@ class FeatureExporter(BaseExporter):
 
             if not data_rows:
                 return self._empty_result(
-                    f'No valid {export_type} records after transformation; nothing uploaded'
+                    f'No valid {export_type} records after transformation; '
+                    f'nothing uploaded'
+                    + self.env['elastic.catalog']._member_feed_empty_hint()
                 )
 
             file_content = self.file_generator.generate_csv(self.get_export_headers(), data_rows)

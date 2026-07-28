@@ -85,6 +85,18 @@ class BaseExporter:
         """
         return record
 
+    def get_empty_feed_message(self):
+        """
+        Message returned when the export domain matches no records.
+        Override in subclasses to add feed-specific hints.
+
+        :return: String message
+        """
+        return (
+            f"No {self.get_export_type()} records found to export; "
+            f"nothing uploaded"
+        )
+
     def get_extra_rows(self):
         """
         Optional: Pre-built rows appended after the record-generated rows
@@ -152,9 +164,7 @@ class BaseExporter:
             records = self.env[model_name].search(domain)
 
             if not records:
-                return self._empty_result(
-                    f"No {export_type} records found to export; nothing uploaded"
-                )
+                return self._empty_result(self.get_empty_feed_message())
 
             _logger.info(f"Found {len(records)} {export_type} record(s) to export")
 

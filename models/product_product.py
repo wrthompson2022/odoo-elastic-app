@@ -62,9 +62,11 @@ class ProductProduct(models.Model):
         'product_id',
         'catalog_id',
         string='Elastic Catalogs',
-        help='Catalogs this variant belongs to. Selecting a catalog generates '
-             'its catalog mapping row. Template-level catalog assignments '
-             'additionally include every variant of the template.'
+        help='Catalogs this variant belongs to. Membership drives all '
+             'product-related exports: a variant in no catalog is never '
+             'pushed. Selecting a catalog generates its catalog mapping '
+             'row. Template-level catalog assignments additionally include '
+             'every variant of the template.'
     )
 
     def write(self, vals):
@@ -87,14 +89,27 @@ class ProductProduct(models.Model):
         # Use elastic_sku if set, otherwise fall back to default_code
         return self.elastic_sku or self.default_code or ''
 
+    @staticmethod
+    def _first_elastic_code(*candidates):
+        """First candidate that is non-blank after stripping, or ''.
+        Whitespace-only identifiers must never become an ItemNumber or
+        StockItemKey."""
+        for candidate in candidates:
+            code = (candidate or '').strip()
+            if code:
+                return code
+        return ''
+
     def _get_elastic_item_number(self):
         self.ensure_one()
         template = self.product_tmpl_id
+        # An explicit variant override always wins, in composite and plain
+        # mode alike, giving an escape hatch for combinations that need a
+        # hand-assigned ItemNumber.
+        override = self._first_elastic_code(self.elastic_item_number)
+        if override:
+            return override
         if template.elastic_use_composite_item_number:
-            # An explicit variant override always wins, giving an escape hatch
-            # for combinations that need a hand-assigned ItemNumber.
-            if self.elastic_item_number:
-                return self.elastic_item_number
             base = template._get_elastic_item_number()
             if not base:
                 return ''
@@ -111,13 +126,11 @@ class ProductProduct(models.Model):
                 or ''
             )
             return separator.join([base] + codes)
-        return (
-            template.elastic_product_id
-            or self.elastic_item_number
-            or self.default_code
-            or self.elastic_sku
-            or template.default_code
-            or ''
+        return self._first_elastic_code(
+            template.elastic_product_id,
+            self.default_code,
+            self.elastic_sku,
+            template.default_code,
         )
 
     def _get_elastic_stock_item_key(self):
@@ -125,7 +138,9 @@ class ProductProduct(models.Model):
         feeds. Returns '' when no stable source exists so those feeds skip
         the variant instead of emitting a database-local id."""
         self.ensure_one()
-        return self.elastic_stock_item_key or self.barcode or self.default_code or ''
+        return self._first_elastic_code(
+            self.elastic_stock_item_key, self.barcode, self.default_code
+        )
 
     def _get_elastic_product_name(self):
         """ProductName for exports. When a composite ItemNumber is used, the

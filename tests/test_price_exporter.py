@@ -52,6 +52,21 @@ class TestPriceExporter(TransactionCase):
             exporter.get_export_domain(),
         )
 
+    def test_export_domain_limits_feed_to_catalog_members(self):
+        """Catalog membership drives prices.csv, matching products.csv."""
+        exporter = self._build_exporter()
+        products = self.env['product.product'].search(exporter.get_export_domain())
+        self.assertNotIn(self.product, products)
+
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Member Catalog',
+            'code': 'MEMBER',
+            'variant_ids': [(4, self.product.id)],
+        })
+
+        products = self.env['product.product'].search(exporter.get_export_domain())
+        self.assertIn(self.product, products)
+
     def test_iterates_over_enabled_pricelists(self):
         wholesale = self.env['product.pricelist'].create({
             'name': 'Wholesale Tier',
