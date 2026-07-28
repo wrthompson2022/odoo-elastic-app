@@ -13,7 +13,8 @@ Behavior:
   price under the default 'LP' price group.
 * CatalogKey comes from the product's Elastic catalog membership (template
   or variant level). Products that belong to no catalog are exported under
-  'ALL'; products in several catalogs get one row per catalog.
+  the configured Default Catalog key ('ALL' when unset); products in
+  several catalogs get one row per catalog.
 * Retail is always the product list price (MSRP); Price is the price-group
   price computed from the pricelist.
 """
@@ -70,7 +71,7 @@ class PriceExporter(BaseExporter):
         # only kept for completeness so subclasses inheriting from
         # BaseExporter still work as expected.
         return {
-            'CatalogKey': lambda r: 'ALL',
+            'CatalogKey': lambda r: self.config.get_default_catalog_key(),
             'StockItemKey': lambda r: self._get_stock_item_key(r),
             'PriceGroup': lambda r: self.DEFAULT_PRICE_GROUP,
             'CurrencyCode': lambda r: self.DEFAULT_CURRENCY,
@@ -97,7 +98,9 @@ class PriceExporter(BaseExporter):
             code = (catalog.code or '').strip()
             if not code:
                 continue
-            members = (catalog.product_ids.product_variant_ids | catalog.variant_ids) & products
+            # Same membership source that drives catalog_mapping.csv, so the
+            # two feeds can never tell Elastic contradictory stories.
+            members = catalog._get_member_variants() & products
             for product_id in members.ids:
                 code_map.setdefault(product_id, []).append(code)
         for codes in code_map.values():
@@ -165,10 +168,11 @@ class PriceExporter(BaseExporter):
                 else self._get_company_currency_code()
             )
             prices = self._get_pricelist_prices(valid_products, pricelist)
+            default_catalog_key = self.config.get_default_catalog_key()
             for product in valid_products:
                 stock_item_key = self._get_stock_item_key(product)
                 price = prices.get(product.id, product.lst_price)
-                for catalog_key in catalog_codes.get(product.id, ['ALL']):
+                for catalog_key in catalog_codes.get(product.id, [default_catalog_key]):
                     rows.append([
                         catalog_key,
                         stock_item_key,
@@ -189,9 +193,10 @@ class PriceExporter(BaseExporter):
         currency_code = self._get_company_currency_code()
 
         rows = []
+        default_catalog_key = self.config.get_default_catalog_key()
         for product in valid_products:
             stock_item_key = self._get_stock_item_key(product)
-            for catalog_key in catalog_codes.get(product.id, ['ALL']):
+            for catalog_key in catalog_codes.get(product.id, [default_catalog_key]):
                 rows.append([
                     catalog_key,
                     stock_item_key,
@@ -214,9 +219,9 @@ class PriceExporter(BaseExporter):
 
             products = self.env[model_name].search(self.get_export_domain())
             if not products:
-                message = f'No {export_type} records found to export'
-                _logger.warning(message)
-                return {'success': False, 'message': message, 'record_count': 0}
+                return self._empty_result(
+                    f'No {export_type} records found to export; nothing uploaded'
+                )
 
             _logger.info('Found %d product(s) for price export', len(products))
             self.pre_export_hook(products)
@@ -235,9 +240,9 @@ class PriceExporter(BaseExporter):
                 data_rows = self._build_rows_from_lst_price(products)
 
             if not data_rows:
-                message = f'No valid {export_type} records after transformation'
-                _logger.warning(message)
-                return {'success': False, 'message': message, 'record_count': 0}
+                return self._empty_result(
+                    f'No valid {export_type} records after transformation; nothing uploaded'
+                )
 
             file_content = self.file_generator.generate_csv(self.get_export_headers(), data_rows)
             filename = FileGenerator.generate_filename(prefix=self.get_file_prefix(), extension='csv')
@@ -246,6 +251,7 @@ class PriceExporter(BaseExporter):
                 local_file_content=file_content,
                 remote_filename=filename,
                 remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
 
             if not success:

@@ -135,13 +135,13 @@ class ProductTagsExporter(BaseExporter):
             mappings = self._get_tag_mappings()
 
             if not products:
-                message = f'No {export_type} records found to export'
-                _logger.warning(message)
-                return {'success': False, 'message': message, 'record_count': 0}
+                return self._empty_result(
+                    f'No {export_type} records found to export; nothing uploaded'
+                )
             if not mappings:
-                message = 'No active product tag mappings found to export'
-                _logger.warning(message)
-                return {'success': False, 'message': message, 'record_count': 0}
+                return self._empty_result(
+                    'No active product tag mappings found to export; nothing uploaded'
+                )
 
             self.pre_export_hook(products)
 
@@ -171,9 +171,9 @@ class ProductTagsExporter(BaseExporter):
                     ])
 
             if not data_rows:
-                message = f'No valid {export_type} records after transformation'
-                _logger.warning(message)
-                return {'success': False, 'message': message, 'record_count': 0}
+                return self._empty_result(
+                    f'No valid {export_type} records after transformation; nothing uploaded'
+                )
 
             file_content = self.file_generator.generate_csv(self.get_export_headers(), data_rows)
             filename = FileGenerator.generate_filename(prefix=self.get_file_prefix(), extension='csv')
@@ -182,6 +182,7 @@ class ProductTagsExporter(BaseExporter):
                 local_file_content=file_content,
                 remote_filename=filename,
                 remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
 
             if not success:

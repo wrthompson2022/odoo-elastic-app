@@ -90,9 +90,13 @@
                                     <field name="export_include_header"/>
                                     <field name="export_item_number_separator"/>
                                 </group>
-                                <group string="Date/Time Formatting">
-                                    <field name="date_format"/>
-                                    <field name="datetime_format"/>
+                                <group string="Export Defaults">
+                                    <field name="default_catalog_id"/>
+                                    <field name="rep_house_account_enabled"/>
+                                    <field name="rep_house_account_code"
+                                           invisible="not rep_house_account_enabled"/>
+                                    <field name="rep_house_account_name"
+                                           invisible="not rep_house_account_enabled"/>
                                 </group>
                             </group>
                             <separator string="Enabled Exports"/>

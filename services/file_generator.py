@@ -59,7 +59,7 @@ class FileGenerator:
             _logger.error(f"Error generating file: {str(e)}")
             raise
 
-    def generate_from_records(self, headers, records, field_mapping):
+    def generate_from_records(self, headers, records, field_mapping, extra_rows=None):
         """
         Generate file from Odoo recordset using field mapping
 
@@ -67,6 +67,8 @@ class FileGenerator:
         :param records: Odoo recordset
         :param field_mapping: Dict mapping header names to field names/callables
                              Example: {'ProductID': 'id', 'Name': lambda r: r.name.upper()}
+        :param extra_rows: Optional list of pre-built rows appended after the
+                           record rows (e.g. synthetic house-account rows)
         :return: File content as string
         """
         try:
@@ -93,6 +95,9 @@ class FileGenerator:
                     row.append(value)
 
                 data_rows.append(row)
+
+            if extra_rows:
+                data_rows.extend(extra_rows)
 
             return self.generate_csv(headers, data_rows)
 

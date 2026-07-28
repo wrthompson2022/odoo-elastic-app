@@ -153,6 +153,34 @@ class TestProductExporter(TransactionCase):
             exporter.get_export_domain(),
         )
 
+    def test_empty_feed_returns_success_without_upload(self):
+        exporter = self._build_exporter()
+        exporter.get_export_domain = lambda: [('id', '=', 0)]
+
+        result = exporter.export()
+
+        self.assertTrue(result['success'])
+        self.assertEqual(result['record_count'], 0)
+        exporter.sftp_service.upload_file.assert_not_called()
+
+    def test_upload_failure_creates_failed_export_log(self):
+        self.template.elastic_product_id = 'STYLE-LOG'
+        exporter = self._build_exporter()
+        exporter.sftp_service.upload_file.return_value = (False, 'connection reset')
+
+        result = exporter.export()
+
+        self.assertFalse(result['success'])
+        log = self.env['elastic.export.log'].search(
+            [('export_type', '=', 'product'), ('state', '=', 'failed')],
+            limit=1,
+            order='id desc',
+        )
+        self.assertTrue(log)
+        self.assertIn('connection reset', log.message)
+        upload_kwargs = exporter.sftp_service.upload_file.call_args.kwargs
+        self.assertEqual(upload_kwargs.get('encoding'), 'utf-8')
+
     def test_transform_skips_variant_without_stable_stock_item_key(self):
         """A variant with an ItemNumber but no stable StockItemKey source must
         be skipped, matching the price/inventory feed populations (no str(id)

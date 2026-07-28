@@ -85,6 +85,36 @@ class BaseExporter:
         """
         return record
 
+    def get_extra_rows(self):
+        """
+        Optional: Pre-built rows appended after the record-generated rows
+        (e.g. a synthetic house-account rep row).
+        Override in subclasses if needed.
+
+        :return: List of row lists
+        """
+        return []
+
+    def _empty_result(self, message):
+        """An empty feed is a valid outcome, not a failure: nothing is
+        uploaded and Export All reports success with zero records."""
+        _logger.info(message)
+        return {
+            'success': True,
+            'message': message,
+            'record_count': 0,
+        }
+
+    def _log_upload_failure(self, export_type, model_name, record_count, message):
+        """Create a failed export log so upload failures leave an audit trail."""
+        self.env['elastic.export.log'].create({
+            'export_type': export_type,
+            'model_name': model_name,
+            'record_count': record_count,
+            'state': 'failed',
+            'message': message,
+        })
+
     def pre_export_hook(self, records):
         """
         Optional: Hook called before export starts
@@ -122,13 +152,9 @@ class BaseExporter:
             records = self.env[model_name].search(domain)
 
             if not records:
-                message = f"No {export_type} records found to export"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No {export_type} records found to export; nothing uploaded"
+                )
 
             _logger.info(f"Found {len(records)} {export_type} record(s) to export")
 
@@ -143,13 +169,9 @@ class BaseExporter:
                     transformed_records.append(transformed)
 
             if not transformed_records:
-                message = f"No valid {export_type} records after transformation"
-                _logger.warning(message)
-                return {
-                    'success': False,
-                    'message': message,
-                    'record_count': 0
-                }
+                return self._empty_result(
+                    f"No valid {export_type} records after transformation; nothing uploaded"
+                )
 
             # Generate file content
             headers = self.get_export_headers()
@@ -158,7 +180,8 @@ class BaseExporter:
             file_content = self.file_generator.generate_from_records(
                 headers=headers,
                 records=self.env[model_name].browse([r.id for r in transformed_records]),
-                field_mapping=field_mapping
+                field_mapping=field_mapping,
+                extra_rows=self.get_extra_rows(),
             )
 
             # Generate filename
@@ -172,13 +195,17 @@ class BaseExporter:
             success, upload_message = self.sftp_service.upload_file(
                 local_file_content=file_content,
                 remote_filename=filename,
-                remote_directory=self.config.sftp_export_path
+                remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
 
             if not success:
                 error_message = f"Failed to upload {export_type} file: {upload_message}"
                 _logger.error(error_message)
                 self.post_export_hook(records, False, error_message)
+                self._log_upload_failure(
+                    export_type, model_name, len(transformed_records), error_message
+                )
                 return {
                     'success': False,
                     'message': error_message,

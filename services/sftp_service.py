@@ -173,14 +173,16 @@ class SFTPService:
         except Exception as e:
             return False, f'Connection failed: {e}'
 
-    def upload_file(self, local_file_content, remote_filename, remote_directory=None):
+    def upload_file(self, local_file_content, remote_filename, remote_directory=None, encoding='utf-8'):
         try:
             remote_dir = remote_directory or self.remote_path
             remote_file_path = f'{remote_dir}/{remote_filename}'.replace('//', '/')
             with self.connect() as sftp:
                 self._ensure_remote_directory(sftp, remote_dir)
                 if isinstance(local_file_content, str):
-                    local_file_content = local_file_content.encode('utf-8')
+                    local_file_content = local_file_content.encode(
+                        encoding or 'utf-8', errors='replace'
+                    )
                 sftp.putfo(BytesIO(local_file_content), remote_file_path)
                 _logger.info('Uploaded %s to %s', remote_filename, remote_file_path)
                 return True, f'File uploaded successfully to {remote_file_path}'

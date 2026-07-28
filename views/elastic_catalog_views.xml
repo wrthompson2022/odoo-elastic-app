@@ -70,28 +70,21 @@
                         </page>
                         <page string="Mapping Lines" name="mapping_lines">
                             <group>
-                                <group string="Mapping Source">
-                                    <field name="mapping_source" widget="radio"/>
-                                    <field name="mapping_sort_method" invisible="mapping_source != 'generated'"/>
-                                </group>
-                                <group string="Upload">
-                                    <field name="mapping_upload" filename="mapping_upload_filename" invisible="mapping_source != 'uploaded'"/>
-                                    <field name="mapping_upload_filename" invisible="1"/>
+                                <group string="Mapping Generation">
+                                    <field name="mapping_sort_method"/>
                                 </group>
                             </group>
+                            <div class="text-muted mb-2">
+                                Mapping lines are generated from catalog membership.
+                                Drag rows to adjust the catalog sort order — manual
+                                ordering is preserved when lines are regenerated.
+                            </div>
                             <div>
                                 <button name="action_generate_mapping_lines"
                                         type="object"
                                         string="Generate Mapping"
                                         class="btn-primary me-2"
-                                        icon="fa-magic"
-                                        invisible="mapping_source != 'generated'"/>
-                                <button name="action_import_mapping_upload"
-                                        type="object"
-                                        string="Load Uploaded Mapping"
-                                        class="btn-secondary"
-                                        icon="fa-upload"
-                                        invisible="mapping_source != 'uploaded'"/>
+                                        icon="fa-magic"/>
                             </div>
                             <field name="mapping_line_ids">
                                 <list editable="bottom">
@@ -151,7 +144,6 @@
                 <field name="start_date"/>
                 <field name="end_date"/>
                 <field name="catalog_classification"/>
-                <field name="mapping_source"/>
                 <field name="mapping_line_count"/>
                 <field name="product_count"/>
                 <field name="variant_count"/>

@@ -11,3 +11,6 @@ from . import test_inventory_exporter
 from . import test_customer_xref
 from . import test_sftp_service
 from . import test_location_exporter
+from . import test_order_importer
+from . import test_rep_exporter
+from . import test_res_partner_sync

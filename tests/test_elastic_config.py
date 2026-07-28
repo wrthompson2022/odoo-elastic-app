@@ -188,3 +188,25 @@ class TestElasticConfig(TransactionCase):
         self.assertFalse(self.env['elastic.feature'].search([
             ('odoo_attribute_id', '=', material.id),
         ]))
+
+    def test_default_catalog_key_falls_back_to_all(self):
+        config = self.env['elastic.config'].get_config()
+        self.assertEqual(config.get_default_catalog_key(), 'ALL')
+
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Main Catalog',
+            'code': 'MAIN',
+        })
+        config.default_catalog_id = catalog
+        self.assertEqual(config.get_default_catalog_key(), 'MAIN')
+
+    def test_warehouse_code_rule_matches_inventory_feed(self):
+        config = self.env['elastic.config'].get_config()
+        self.assertEqual(config.elastic_warehouse_code(None), 'DEFAULT')
+
+        warehouse = self.env['stock.warehouse'].search([], limit=1, order='sequence, id')
+        if warehouse:
+            self.assertEqual(
+                config.get_default_warehouse_code(),
+                warehouse.code or warehouse.name or 'DEFAULT',
+            )

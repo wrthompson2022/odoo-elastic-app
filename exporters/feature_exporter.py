@@ -145,18 +145,18 @@ class FeatureExporter(BaseExporter):
             _logger.info('Starting %s export...', export_type)
             assignments = self.env[model_name].search(self.get_export_domain())
             if not assignments:
-                message = f'No {export_type} records found to export'
-                _logger.warning(message)
-                return {'success': False, 'message': message, 'record_count': 0}
+                return self._empty_result(
+                    f'No {export_type} records found to export; nothing uploaded'
+                )
 
             self.pre_export_hook(assignments)
 
             data_rows = self._build_data_rows(assignments)
 
             if not data_rows:
-                message = f'No valid {export_type} records after transformation'
-                _logger.warning(message)
-                return {'success': False, 'message': message, 'record_count': 0}
+                return self._empty_result(
+                    f'No valid {export_type} records after transformation; nothing uploaded'
+                )
 
             file_content = self.file_generator.generate_csv(self.get_export_headers(), data_rows)
             filename = FileGenerator.generate_filename(prefix=self.get_file_prefix(), extension='csv')
@@ -165,6 +165,7 @@ class FeatureExporter(BaseExporter):
                 local_file_content=file_content,
                 remote_filename=filename,
                 remote_directory=self.config.sftp_export_path,
+                encoding=self.config.export_encoding or 'utf-8',
             )
             if not success:
                 error_message = f'Failed to upload {export_type} file: {upload_message}'
