@@ -12,12 +12,6 @@ from .base_exporter import BaseExporter
 
 _logger = logging.getLogger(__name__)
 
-COLOR_ATTRIBUTE_NAMES = {'color', 'colour', 'frame color', 'product color'}
-
-
-def _is_color_attribute(attr_name):
-    return (attr_name or '').strip().lower() in COLOR_ATTRIBUTE_NAMES
-
 
 class CatalogExporter(BaseExporter):
     """
@@ -174,26 +168,9 @@ class CatalogMappingExporter(BaseExporter):
 
     def _get_color_code(self, product):
         """
-        Extract color code from product variant attributes.
+        Extract color code from the variant's Color-role attribute.
         """
-        for attr_value in product.product_template_attribute_value_ids:
-            if _is_color_attribute(attr_value.attribute_id.name):
-                value = attr_value.product_attribute_value_id
-                if value.elastic_color_code:
-                    return value.elastic_color_code
-                elastic_color = self.env['elastic.color'].search([
-                    '|',
-                    ('odoo_attribute_value_id', '=', value.id),
-                    ('odoo_attribute_value_ids', 'in', value.id),
-                    ('active', '=', True),
-                ], limit=1)
-                if elastic_color:
-                    return elastic_color.code
-                code = value.name
-                if len(code) > 5:
-                    return code[:3].upper()
-                return code
-        return ''
+        return product._get_elastic_color_code()
 
     def pre_export_hook(self, records):
         generated_catalogs = records.filtered(lambda catalog: catalog.mapping_source == 'generated')

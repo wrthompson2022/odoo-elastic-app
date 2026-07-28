@@ -309,6 +309,11 @@ class OrderImporter(BaseImporter):
             'order_line': order_lines,
         }
 
+        # Populate the Studio Customer PO field when the database defines it.
+        # Guarded so the module stays installable on databases without it.
+        if 'x_studio_customer_po' in self.env['sale.order']._fields:
+            so_vals['x_studio_customer_po'] = header.get('Customer PO') or False
+
         currency = self._resolve_currency(header.get('Currency'))
         if currency:
             so_vals['currency_id'] = currency.id
@@ -427,31 +432,80 @@ class OrderImporter(BaseImporter):
         return Product.browse()
 
     def _find_variant_by_attributes(self, product_number, variation_code, size_name):
-        """Find the variant whose template default_code matches and attribute values match."""
+        """Find the variant whose template item number matches and attribute values match."""
         Template = self.env['product.template']
-        templates = Template.search([('default_code', '=', product_number)])
-        if not templates:
-            # Some data models only store default_code on the variant. Fall back
-            # to searching variants whose template has no default_code set.
-            variant = self.env['product.product'].search([('default_code', '=', product_number)], limit=1)
-            if variant:
-                return variant
-            return self.env['product.product'].browse()
+        targets_upper = {
+            str(t).strip().upper() for t in (variation_code, size_name) if t
+        }
 
-        targets = [v for v in (variation_code, size_name) if v]
+        templates = Template.search([
+            '|',
+            ('default_code', '=', product_number),
+            ('elastic_product_id', '=', product_number),
+        ])
         for template in templates:
             for variant in template.product_variant_ids:
-                values = variant.product_template_attribute_value_ids.mapped(
-                    'product_attribute_value_id.name'
-                )
-                values_upper = {str(v).strip().upper() for v in values if v}
-                targets_upper = {str(t).strip().upper() for t in targets}
-                if targets_upper.issubset(values_upper):
+                if targets_upper and targets_upper.issubset(
+                    self._variant_match_tokens(variant)
+                ):
                     return variant
             # If no variation/size supplied and template has a single variant, use it.
-            if not targets and len(template.product_variant_ids) == 1:
+            if not targets_upper and len(template.product_variant_ids) == 1:
                 return template.product_variant_ids
-        return self.env['product.product'].browse()
+
+        variant = self._find_variant_by_composite_item_number(
+            product_number, targets_upper
+        )
+        if variant:
+            return variant
+
+        # Some data models only store default_code on the variant. Fall back
+        # to searching variants whose template has no default_code set.
+        return self.env['product.product'].search(
+            [('default_code', '=', product_number)], limit=1
+        )
+
+    def _find_variant_by_composite_item_number(self, product_number, targets_upper):
+        """Match composite ItemNumbers (style + attribute codes) by computing
+        each candidate variant's Elastic ItemNumber."""
+        Product = self.env['product.product']
+        templates = self.env['product.template'].search([
+            ('elastic_use_composite_item_number', '=', True),
+        ])
+        for template in templates:
+            base = template._get_elastic_item_number()
+            if not base or not product_number.startswith(base):
+                continue
+            candidates = template.product_variant_ids.filtered(
+                lambda v: v._get_elastic_item_number() == product_number
+            )
+            if not candidates:
+                continue
+            if not targets_upper:
+                if len(candidates) == 1:
+                    return candidates
+                continue
+            for variant in candidates:
+                if targets_upper.issubset(self._variant_match_tokens(variant)):
+                    return variant
+        return Product.browse()
+
+    @staticmethod
+    def _variant_match_tokens(variant):
+        """Uppercased attribute value names and Elastic codes usable for
+        matching inbound Variation Code / Size Name values."""
+        tokens = set()
+        for ptav in variant.product_template_attribute_value_ids:
+            value = ptav.product_attribute_value_id
+            for token in (
+                value.name,
+                value.elastic_attribute_code,
+                value.elastic_color_code,
+                value.elastic_size_name,
+            ):
+                if token:
+                    tokens.add(str(token).strip().upper())
+        return tokens
 
     def _describe_product(self, row):
         return (

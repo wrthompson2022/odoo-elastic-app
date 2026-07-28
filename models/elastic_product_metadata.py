@@ -6,6 +6,12 @@ from odoo.exceptions import ValidationError
 class ProductAttributeValue(models.Model):
     _inherit = 'product.attribute.value'
 
+    elastic_attribute_code = fields.Char(
+        string='Elastic Attribute Code',
+        help='Short code used when this value is part of a composite '
+             'ItemNumber. Falls back to the Elastic color code, a governed '
+             'Elastic color, then a truncated value name.',
+    )
     elastic_color_code = fields.Char(
         string='Elastic Color Code',
         help='ColorCode sent to Elastic when this attribute value is used as a color.',

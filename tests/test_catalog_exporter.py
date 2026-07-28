@@ -190,6 +190,51 @@ class TestCatalogMappingExporter(TransactionCase):
 
         self.assertEqual(rows, [['GRAY', 1, 'GRAY-001', '02A']])
 
+    def test_generate_mapping_lines_dedupes_size_variants_to_style_color_grain(self):
+        """A multi-size style must produce one mapping line per style+color,
+        not one per variant (which used to violate the unique constraint)."""
+        color_attr = self.env['product.attribute'].create({'name': 'Color'})
+        size_attr = self.env['product.attribute'].create({'name': 'Size'})
+        black = self.env['product.attribute.value'].create({
+            'name': 'Black Gloss',
+            'attribute_id': color_attr.id,
+            'elastic_color_code': '210',
+        })
+        small = self.env['product.attribute.value'].create({
+            'name': 'Small',
+            'attribute_id': size_attr.id,
+        })
+        medium = self.env['product.attribute.value'].create({
+            'name': 'Medium',
+            'attribute_id': size_attr.id,
+        })
+        template = self.env['product.template'].create({
+            'name': 'Elastic Sized Hat',
+            'sale_ok': True,
+            'elastic_product_id': 'SIZEDHAT',
+            'attribute_line_ids': [
+                (0, 0, {
+                    'attribute_id': color_attr.id,
+                    'value_ids': [(6, 0, [black.id])],
+                }),
+                (0, 0, {
+                    'attribute_id': size_attr.id,
+                    'value_ids': [(6, 0, [small.id, medium.id])],
+                }),
+            ],
+        })
+        self.assertEqual(len(template.product_variant_ids), 2)
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Sized Catalog',
+            'code': 'SIZED',
+            'product_ids': [(6, 0, [template.id])],
+        })
+
+        catalog.action_generate_mapping_lines()
+        rows = self._build_exporter()._build_data_rows(catalog)
+
+        self.assertEqual(rows, [['SIZED', 1, 'SIZEDHAT', '210']])
+
     def test_uploaded_mapping_preserves_file_order(self):
         catalog = self.env['elastic.catalog'].create({
             'name': 'Uploaded Catalog',

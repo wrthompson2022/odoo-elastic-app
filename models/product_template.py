@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields
+from odoo import api, models, fields
 
 
 class ProductTemplate(models.Model):
@@ -48,6 +48,55 @@ class ProductTemplate(models.Model):
         string='Elastic Product Tag Text',
         help='Optional text field that can be selected by Product Tag Mappings.'
     )
+
+    # ============================================
+    # Variant Mapping (attribute roles)
+    # ============================================
+    elastic_use_composite_item_number = fields.Boolean(
+        string='Composite Elastic ItemNumber',
+        help='Build the exported ItemNumber from the style ItemNumber plus the '
+             'codes of the selected attribute values, so each combination gets '
+             'its own Elastic product page (e.g. one page per frame color). '
+             'Warning: enabling this after products were exported changes their '
+             'ItemNumbers, which Elastic treats as new products.'
+    )
+    elastic_composite_attribute_ids = fields.Many2many(
+        'product.attribute',
+        'product_template_elastic_composite_attr_rel',
+        'product_tmpl_id',
+        'attribute_id',
+        string='Composite ItemNumber Attributes',
+        help='Attributes whose value codes are appended to the style '
+             'ItemNumber, in the order the attributes appear on the product. '
+             'Example: Frame Color for eyewear.'
+    )
+    elastic_color_attribute_id = fields.Many2one(
+        'product.attribute',
+        string='Elastic Color Attribute',
+        help='Attribute exported as the Elastic Color dimension. Leave empty '
+             'to auto-detect by attribute name (Color, Colour, Frame Color, '
+             'Product Color).'
+    )
+    elastic_size_attribute_id = fields.Many2one(
+        'product.attribute',
+        string='Elastic Size Attribute',
+        help='Attribute exported as the Elastic Size dimension. Leave empty '
+             'to auto-detect by attribute name (Size, Talla, or names ending '
+             'in " Size").'
+    )
+    elastic_template_attribute_ids = fields.Many2many(
+        'product.attribute',
+        compute='_compute_elastic_template_attribute_ids',
+        string='Template Attributes',
+        help='Technical field: attributes used on this template, for view domains.'
+    )
+
+    @api.depends('attribute_line_ids.attribute_id')
+    def _compute_elastic_template_attribute_ids(self):
+        for template in self:
+            template.elastic_template_attribute_ids = (
+                template.attribute_line_ids.attribute_id
+            )
 
     # ============================================
     # Helper Methods

@@ -185,3 +185,40 @@ class TestFeatureExporter(TransactionCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][2], 'Description')
         self.assertEqual(rows[0][4], 'Older description')
+
+    def test_template_assignment_emits_one_row_per_item_number(self):
+        """A template-level assignment on a multi-variant style must produce
+        one features.csv row per ItemNumber, not one per variant."""
+        size_attr = self.env['product.attribute'].create({'name': 'Size'})
+        small = self.env['product.attribute.value'].create({
+            'name': 'Small',
+            'attribute_id': size_attr.id,
+        })
+        medium = self.env['product.attribute.value'].create({
+            'name': 'Medium',
+            'attribute_id': size_attr.id,
+        })
+        template = self.env['product.template'].create({
+            'name': 'Sized Feature Frame',
+            'sale_ok': True,
+            'elastic_product_id': 'FEATSTYLE',
+            'attribute_line_ids': [(0, 0, {
+                'attribute_id': size_attr.id,
+                'value_ids': [(6, 0, [small.id, medium.id])],
+            })],
+        })
+        self.assertEqual(len(template.product_variant_ids), 2)
+        assignment = self.env['elastic.product.feature.assignment'].create({
+            'product_tmpl_id': template.id,
+            'feature_id': self.feature.id,
+            'feature_value_id': self.feature_value.id,
+            'value_text': self.feature_value.name,
+            'sequence': 40,
+            'source': 'shopify',
+        })
+
+        exporter = self._build_exporter()
+        rows = exporter._build_data_rows(assignment)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][1], 'FEATSTYLE')

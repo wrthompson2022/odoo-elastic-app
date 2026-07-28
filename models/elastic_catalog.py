@@ -146,39 +146,25 @@ class ElasticCatalog(models.Model):
     def _get_exportable_mapping_products(self):
         self.ensure_one()
         products = self.product_ids.mapped('product_variant_ids') | self.variant_ids
+        config = self.env['elastic.config'].get_config()
         return products.filtered(
             lambda product: product.active
             and product.sale_ok
             and product._get_elastic_item_number()
+            and (
+                not config.export_only_synced_products
+                or (
+                    product.elastic_sync_enabled
+                    and product.product_tmpl_id.elastic_sync_enabled
+                )
+            )
         )
 
     def _get_mapping_color_code(self, product):
         self.ensure_one()
-        for attr_value in product.product_template_attribute_value_ids:
-            if (attr_value.attribute_id.name or '').strip().lower() not in {
-                'color',
-                'colour',
-                'frame color',
-                'product color',
-            }:
-                continue
-
-            value = attr_value.product_attribute_value_id
-            if value.elastic_color_code:
-                return value.elastic_color_code
-
-            elastic_color = self.env['elastic.color'].search([
-                '|',
-                ('odoo_attribute_value_id', '=', value.id),
-                ('odoo_attribute_value_ids', 'in', value.id),
-                ('active', '=', True),
-            ], limit=1)
-            if elastic_color:
-                return elastic_color.code
-
-            code = value.name or ''
-            return code[:3].upper() if len(code) > 5 else code
-        return ''
+        # Shared Color-role resolution — keeps ColorCode identical to
+        # products.csv and product_tags.csv for the same variant.
+        return product._get_elastic_color_code()
 
     def _get_mapping_sort_key(self, product, color_code):
         self.ensure_one()
@@ -191,11 +177,19 @@ class ElasticCatalog(models.Model):
     def _prepare_generated_mapping_rows(self):
         self.ensure_one()
         rows = []
+        # Mapping rows are style+color grain: all size variants of one
+        # ItemNumber/ColorCode combination collapse into a single line.
+        seen = set()
         for product in self._get_exportable_mapping_products():
+            item_number = product._get_elastic_item_number()
             color_code = self._get_mapping_color_code(product)
+            key = (item_number, color_code)
+            if key in seen:
+                continue
+            seen.add(key)
             rows.append({
                 'product_id': product.id,
-                'item_number': product._get_elastic_item_number(),
+                'item_number': item_number,
                 'color_code': color_code,
                 'product_class': product.product_tmpl_id.categ_id.complete_name or product.product_tmpl_id.categ_id.name or '',
                 'sort_key': self._get_mapping_sort_key(product, color_code),

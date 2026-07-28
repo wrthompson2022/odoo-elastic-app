@@ -81,6 +81,10 @@ class FeatureExporter(BaseExporter):
     def _build_data_rows(self, assignments):
         data_rows = []
         singleton_rows = {}
+        # Template-level assignments expand to every variant, but variants of
+        # one style share an ItemNumber — dedupe identical rows so a feature
+        # is emitted once per ItemNumber, not once per size/material variant.
+        seen = set()
         for assignment in assignments:
             value = assignment.value_text or (
                 assignment.feature_value_id.name if assignment.feature_value_id else ''
@@ -105,6 +109,10 @@ class FeatureExporter(BaseExporter):
                     if existing is None or self._singleton_priority(row) < self._singleton_priority(existing):
                         singleton_rows[singleton_key] = row
                     continue
+                row_key = tuple(row)
+                if row_key in seen:
+                    continue
+                seen.add(row_key)
                 data_rows.append(row)
 
         return sorted(

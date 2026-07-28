@@ -18,10 +18,6 @@ from ..services.file_generator import FileGenerator
 
 _logger = logging.getLogger(__name__)
 
-# Attributes that are exported as columns of products.csv and therefore
-# should NOT be duplicated in product_tags.csv.
-COLOR_ATTRIBUTE_NAMES = {'color', 'colour', 'frame color', 'product color'}
-
 
 class ProductTagsExporter(BaseExporter):
     """
@@ -63,34 +59,10 @@ class ProductTagsExporter(BaseExporter):
         # Custom export logic - one row per configured tag mapping.
         return {}
 
-    @staticmethod
-    def _normalize_attribute_name(name):
-        return (name or '').strip().lower()
-
-    def _is_color_attribute(self, attr_name):
-        return self._normalize_attribute_name(attr_name) in COLOR_ATTRIBUTE_NAMES
-
-    def _is_size_attribute(self, attr_name):
-        attr_name = self._normalize_attribute_name(attr_name)
-        return attr_name in {'size', 'talla'} or attr_name.endswith(' size')
-
     def _color_code(self, product):
-        for attr_value in product.product_template_attribute_value_ids:
-            if self._is_color_attribute(attr_value.attribute_id.name):
-                value = attr_value.product_attribute_value_id
-                if value.elastic_color_code:
-                    return value.elastic_color_code
-                elastic_color = self.env['elastic.color'].search([
-                    '|',
-                    ('odoo_attribute_value_id', '=', value.id),
-                    ('odoo_attribute_value_ids', 'in', value.id),
-                    ('active', '=', True),
-                ], limit=1)
-                if elastic_color:
-                    return elastic_color.code
-                code = value.name
-                return code[:3].upper() if len(code) > 5 else code
-        return ''
+        # Shared Color-role resolution — keeps ColorCode identical to
+        # products.csv and catalog_mapping.csv for the same variant.
+        return product._get_elastic_color_code()
 
     def _get_tag_mappings(self):
         return self.env['elastic.product.tag.mapping'].search([
@@ -174,6 +146,10 @@ class ProductTagsExporter(BaseExporter):
             self.pre_export_hook(products)
 
             data_rows = []
+            # Variants of one style share an ItemNumber (and same-color size
+            # runs share a ColorCode) — dedupe so each tag is emitted once per
+            # ItemNumber/ColorCode, not once per variant.
+            seen = set()
             for product in products:
                 item_number = product._get_elastic_item_number()
                 if not item_number:
@@ -181,6 +157,10 @@ class ProductTagsExporter(BaseExporter):
                 color_code = self._color_code(product)
 
                 for tag_name, tag_value in self._iter_tag_rows(product, mappings=mappings):
+                    row_key = (item_number, color_code, tag_name, tag_value)
+                    if row_key in seen:
+                        continue
+                    seen.add(row_key)
                     data_rows.append([
                         'GLOBAL',
                         'ALL',

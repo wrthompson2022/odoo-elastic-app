@@ -129,6 +129,14 @@ class ElasticConfig(models.Model):
         required=True,
     )
     export_include_header = fields.Boolean(string='Include Header Row', default=True)
+    export_item_number_separator = fields.Char(
+        string='Composite ItemNumber Separator',
+        default='-',
+        size=5,
+        help='Separator placed between the style ItemNumber and attribute '
+             'value codes when a product uses a composite Elastic ItemNumber. '
+             'Leave empty for no separator.',
+    )
 
     # ============================================
     # Export Scheduling - Enable/Disable
