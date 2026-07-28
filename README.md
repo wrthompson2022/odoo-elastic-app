@@ -50,14 +50,19 @@ areas:
 | Sales reps | `reps.csv` | Odoo users/sales representatives |
 | Rep mappings | `rep_mappings.csv` | Customer-to-rep relationships |
 
-The product, price, and inventory feeds share one population rule: a variant
-is exported only when **Push to Elastic** is enabled on both the variant and
-its template, the product is a sellable good (service products such as
-delivery fees are excluded), and it has both an ItemNumber and a stable
-StockItemKey (Elastic Stock Item Key, barcode, or internal reference) — so a
-variant is either present in all three feeds or absent from all three. The
-Push to Elastic checkbox is always authoritative; customer feeds honor the
-customer-level checkbox the same way. Product tag and
+The product-related feeds (products, prices, product tags, features, and
+inventory) share one population rule: a variant is exported only when it
+belongs to at least one active Elastic catalog — assigned on the product
+template or on the individual variant — **Push to Elastic** is enabled on
+both the variant and its template, the product is a sellable good (service
+products such as delivery fees are excluded), and it has both an ItemNumber
+and a stable StockItemKey (Elastic Stock Item Key, barcode, or internal
+reference) — so a variant is either present in all of these feeds or absent
+from all of them. Catalog membership is what drives the feeds: a product in
+no catalog is never pushed, and catalog mapping lines apply the same gates,
+so `catalog_mapping.csv` never references an ItemNumber that is missing from
+`products.csv`. The Push to Elastic checkbox is always authoritative; customer
+feeds honor the customer-level checkbox the same way. Product tag and
 feature rows are deduplicated to ItemNumber (and ColorCode) grain, so
 template-level values are not repeated per size or material variant.
 
@@ -83,7 +88,11 @@ and timed by an administrator.
 ### Product And Merchandising Data
 
 - Product template and variant level Elastic sync flags.
-- Template and variant ItemNumber support.
+- Template and variant ItemNumber support. One precedence order everywhere:
+  the variant-level ItemNumber override always wins (in composite and plain
+  mode alike), then the template Elastic ItemNumber, then the variant
+  internal reference, the variant Elastic SKU, and finally the template
+  internal reference. Blank or whitespace-only values are skipped.
 - Optional composite ItemNumber: build the exported ItemNumber from the style
   ItemNumber plus selected attribute value codes, so each combination (for
   example, each frame color of an eyewear style) becomes its own Elastic

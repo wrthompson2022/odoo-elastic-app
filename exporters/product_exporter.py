@@ -33,6 +33,9 @@ class ProductExporter(BaseExporter):
     def get_export_domain(self):
         """Get domain for filtering products to export"""
         return [
+            # Catalog membership (template- or variant-level) drives the
+            # feed: a variant reaches Elastic only through a catalog.
+            ('id', 'in', self.env['elastic.catalog']._get_elastic_member_variants().ids),
             ('sale_ok', '=', True),   # Only sellable products
             ('active', '=', True),    # Only active products
             ('type', '=', 'consu'),   # Goods only — no delivery/service/combo products
@@ -40,6 +43,11 @@ class ProductExporter(BaseExporter):
             ('elastic_sync_enabled', '=', True),
             ('product_tmpl_id.elastic_sync_enabled', '=', True),
         ]
+
+    def get_empty_feed_message(self):
+        return super().get_empty_feed_message() + self.env[
+            'elastic.catalog'
+        ]._member_feed_empty_hint()
 
     def get_export_headers(self):
         """Headers matching the Elastic products.csv format"""

@@ -32,6 +32,12 @@ class TestProductTagsExporter(TransactionCase):
         })
         self.product = self.template.product_variant_ids[:1]
         self.product.default_code = 'BASE-8'
+        # Catalog membership drives the product feeds.
+        self.catalog = self.env['elastic.catalog'].create({
+            'name': 'Tag Feed Catalog',
+            'code': 'TAGFEED',
+            'product_ids': [(6, 0, [self.template.id])],
+        })
 
         self.env['elastic.color'].create({
             'name': 'Matte Black',
@@ -112,7 +118,7 @@ class TestProductTagsExporter(TransactionCase):
             'name': 'Medium',
             'attribute_id': size_attr.id,
         })
-        self.env['product.template'].create({
+        dedup_template = self.env['product.template'].create({
             'name': 'Tag Dedup Style',
             'sale_ok': True,
             'elastic_product_id': 'TAGSTYLE',
@@ -128,6 +134,7 @@ class TestProductTagsExporter(TransactionCase):
                 }),
             ],
         })
+        self.catalog.product_ids = [(4, dedup_template.id)]
         self.env['elastic.product.tag.mapping'].create({
             'tag_name': 'Features',
             'source_model': 'product.template',

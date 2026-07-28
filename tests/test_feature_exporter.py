@@ -16,6 +16,12 @@ class TestFeatureExporter(TransactionCase):
         })
         self.product = self.template.product_variant_ids[:1]
         self.product.default_code = 'FE-001'
+        # Catalog membership drives the product feeds.
+        self.catalog = self.env['elastic.catalog'].create({
+            'name': 'Feature Feed Catalog',
+            'code': 'FEATFEED',
+            'product_ids': [(6, 0, [self.template.id])],
+        })
         self.feature = self.env['elastic.feature'].create({
             'name': 'Lens Features',
             'code': 'LENSFEATURES',
@@ -77,6 +83,15 @@ class TestFeatureExporter(TransactionCase):
 
         self.assertFalse(products)
 
+    def test_products_outside_every_catalog_are_excluded(self):
+        """Catalog membership drives features.csv, matching products.csv."""
+        self.catalog.product_ids = [(3, self.template.id)]
+
+        exporter = self._build_exporter()
+        products = exporter._products_for_assignment(self.assignment)
+
+        self.assertFalse(products)
+
     def test_attribute_name_sort_uses_assignment_sequence(self):
         exporter = self._build_exporter()
         rows = exporter._build_data_rows(self.assignment)
@@ -97,6 +112,7 @@ class TestFeatureExporter(TransactionCase):
         })
         earlier_product = earlier_template.product_variant_ids[:1]
         earlier_product.default_code = 'AA-001'
+        self.catalog.product_ids = [(4, earlier_template.id)]
         earlier_assignment = self.env['elastic.product.feature.assignment'].create({
             'product_tmpl_id': earlier_template.id,
             'feature_id': self.feature.id,
@@ -126,11 +142,13 @@ class TestFeatureExporter(TransactionCase):
 
         self.assertEqual(self.product._get_elastic_item_number(), 'ANGLERCFB')
 
-    def test_model_item_number_prefers_template_mapping_over_variant_override(self):
+    def test_model_item_number_prefers_variant_override_over_template_mapping(self):
         self.template.elastic_product_id = 'ANGLERCFB'
         self.product.elastic_item_number = 'ANGLERCFB-OVERRIDE'
 
-        self.assertEqual(self.product._get_elastic_item_number(), 'ANGLERCFB')
+        self.assertEqual(
+            self.product._get_elastic_item_number(), 'ANGLERCFB-OVERRIDE'
+        )
 
     def test_model_item_number_uses_variant_override_when_template_blank(self):
         self.product.elastic_item_number = 'ANGLERCFB-OVERRIDE'
@@ -206,6 +224,7 @@ class TestFeatureExporter(TransactionCase):
             })],
         })
         self.assertEqual(len(template.product_variant_ids), 2)
+        self.catalog.product_ids = [(4, template.id)]
         assignment = self.env['elastic.product.feature.assignment'].create({
             'product_tmpl_id': template.id,
             'feature_id': self.feature.id,
