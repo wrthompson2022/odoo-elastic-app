@@ -50,6 +50,7 @@ class PriceExporter(BaseExporter):
         domain = [
             ('sale_ok', '=', True),
             ('active', '=', True),
+            ('type', '=', 'consu'),  # Goods only — no delivery/service/combo products
         ]
         if self.config.export_only_synced_products:
             domain.append(('elastic_sync_enabled', '=', True))

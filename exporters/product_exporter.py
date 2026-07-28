@@ -33,8 +33,9 @@ class ProductExporter(BaseExporter):
     def get_export_domain(self):
         """Get domain for filtering products to export"""
         domain = [
-            ('sale_ok', '=', True),  # Only sellable products
-            ('active', '=', True),   # Only active products
+            ('sale_ok', '=', True),   # Only sellable products
+            ('active', '=', True),    # Only active products
+            ('type', '=', 'consu'),   # Goods only — no delivery/service/combo products
         ]
 
         # Optionally filter to only synced products
