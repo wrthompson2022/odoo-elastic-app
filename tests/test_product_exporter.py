@@ -350,11 +350,11 @@ class TestCompositeItemNumber(TransactionCase):
 
     def test_composite_item_number_appends_frame_color_code(self):
         self.assertEqual(
-            self.glass_variant._get_elastic_item_number(), 'BALESBEACH-BLKM'
+            self.glass_variant._get_elastic_item_number(), 'BALESBEACHBLKM'
         )
         # Both lens materials of the same frame color share one product page.
         self.assertEqual(
-            self.pc_variant._get_elastic_item_number(), 'BALESBEACH-BLKM'
+            self.pc_variant._get_elastic_item_number(), 'BALESBEACHBLKM'
         )
 
     def test_composite_product_name_appends_composite_value_names(self):
@@ -362,10 +362,10 @@ class TestCompositeItemNumber(TransactionCase):
             self.glass_variant._get_elastic_product_name(), 'Bales Beach Black Matte'
         )
 
-    def test_blank_separator_joins_codes_directly(self):
-        self.config.export_item_number_separator = False
+    def test_configured_separator_is_still_supported(self):
+        self.config.export_item_number_separator = '-'
         self.assertEqual(
-            self.glass_variant._get_elastic_item_number(), 'BALESBEACHBLKM'
+            self.glass_variant._get_elastic_item_number(), 'BALESBEACH-BLKM'
         )
 
     def test_variant_override_wins_over_composite(self):
@@ -385,6 +385,18 @@ class TestCompositeItemNumber(TransactionCase):
         self.assertEqual(exporter._get_size_name(self.pc_variant), 'PC')
         self.assertEqual(exporter._get_size_num(self.glass_variant), 1)
         self.assertEqual(exporter._get_size_num(self.pc_variant), 2)
+
+    def test_eyewear_role_fallback_prefers_lens_color_and_material(self):
+        self.template.write({
+            'elastic_color_attribute_id': False,
+            'elastic_size_attribute_id': False,
+        })
+        exporter = self._build_exporter()
+
+        self.assertEqual(exporter._get_color_code(self.glass_variant), 'BLU')
+        self.assertEqual(exporter._get_color_name(self.glass_variant), 'Blue Mirror')
+        self.assertEqual(exporter._get_size_name(self.glass_variant), 'Glass')
+        self.assertEqual(exporter._get_size_name(self.pc_variant), 'PC')
 
     def test_composite_code_falls_back_to_truncated_value_name(self):
         tortoise = self.env['product.attribute.value'].create({

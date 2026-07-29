@@ -4,7 +4,15 @@ from odoo import models, fields
 # Default attribute-name detection used when a template does not explicitly
 # select which attribute plays the Elastic Color/Size role.
 COLOR_ATTRIBUTE_NAMES = {'color', 'colour', 'frame color', 'product color'}
-SIZE_ATTRIBUTE_NAMES = {'size', 'talla'}
+COLOR_ATTRIBUTE_PRIORITY = (
+    'lens color',
+    'color',
+    'colour',
+    'product color',
+    'frame color',
+)
+SIZE_ATTRIBUTE_NAMES = {'size', 'talla', 'lens material'}
+SIZE_ATTRIBUTE_PRIORITY = ('lens material', 'size', 'talla')
 
 
 def normalize_attribute_name(name):
@@ -177,6 +185,7 @@ class ProductProduct(models.Model):
         return self._get_elastic_role_attribute_value(
             self.product_tmpl_id.elastic_color_attribute_id,
             is_color_attribute_name,
+            COLOR_ATTRIBUTE_PRIORITY,
         )
 
     def _get_elastic_size_attribute_value(self):
@@ -184,18 +193,30 @@ class ProductProduct(models.Model):
         return self._get_elastic_role_attribute_value(
             self.product_tmpl_id.elastic_size_attribute_id,
             is_size_attribute_name,
+            SIZE_ATTRIBUTE_PRIORITY,
         )
 
-    def _get_elastic_role_attribute_value(self, override_attribute, name_matcher):
+    def _get_elastic_role_attribute_value(
+        self, override_attribute, name_matcher, preferred_names=()
+    ):
         """Resolve an attribute role. An explicit template-level attribute
-        selection wins; otherwise fall back to name-based detection."""
+        selection wins; otherwise prefer the most specific conventional
+        attribute name before falling back to broader name-based detection."""
         self.ensure_one()
-        for ptav in self.product_template_attribute_value_ids:
-            attribute = ptav.attribute_id
-            if override_attribute:
-                if attribute == override_attribute:
+        values = self.product_template_attribute_value_ids
+        if override_attribute:
+            for ptav in values:
+                if ptav.attribute_id == override_attribute:
                     return ptav.product_attribute_value_id
-            elif name_matcher(attribute.name):
+
+        for preferred_name in preferred_names:
+            for ptav in values:
+                if normalize_attribute_name(ptav.attribute_id.name) == preferred_name:
+                    return ptav.product_attribute_value_id
+
+        for ptav in values:
+            attribute = ptav.attribute_id
+            if name_matcher(attribute.name):
                 return ptav.product_attribute_value_id
         return self.env['product.attribute.value'].browse()
 

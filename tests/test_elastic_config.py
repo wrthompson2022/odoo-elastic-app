@@ -9,6 +9,7 @@ class TestElasticConfig(TransactionCase):
         config = self.env['elastic.config'].get_config()
         self.assertTrue(config.exists())
         self.assertTrue(config.active)
+        self.assertFalse(config.export_item_number_separator)
 
     def test_singleton_get_config_reuses_existing_active(self):
         self.env['elastic.config'].search([]).write({'active': False})
