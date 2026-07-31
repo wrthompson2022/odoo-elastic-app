@@ -50,12 +50,6 @@ class ResPartner(models.Model):
         string='Customer Catalogs',
         help='Customer-specific catalogs in Elastic'
     )
-    elastic_rep_id = fields.Many2one(
-        'res.users',
-        string='Elastic Sales Rep',
-        help='Assigned sales representative for Elastic integration',
-        tracking=True
-    )
     elastic_warehouse_id = fields.Many2one(
         'stock.warehouse',
         string='Elastic Warehouse',

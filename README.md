@@ -47,7 +47,7 @@ areas:
 | Inventory | `inventory.csv` | Time-phased available-to-promise inventory |
 | Catalogs | `catalogs.csv` | Elastic catalog definitions |
 | Catalog mappings | `catalog_mapping.csv` | Catalog-to-product/color mappings |
-| Sales reps | `reps.csv` | Odoo users/sales representatives |
+| Sales reps | `reps.csv` | Employee sales reps from `sales_rep_commission` |
 | Rep mappings | `rep_mappings.csv` | Customer-to-rep relationships |
 
 The product-related feeds (products, prices, product tags, features, and
@@ -113,12 +113,12 @@ and timed by an administrator.
 ### Customer, Catalog, And Price Controls
 
 - Legacy account number support for SoldToID exports.
-- Elastic customer ID, catalog assignments, rep assignment, payment terms,
+- Elastic customer ID, catalog assignments, employee sales-rep assignment, payment terms,
   price level, credit limit, notes, and drop-ship approval.
 - Customer warehouse assignment: `customers.csv` sends the customer's Elastic
   Warehouse code, falling back to the first active Odoo warehouse so the code
-  always matches `inventory.csv`. Rep warehouses use the user's default
-  warehouse the same way.
+  always matches `inventory.csv`. Rep warehouses use the employee's linked
+  user's default warehouse the same way.
 - Connection-scoped and global customer cross-reference mappings.
 - Catalog metadata including permission group, ship/cancel dates, season,
   brand, classification, and price group. Catalog mapping lines are generated
@@ -179,6 +179,12 @@ fields that were never consumed by the current exporters/importers: template
 sync timestamps, template Elastic notes, variant external IDs, and free-form
 variant attribute text. Variant export timestamps remain in place.
 
+When upgrading to **18.0.1.4.0** or later, install the employee sales-rep addon
+as `sales_rep_commission`. The upgrade maps legacy Elastic user assignments to
+the corresponding employee sales reps when the linked employee is marked as a
+Sales Representative. Review any unmatched assignments reported in the Odoo
+upgrade log and assign those customers manually.
+
 ## Architecture
 
 - `models/` extends Odoo records and defines Elastic configuration, metadata,
@@ -198,7 +204,7 @@ variant attribute text. Variant export timestamps remain in place.
 - Odoo 18.0
 - Python package: `paramiko>=3.4.0`
 - Odoo modules: `base`, `mail`, `contacts`, `product`, `sale_management`,
-  `stock`, `mrp`, and `knowledge`
+  `sales_rep_commission`, `stock`, `mrp`, and `knowledge`
 
 ## Client-Facing Documentation
 

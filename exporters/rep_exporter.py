@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 
 class RepExporter(BaseExporter):
     """
-    Exports sales rep (res.users) data to Elastic.
+    Exports employee sales reps from the sales_rep_commission addon to Elastic.
 
     Output file format matches: reps.csv
     Headers: Region,RepID,RepName,Curency,PriceGroup,CatalogPermissionGroup,
@@ -24,20 +24,16 @@ class RepExporter(BaseExporter):
         return 'rep'
 
     def get_model_name(self):
-        return 'res.users'
+        return 'hr.employee'
 
     def get_file_prefix(self):
         return 'reps'
 
     def get_export_domain(self):
         """Get domain for filtering sales reps to export"""
-        # Export users who are salespeople (have the sales team group)
         return [
             ('active', '=', True),
-            ('share', '=', False),  # Not portal users
-            '|',
-            ('groups_id.name', 'ilike', 'sales'),
-            ('groups_id.category_id.name', 'ilike', 'sales'),
+            ('is_sales_rep', '=', True),
         ]
 
     def get_export_headers(self):
@@ -68,11 +64,12 @@ class RepExporter(BaseExporter):
             'Warehouse': lambda r: self._get_warehouse_code(r),
         }
 
-    def _get_warehouse_code(self, user):
-        """Warehouse code from the user's default warehouse (sale_stock),
+    def _get_warehouse_code(self, employee):
+        """Warehouse code from the employee user's default warehouse (sale_stock),
         falling back to the first active warehouse in Odoo."""
         warehouse = None
-        if 'property_warehouse_id' in user._fields:
+        user = employee.user_id
+        if user and 'property_warehouse_id' in user._fields:
             warehouse = user.property_warehouse_id
         if warehouse:
             return self.config.elastic_warehouse_code(warehouse)
@@ -95,31 +92,19 @@ class RepExporter(BaseExporter):
             self.config.get_default_warehouse_code(),
         ]]
 
-    def _get_rep_id(self, user):
-        """
-        Generate a rep ID for the user.
-        Uses login or creates a code from name initials.
-        """
-        # Use login if it's short enough
-        if user.login and len(user.login) <= 5:
-            return user.login.upper()
-
-        # Create code from name initials
-        name_parts = user.name.split()
-        if len(name_parts) >= 2:
-            # First initial + Last initial + number
-            initials = name_parts[0][0].upper() + name_parts[-1][0].upper()
-            return f"{initials}{user.id % 10}"
-
-        return str(user.id)
+    def _get_rep_id(self, employee):
+        """Use the stable code configured on the employee sales-rep record."""
+        return (employee.sales_rep_code or '').strip()
 
     def transform_record(self, record):
         """
-        Validate and transform user record before export.
+        Validate and transform an employee sales-rep record before export.
         """
-        # Must have a name
-        if not record.name:
-            _logger.warning(f"Skipping user {record.id}: missing name")
+        if not record.name or not self._get_rep_id(record):
+            _logger.warning(
+                "Skipping sales rep employee %s: missing name or Sales Rep Code",
+                record.id,
+            )
             return None
 
         return record
@@ -147,16 +132,14 @@ class RepMappingExporter(BaseExporter):
 
         With the house-account rep enabled, every exported customer gets a
         mapping row (house rep sees all accounts), so no rep filter applies.
-        Otherwise only customers with an assigned rep are mapped."""
+        Otherwise only customers whose sales-rep addon assignment resolves to
+        an employee rep produce rows."""
         domain = [
             ('is_company', '=', True),
             ('customer_rank', '>', 0),
             # "Push to Elastic" is always authoritative.
             ('elastic_sync_enabled', '=', True),
         ]
-
-        if not self.config.rep_house_account_enabled:
-            domain.append(('elastic_rep_id', '!=', False))
 
         return domain
 
@@ -171,20 +154,9 @@ class RepMappingExporter(BaseExporter):
         """Not used - custom export logic"""
         return {}
 
-    def _get_rep_id(self, user):
-        """
-        Generate a rep ID for the user.
-        Same logic as RepExporter.
-        """
-        if user.login and len(user.login) <= 5:
-            return user.login.upper()
-
-        name_parts = user.name.split()
-        if len(name_parts) >= 2:
-            initials = name_parts[0][0].upper() + name_parts[-1][0].upper()
-            return f"{initials}{user.id % 10}"
-
-        return str(user.id)
+    def _get_rep_id(self, employee):
+        """Match RepExporter by using the employee's configured rep code."""
+        return (employee.sales_rep_code or '').strip()
 
     def export(self):
         """
@@ -228,9 +200,13 @@ class RepMappingExporter(BaseExporter):
             for customer in customers:
                 sold_to_id = customer._get_sold_to_id()
 
-                # Add the assigned rep mapping
-                if customer.elastic_rep_id:
-                    _append(self._get_rep_id(customer.elastic_rep_id), sold_to_id)
+                # Resolve the same employee assignment used by the sales-rep
+                # addon for customer orders and invoices. This accounts for
+                # the commercial customer's assignment and its compatibility
+                # fallback from an Odoo salesperson user.
+                sales_rep = customer._get_sales_rep()
+                if sales_rep.active and sales_rep.is_sales_rep:
+                    _append(self._get_rep_id(sales_rep), sold_to_id)
 
                 # House-account rep sees every exported customer
                 if house_enabled:

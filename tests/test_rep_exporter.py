@@ -11,15 +11,16 @@ class TestRepExports(TransactionCase):
     def setUp(self):
         super().setUp()
         self.config = self.env['elastic.config'].get_config()
-        self.rep_user = self.env['res.users'].create({
+        self.rep_employee = self.env['hr.employee'].create({
             'name': 'Jane Rep',
-            'login': 'jr1',
+            'is_sales_rep': True,
+            'sales_rep_code': 'JR1',
         })
         self.customer_with_rep = self.env['res.partner'].create({
             'name': 'Repped Customer',
             'is_company': True,
             'customer_rank': 1,
-            'elastic_rep_id': self.rep_user.id,
+            'sales_rep_id': self.rep_employee.id,
         })
         self.customer_without_rep = self.env['res.partner'].create({
             'name': 'House-Only Customer',
@@ -57,6 +58,25 @@ class TestRepExports(TransactionCase):
             self.config.get_default_warehouse_code(),
         ]])
 
+    def test_reps_export_employee_sales_rep_records(self):
+        exporter = self._build(RepExporter)
+
+        self.assertEqual(exporter.get_model_name(), 'hr.employee')
+        self.assertEqual(
+            exporter.get_export_domain(),
+            [('active', '=', True), ('is_sales_rep', '=', True)],
+        )
+        self.assertEqual(exporter._get_rep_id(self.rep_employee), 'JR1')
+
+    def test_rep_without_configured_code_is_skipped(self):
+        rep = self.env['hr.employee'].create({
+            'name': 'Unconfigured Rep',
+            'is_sales_rep': True,
+        })
+        exporter = self._build(RepExporter)
+
+        self.assertIsNone(exporter.transform_record(rep))
+
     def test_house_rep_row_omitted_when_disabled(self):
         self.config.rep_house_account_enabled = False
         exporter = self._build(RepExporter)
@@ -70,6 +90,32 @@ class TestRepExports(TransactionCase):
         self.assertIn(['JR1', sold_with], rows)
         self.assertIn(['HOU', sold_with], rows)
         self.assertIn(['HOU', sold_without], rows)
+
+    def test_mapping_uses_customer_sales_rep_assignment(self):
+        rows = self._mapping_rows()
+        sold_to_id = self.customer_with_rep._get_sold_to_id()
+
+        self.assertIn(['JR1', sold_to_id], rows)
+        self.assertNotIn('elastic_rep_id', self.customer_with_rep._fields)
+
+    def test_mapping_does_not_reference_an_unexported_rep(self):
+        unconfigured_rep = self.env['hr.employee'].create({
+            'name': 'Unconfigured Rep',
+            'is_sales_rep': True,
+        })
+        customer = self.env['res.partner'].create({
+            'name': 'Unconfigured Rep Customer',
+            'is_company': True,
+            'customer_rank': 1,
+            'sales_rep_id': unconfigured_rep.id,
+        })
+        self.config.rep_house_account_enabled = False
+
+        rows = self._mapping_rows()
+
+        self.assertFalse(
+            [row for row in rows if row[1] == customer._get_sold_to_id()]
+        )
 
     def test_mapping_without_house_only_maps_assigned_reps(self):
         self.config.rep_house_account_enabled = False

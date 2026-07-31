@@ -188,7 +188,7 @@
     <li>On the Elastic tab, confirm <strong>Push to Elastic</strong>.</li>
     <li>Enter <strong>Elastic Legacy Account #</strong> when Elastic SoldToID should use the legacy account number.</li>
     <li>Assign <strong>Customer Catalogs</strong> when catalog permission should be customer-specific.</li>
-    <li>Assign <strong>Elastic Sales Rep</strong> when rep mapping is required.</li>
+    <li>Assign <strong>Sales Rep</strong> from the employee sales-rep records when rep mapping is required. The employee must have a Sales Rep Code.</li>
     <li>Set <strong>Elastic Price Level</strong> when customer export should send a price group other than the default.</li>
     <li>Set <strong>Drop Ship Approved</strong> when the custom fields export should send drop_ship = Y.</li>
 </ol>
@@ -381,12 +381,12 @@
         <tr>
             <td>Export Reps</td>
             <td>reps.csv</td>
-            <td>Active internal sales users</td>
+            <td>Active employees marked as Sales Representatives with a Sales Rep Code</td>
         </tr>
         <tr>
             <td>Export Rep Mappings</td>
             <td>rep_mappings.csv</td>
-            <td>Customers assigned to an Elastic Sales Rep</td>
+            <td>Customers mapped through their employee Sales Rep assignment</td>
         </tr>
     </tbody>
 </table>
