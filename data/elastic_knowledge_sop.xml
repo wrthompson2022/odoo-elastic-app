@@ -189,7 +189,7 @@
     <li>Enter <strong>Elastic Legacy Account #</strong> when Elastic SoldToID should use the legacy account number.</li>
     <li>Assign <strong>Customer Catalogs</strong> when catalog permission should be customer-specific.</li>
     <li>Assign <strong>Sales Rep</strong> from the employee sales-rep records when rep mapping is required. The employee must have a Sales Rep Code.</li>
-    <li>Set <strong>Elastic Price Level</strong> when customer export should send a price group other than the default.</li>
+    <li>Assign the customer's <strong>Pricelist</strong>. The customer export derives its PriceGroup from that pricelist's Elastic Price Group Code.</li>
     <li>Set <strong>Drop Ship Approved</strong> when the custom fields export should send drop_ship = Y.</li>
 </ol>
 
@@ -217,7 +217,7 @@
 </ol>
 
 <h2>Pricing Setup</h2>
-<p>Go to <strong>Elastic &gt; Configuration &gt; Pricelists (Elastic)</strong>. Mark pricelists <strong>Send to Elastic</strong> and assign an Elastic Price Group Code. If no active pricelist is marked for Elastic, the price export falls back to product list price with price group LP.</p>
+<p>Go to <strong>Elastic &gt; Configuration &gt; Pricelists (Elastic)</strong>. Mark pricelists <strong>Send to Elastic</strong> and assign an Elastic Price Group Code. Assign the appropriate pricelist to each customer; customers.csv uses the assigned pricelist's group code. If no active pricelist is marked for Elastic, the price export falls back to product list price with price group LP.</p>
 
 <h2>Customer Cross-References</h2>
 <p>Use <strong>Elastic &gt; Configuration &gt; Customer Cross-References</strong> to maintain external Sold-To and Ship-To IDs when order files need explicit mapping to Odoo partners. During order import, mappings are also recorded automatically after a match is found.</p>

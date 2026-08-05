@@ -116,7 +116,8 @@ week, or month intervals.
 
 - Legacy account number support for SoldToID exports.
 - Elastic customer ID, catalog assignments, employee sales-rep assignment, payment terms,
-  price level, credit limit, notes, and drop-ship approval.
+  credit limit, notes, and drop-ship approval. Each customer's Elastic price group
+  is derived from their assigned Odoo pricelist.
 - Customer warehouse assignment: `customers.csv` sends the customer's Elastic
   Warehouse code, falling back to the first active Odoo warehouse so the code
   always matches `inventory.csv`. Rep warehouses use the employee's linked

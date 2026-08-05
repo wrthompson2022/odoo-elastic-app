@@ -20,7 +20,7 @@ Features
 * Configurable file delimiter, encoding, and date formats.
 * Detailed export and import logs.
 """,
-    "version": "18.0.1.5.0",
+    "version": "18.0.1.5.1",
     "category": "Sales/Sales",
     "author": "P2 Business Solutions",
     "website": "https://www.p2bsi.com",

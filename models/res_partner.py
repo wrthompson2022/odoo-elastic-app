@@ -60,10 +60,6 @@ class ResPartner(models.Model):
         string='Elastic Payment Terms',
         help='Payment terms code for Elastic system'
     )
-    elastic_price_level = fields.Char(
-        string='Elastic Price Level',
-        help='Price level or discount tier for this customer in Elastic'
-    )
     elastic_credit_limit = fields.Float(
         string='Elastic Credit Limit',
         help='Credit limit for this customer in Elastic'

@@ -70,7 +70,7 @@ class CustomerExporter(BaseExporter):
             'SoldToID': lambda r: r._get_sold_to_id(),
             'SoldToName': 'name',
             'CurrencyCode': lambda r: self._get_currency_code(r),
-            'PriceGroup': lambda r: r.elastic_price_level or 'D',
+            'PriceGroup': lambda r: self._get_price_group(r),
             'AccessKey': lambda r: f"{r._get_sold_to_id()}elast",
             'Address1': 'street',
             'Address2': 'street2',
@@ -109,6 +109,13 @@ class CustomerExporter(BaseExporter):
         if record.property_product_pricelist and record.property_product_pricelist.currency_id:
             return record.property_product_pricelist.currency_id.name
         return 'USD'
+
+    def _get_price_group(self, record):
+        """Get the Elastic price group from the customer's Odoo pricelist."""
+        pricelist = record.property_product_pricelist
+        if pricelist:
+            return pricelist._get_elastic_price_group_code()
+        return 'D'
 
     def _get_language_code(self, record):
         """Convert Odoo language code to Elastic format"""
