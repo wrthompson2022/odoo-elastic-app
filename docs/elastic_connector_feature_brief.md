@@ -66,8 +66,8 @@ Duplicate Elastic orders are detected before creating a new sale order.
 - Stored host-key verification and host-key fingerprint capture.
 - Configurable delimiter, encoding, header row, and date formats.
 - Per-feed export toggles.
-- Manual export buttons and inactive scheduled actions for import/export
-  automation.
+- Manual export buttons plus business-facing schedules for products, customers,
+  inventory, order history, and inbound orders.
 - Export and import logs with status, record counts, filenames, and error
   messages.
 

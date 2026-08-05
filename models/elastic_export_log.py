@@ -22,6 +22,7 @@ class ElasticExportLog(models.Model):
             ('rep_mapping', 'Rep Mappings'),
             ('inventory', 'Inventory'),
             ('price', 'Prices'),
+            ('order_history', 'Order History'),
         ],
         string='Export Type',
         required=True,

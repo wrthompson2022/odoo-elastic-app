@@ -14,14 +14,17 @@ The module includes working exporter classes for the major flat-file areas:
 - `reps.csv` and `rep_mappings.csv` via `exporters/rep_exporter.py`
 - `product_tags.csv` via `exporters/product_tags_exporter.py`
 - `features.csv` via `exporters/feature_exporter.py`
+- `order_history.csv` via `exporters/order_history_exporter.py`
 
 Order import is also present, with SFTP polling, staging, retry, duplicate
 detection, customer cross-reference lookup, sale-order creation, and configurable
 product matching.
 
-The module ships inactive scheduled actions for both order import and
-Export-All-Enabled automation. Administrators can enable and time those cron
-jobs after connection and data mapping validation.
+The module provides a business-facing scheduler wizard for independent product,
+customer, inventory, order-history, and order-import jobs. Elastic Managers can
+set each job's cadence, next execution, and execution user without developer
+mode. The legacy Export-All-Enabled scheduled action remains available for
+sites that prefer one combined outbound job.
 
 ## Remaining hardening areas
 

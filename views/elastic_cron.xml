@@ -19,5 +19,41 @@
             <field name="interval_type">days</field>
             <field name="active" eval="False"/>
         </record>
+        <record id="ir_cron_elastic_product_export" model="ir.cron">
+            <field name="name">Elastic: Export Products</field>
+            <field name="model_id" ref="model_elastic_config"/>
+            <field name="state">code</field>
+            <field name="code">model.cron_export_products()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="False"/>
+        </record>
+        <record id="ir_cron_elastic_customer_export" model="ir.cron">
+            <field name="name">Elastic: Export Customers</field>
+            <field name="model_id" ref="model_elastic_config"/>
+            <field name="state">code</field>
+            <field name="code">model.cron_export_customers()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="False"/>
+        </record>
+        <record id="ir_cron_elastic_inventory_export" model="ir.cron">
+            <field name="name">Elastic: Export Inventory</field>
+            <field name="model_id" ref="model_elastic_config"/>
+            <field name="state">code</field>
+            <field name="code">model.cron_export_inventory()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">hours</field>
+            <field name="active" eval="False"/>
+        </record>
+        <record id="ir_cron_elastic_order_history_export" model="ir.cron">
+            <field name="name">Elastic: Export Order History</field>
+            <field name="model_id" ref="model_elastic_config"/>
+            <field name="state">code</field>
+            <field name="code">model.cron_export_order_history()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="False"/>
+        </record>
     </data>
 </odoo>

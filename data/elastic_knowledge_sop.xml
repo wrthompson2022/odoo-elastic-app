@@ -520,7 +520,7 @@
 <h1>06 - Scheduling Imports and Exports</h1>
 
 <h2>Goal</h2>
-<p>Activate Odoo scheduled actions so imports and exports run automatically against the active Elastic configuration.</p>
+<p>Configure automated imports and exports from the active Elastic configuration without using Odoo developer mode.</p>
 
 <h2>Scheduled Actions Created by the Module</h2>
 <table class="table table-sm table-bordered">
@@ -545,35 +545,52 @@
             <td>Every 1 day</td>
             <td>All export types enabled on each active Elastic configuration.</td>
         </tr>
+        <tr>
+            <td>Elastic: Export Products</td>
+            <td>No</td>
+            <td>Every 1 day</td>
+            <td>Products feed.</td>
+        </tr>
+        <tr>
+            <td>Elastic: Export Customers</td>
+            <td>No</td>
+            <td>Every 1 day</td>
+            <td>Customers feed.</td>
+        </tr>
+        <tr>
+            <td>Elastic: Export Inventory</td>
+            <td>No</td>
+            <td>Every 1 hour</td>
+            <td>Inventory feed.</td>
+        </tr>
+        <tr>
+            <td>Elastic: Export Order History</td>
+            <td>No</td>
+            <td>Every 1 day</td>
+            <td>Confirmed sale-order history feed.</td>
+        </tr>
     </tbody>
 </table>
 
-<h2>Activate Scheduled Order Import</h2>
+<h2>Configure Schedulers</h2>
 <ol>
-    <li>Go to <strong>Settings &gt; Technical &gt; Automation &gt; Scheduled Actions</strong>. Developer mode may be required.</li>
-    <li>Open <strong>Elastic: Import Orders</strong>.</li>
-    <li>Set the interval and next execution time according to the business schedule.</li>
-    <li>Activate the scheduled action.</li>
-    <li>Confirm <strong>Enable Order Import</strong> is checked on the active Elastic configuration.</li>
-    <li>Confirm the active environment is correct.</li>
-    <li>After the next run, review Import Logs and Staged Orders.</li>
+    <li>Go to <strong>Elastic &gt; Configuration &gt; Settings</strong>.</li>
+    <li>Confirm the active environment and test its SFTP connection.</li>
+    <li>Click <strong>Configure Schedulers</strong>.</li>
+    <li>Enable each required product, customer, inventory, order-history, or order-import operation.</li>
+    <li>Set its interval number, interval unit, next execution, and execution user.</li>
+    <li>Click <strong>Save Schedulers</strong>.</li>
+    <li>Use <strong>Active Schedulers</strong> to review the enabled Odoo jobs.</li>
 </ol>
 
-<h2>Activate Scheduled Export</h2>
-<ol>
-    <li>Open <strong>Elastic: Export All Enabled</strong> in Scheduled Actions.</li>
-    <li>Set the interval and next execution time.</li>
-    <li>Activate the scheduled action.</li>
-    <li>In <strong>Elastic &gt; Configuration &gt; Settings</strong>, enable only the export types that should run automatically.</li>
-    <li>Run <strong>Export All Enabled</strong> manually once before relying on the scheduled job.</li>
-    <li>After the next run, review Export Logs and confirm files on SFTP.</li>
-</ol>
+<h2>Order Import Safety</h2>
+<p>Enabling the order-import schedule also enables Order Import on the configuration. Disabling Order Import on the configuration pauses its schedule. Turning off only the schedule leaves manual order import available.</p>
 
 <h2>Scheduling Controls</h2>
 <ul>
-    <li>Scheduled exports run against active configurations and respect the export enable toggles.</li>
+    <li>Dedicated export schedules run independently; the Export All selections only control Export All Enabled.</li>
     <li>Scheduled order imports run only for active configurations where order import is enabled.</li>
-    <li>Both scheduled actions use the active environment selected on each configuration.</li>
+    <li>All scheduled actions use the active environment selected on the configuration.</li>
     <li>Keep Beta scheduled actions disabled unless testing automation intentionally.</li>
     <li>Do not activate Production schedules until manual Beta and Production test runs have been validated.</li>
 </ul>
@@ -582,7 +599,7 @@
 <ul>
     <li>Order import: every 15 to 60 minutes depending on order volume and service expectations.</li>
     <li>Inventory export: at least daily, more often if Elastic needs near-current availability.</li>
-    <li>Prices, products, catalogs, features, and customers: daily or after relevant master-data changes.</li>
+    <li>Products, customers, and order history: daily or after relevant master-data changes.</li>
 </ul>
         ]]></field>
     </record>

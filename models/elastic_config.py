@@ -53,12 +53,6 @@ class ElasticConfig(models.Model):
                     'Archive the existing configuration "%s" first.'
                 ) % duplicates.name)
 
-    @api.constrains('order_import_interval_hours')
-    def _check_order_import_interval_hours(self):
-        for record in self:
-            if record.order_import_interval_hours < 1:
-                raise ValidationError(_('Order Import Interval must be at least 1 hour.'))
-
     # ============================================
     # Environment Selection
     # ============================================
@@ -156,6 +150,7 @@ class ElasticConfig(models.Model):
     enable_rep_mapping_export = fields.Boolean(string='Enable Rep Mapping Export', default=False)
     enable_inventory_export = fields.Boolean(string='Enable Inventory Export', default=False)
     enable_price_export = fields.Boolean(string='Enable Price Export', default=False)
+    enable_order_history_export = fields.Boolean(string='Enable Order History Export', default=False)
 
     # ============================================
     # Import Settings
@@ -178,12 +173,6 @@ class ElasticConfig(models.Model):
         default='*.csv',
 
         help='Glob pattern used to match order files on the SFTP import directory (e.g. "*.csv", "ORDER_*.csv")'
-    )
-    order_import_interval_hours = fields.Integer(
-        string='Order Import Interval (hours)',
-        default=1,
-
-        help='How often the scheduled action should poll SFTP for new order files (in hours)'
     )
     order_stock_item_key_field = fields.Selection(
         [
@@ -299,16 +288,12 @@ class ElasticConfig(models.Model):
             })
         return config
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        records = super().create(vals_list)
-        records._sync_order_import_cron_interval()
-        return records
-
     def write(self, vals):
         result = super().write(vals)
-        if {'active', 'order_import_interval_hours'} & set(vals):
-            self._sync_order_import_cron_interval()
+        if vals.get('enable_order_import') is False and self.filtered('active'):
+            cron = self._get_order_import_cron()
+            if cron:
+                cron.sudo().active = False
         return result
 
     def _get_order_import_cron(self):
@@ -316,21 +301,6 @@ class ElasticConfig(models.Model):
             'odoo-elastic-app.ir_cron_elastic_order_import',
             raise_if_not_found=False,
         )
-
-    def _sync_order_import_cron_interval(self):
-        """Keep the global order-import cron interval aligned to the active config."""
-        cron = self._get_order_import_cron()
-        if not cron:
-            return
-
-        config = self.search([('active', '=', True)], limit=1)
-        if not config:
-            return
-
-        cron.sudo().write({
-            'interval_number': config.order_import_interval_hours,
-            'interval_type': 'hours',
-        })
 
     # ============================================
     # Product Metadata Helpers
@@ -899,6 +869,11 @@ class ElasticConfig(models.Model):
         from ..exporters.inventory_exporter import InventoryExporter
         return self._run_export(InventoryExporter, 'Inventory')
 
+    def action_export_order_history(self):
+        """Export sale-order history to Elastic SFTP."""
+        from ..exporters.order_history_exporter import OrderHistoryExporter
+        return self._run_export(OrderHistoryExporter, 'Order History')
+
     def action_export_prices(self):
         """Export prices to Elastic SFTP"""
         from ..exporters.price_exporter import PriceExporter
@@ -1002,6 +977,25 @@ class ElasticConfig(models.Model):
             'context': {'default_config_id': self.id},
         }
 
+    def action_open_scheduler_configuration(self):
+        """Open the business-facing scheduler configuration wizard."""
+        self.ensure_one()
+        action = self.env.ref(
+            'odoo-elastic-app.action_elastic_scheduler_configuration'
+        ).read()[0]
+        action['context'] = {'default_config_id': self.id}
+        return action
+
+    def action_view_active_schedulers(self):
+        """Show active Elastic scheduled actions without requiring navigation."""
+        self.ensure_one()
+        action = self.env.ref('base.ir_cron_act').read()[0]
+        action['domain'] = [
+            ('name', 'ilike', 'Elastic:'),
+            ('active', '=', True),
+        ]
+        return action
+
     @api.model
     def cron_import_orders(self):
         """Scheduled action: run order import for every config with it enabled."""
@@ -1022,6 +1016,46 @@ class ElasticConfig(models.Model):
                 config.action_export_all()
             except Exception as e:  # pragma: no cover
                 _logger.error('Scheduled export failed for config %s: %s', config.name, e, exc_info=True)
+
+    @api.model
+    def _cron_run_export(self, action_name, export_label):
+        """Run one dedicated export for every active configuration."""
+        configs = self.search([('active', '=', True)])
+        for config in configs:
+            try:
+                result = getattr(config, action_name)()
+                notification_type = result.get('params', {}).get('type') if isinstance(result, dict) else None
+                if notification_type in {'warning', 'danger'}:
+                    _logger.error(
+                        'Scheduled %s export reported an issue for config %s: %s',
+                        export_label,
+                        config.name,
+                        result.get('params', {}).get('message', 'Unknown error'),
+                    )
+            except Exception as e:  # pragma: no cover
+                _logger.error(
+                    'Scheduled %s export failed for config %s: %s',
+                    export_label,
+                    config.name,
+                    e,
+                    exc_info=True,
+                )
+
+    @api.model
+    def cron_export_products(self):
+        return self._cron_run_export('action_export_products', 'product')
+
+    @api.model
+    def cron_export_customers(self):
+        return self._cron_run_export('action_export_customers', 'customer')
+
+    @api.model
+    def cron_export_inventory(self):
+        return self._cron_run_export('action_export_inventory', 'inventory')
+
+    @api.model
+    def cron_export_order_history(self):
+        return self._cron_run_export('action_export_order_history', 'order history')
 
     def action_export_all(self):
         """Run all enabled exports."""
@@ -1082,6 +1116,9 @@ class ElasticConfig(models.Model):
 
         if self.enable_price_export:
             _run_and_track('Prices', self.action_export_prices)
+
+        if self.enable_order_history_export:
+            _run_and_track('Order History', self.action_export_order_history)
 
         if failed_exports:
             successful_message = f"Successful: {', '.join(successful_exports)}. " if successful_exports else ''

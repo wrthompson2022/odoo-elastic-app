@@ -1,6 +1,6 @@
 # Current State And Roadmap
 
-**Updated:** July 2026
+**Updated:** August 2026
 
 ## Executive Summary
 
@@ -34,9 +34,10 @@ not basic connector scaffolding.
 | Catalog mapping export | Implemented | Generated or uploaded mapping lines with item/color rows |
 | Rep export | Implemented | Sales-rep feed support |
 | Rep mapping export | Implemented | Customer-to-rep mapping support |
+| Order history export | Implemented | Confirmed sale-order lines with fulfillment and invoice status |
 | Order import | Implemented | SFTP polling, staging, duplicate detection, sale-order creation, retry |
 | Customer cross-reference | Implemented | Connection-scoped/global Sold-To and Ship-To mapping with legacy fallback |
-| Cron hooks | Implemented | Inactive scheduled actions for import orders and export all enabled |
+| Scheduler configuration | Implemented | Business-facing, independent product, customer, inventory, order-history, and order-import schedules |
 | Tests | Implemented | Focused transaction tests across exporter/importer and config behavior |
 
 ## Key Architecture Strengths

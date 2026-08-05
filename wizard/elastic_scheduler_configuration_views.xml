@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_elastic_scheduler_configuration_form" model="ir.ui.view">
+        <field name="name">elastic.scheduler.configuration.form</field>
+        <field name="model">elastic.scheduler.configuration</field>
+        <field name="arch" type="xml">
+            <form string="Configure Elastic Schedulers">
+                <sheet>
+                    <field name="config_id" invisible="1"/>
+                    <div class="alert alert-info" role="alert">
+                        Enable each operation independently, choose its cadence and next execution,
+                        and select the Odoo user whose permissions will be used.
+                    </div>
+                    <group string="Outbound Exports">
+                        <group>
+                            <field name="product_export_enabled" widget="boolean_toggle"/>
+                            <field name="product_export_interval_number" string="Repeat Every" invisible="not product_export_enabled" required="product_export_enabled"/>
+                            <field name="product_export_interval_type" string="Interval Unit" invisible="not product_export_enabled" required="product_export_enabled"/>
+                            <field name="product_export_nextcall" invisible="not product_export_enabled" required="product_export_enabled"/>
+                            <field name="product_export_user_id" invisible="not product_export_enabled" required="product_export_enabled"/>
+                        </group>
+                        <group>
+                            <field name="customer_export_enabled" widget="boolean_toggle"/>
+                            <field name="customer_export_interval_number" string="Repeat Every" invisible="not customer_export_enabled" required="customer_export_enabled"/>
+                            <field name="customer_export_interval_type" string="Interval Unit" invisible="not customer_export_enabled" required="customer_export_enabled"/>
+                            <field name="customer_export_nextcall" invisible="not customer_export_enabled" required="customer_export_enabled"/>
+                            <field name="customer_export_user_id" invisible="not customer_export_enabled" required="customer_export_enabled"/>
+                        </group>
+                        <group>
+                            <field name="inventory_export_enabled" widget="boolean_toggle"/>
+                            <field name="inventory_export_interval_number" string="Repeat Every" invisible="not inventory_export_enabled" required="inventory_export_enabled"/>
+                            <field name="inventory_export_interval_type" string="Interval Unit" invisible="not inventory_export_enabled" required="inventory_export_enabled"/>
+                            <field name="inventory_export_nextcall" invisible="not inventory_export_enabled" required="inventory_export_enabled"/>
+                            <field name="inventory_export_user_id" invisible="not inventory_export_enabled" required="inventory_export_enabled"/>
+                        </group>
+                        <group>
+                            <field name="order_history_export_enabled" widget="boolean_toggle"/>
+                            <field name="order_history_export_interval_number" string="Repeat Every" invisible="not order_history_export_enabled" required="order_history_export_enabled"/>
+                            <field name="order_history_export_interval_type" string="Interval Unit" invisible="not order_history_export_enabled" required="order_history_export_enabled"/>
+                            <field name="order_history_export_nextcall" invisible="not order_history_export_enabled" required="order_history_export_enabled"/>
+                            <field name="order_history_export_user_id" invisible="not order_history_export_enabled" required="order_history_export_enabled"/>
+                        </group>
+                    </group>
+                    <group string="Inbound Orders">
+                        <group>
+                            <field name="order_import_enabled" widget="boolean_toggle"/>
+                            <field name="order_import_interval_number" string="Repeat Every" invisible="not order_import_enabled" required="order_import_enabled"/>
+                            <field name="order_import_interval_type" string="Interval Unit" invisible="not order_import_enabled" required="order_import_enabled"/>
+                            <field name="order_import_nextcall" invisible="not order_import_enabled" required="order_import_enabled"/>
+                            <field name="order_import_user_id" invisible="not order_import_enabled" required="order_import_enabled"/>
+                        </group>
+                        <group>
+                            <div class="alert alert-warning" role="alert" invisible="not order_import_enabled">
+                                Enabling this schedule also enables Order Import on the Elastic configuration.
+                                Validate a manual import before scheduling Production.
+                            </div>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_save" type="object" string="Save Schedulers" class="btn-primary"/>
+                    <button string="Cancel" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_elastic_scheduler_configuration" model="ir.actions.act_window">
+        <field name="name">Configure Schedulers</field>
+        <field name="res_model">elastic.scheduler.configuration</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

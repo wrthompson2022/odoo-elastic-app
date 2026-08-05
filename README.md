@@ -49,6 +49,7 @@ areas:
 | Catalog mappings | `catalog_mapping.csv` | Catalog-to-product/color mappings |
 | Sales reps | `reps.csv` | Employee sales reps from `sales_rep_commission` |
 | Rep mappings | `rep_mappings.csv` | Customer-to-rep relationships |
+| Order history | `order_history.csv` | Confirmed Odoo sale-order lines, fulfillment, and invoicing status |
 
 The product-related feeds (products, prices, product tags, features, and
 inventory) share one population rule: a variant is exported only when it
@@ -67,9 +68,10 @@ feature rows are deduplicated to ItemNumber (and ColorCode) grain, so
 template-level values are not repeated per size or material variant.
 
 Exports can be run manually from **Elastic > Configuration > Settings** using
-the individual feed buttons or **Export All Enabled**. The addon also ships an
-inactive scheduled action, **Elastic: Export All Enabled**, that can be enabled
-and timed by an administrator.
+the individual feed buttons or **Export All Enabled**. Elastic Managers can use
+**Configure Schedulers** on that same settings record to independently schedule
+product, customer, inventory, and order-history exports with minute, hour, day,
+week, or month intervals.
 
 ### Inbound Order Import
 
@@ -82,8 +84,8 @@ and timed by an administrator.
 - Resolves Sold-To and Ship-To customers through scoped cross-reference rows,
   global cross-reference rows, and legacy account-number fallback.
 - Archives processed source files when configured.
-- Ships an inactive scheduled action, **Elastic: Import Orders**, for automated
-  polling.
+- Can be scheduled from **Configure Schedulers** without using developer mode or
+  navigating to Odoo's technical scheduled-action list.
 
 ### Product And Merchandising Data
 
@@ -157,7 +159,13 @@ active BOM component stock when finished-goods ATP is unavailable.
 9. Configure products, customers, catalogs, pricelists, feature metadata, and
    customer cross-reference rows as needed.
 10. Run individual exports or **Export All Enabled** from the settings page.
-11. Enable and schedule the import/export cron jobs when ready for automation.
+11. Click **Configure Schedulers** and enable the required exports and order
+    import after their manual runs have been validated.
+
+When upgrading to **18.0.1.5.0** or later, upgrade the module to install the
+dedicated product, customer, inventory, order-history, and order-import
+schedulers. Existing inactive technical cron records remain inactive until an
+Elastic Manager enables them from **Configure Schedulers**.
 
 ## Host-Key Upgrade Notes
 
@@ -192,6 +200,7 @@ upgrade log and assign those customers manually.
 - `exporters/` contains concrete feed exporters built on `BaseExporter`.
 - `importers/` contains order and Shopify feature import logic built on reusable
   importer patterns.
+- `wizard/` contains the business-facing scheduler configuration UI.
 - `services/` contains SFTP and delimited-file generation services.
 - `views/` adds the Elastic navigation, configuration forms, logs, staging UI,
   catalog tools, metadata tools, and product/customer/pricelist extensions.

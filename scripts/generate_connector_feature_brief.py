@@ -498,7 +498,7 @@ def build_story(sections: dict[str, list[str]]) -> list:
         ["Exports", "Products, tags, features, customers, custom fields, locations, prices, inventory, catalogs, mappings, reps."],
         ["Imports", "Elastic order files staged by order/shipment, validated, deduplicated, and converted to Odoo sale orders."],
         ["Governance", "Product IDs, StockItemKey, colors, sizes, features, catalogs, price groups, and customer xrefs."],
-        ["Automation", "Manual actions plus inactive scheduled actions for import orders and export all enabled."],
+        ["Automation", "Manual actions plus configurable product, customer, inventory, order-history, and order-import schedules."],
         ["Observability", "Export/import logs plus order staging states for processed, duplicate, and error records."],
     ]
     table_data = [[p(cell, "table_head" if row_idx == 0 else "table_cell") for cell in row] for row_idx, row in enumerate(appendix_rows)]

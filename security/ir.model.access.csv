@@ -35,3 +35,4 @@ access_elastic_customer_xref_user,elastic.customer.xref.user,model_elastic_custo
 access_elastic_customer_xref_manager,elastic.customer.xref.manager,model_elastic_customer_xref,group_elastic_manager,1,1,1,1
 access_elastic_order_staging_user,elastic.order.staging.user,model_elastic_order_staging,group_elastic_user,1,1,1,0
 access_elastic_order_staging_manager,elastic.order.staging.manager,model_elastic_order_staging,group_elastic_manager,1,1,1,1
+access_elastic_scheduler_configuration_manager,elastic.scheduler.configuration.manager,model_elastic_scheduler_configuration,group_elastic_manager,1,1,1,1

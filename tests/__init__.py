@@ -14,3 +14,5 @@ from . import test_location_exporter
 from . import test_order_importer
 from . import test_rep_exporter
 from . import test_res_partner_sync
+from . import test_order_history_exporter
+from . import test_scheduler_configuration

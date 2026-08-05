@@ -10,6 +10,18 @@
                     <button name="action_test_connection" type="object" string="Test Active Connection" class="oe_highlight"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_scheduler_configuration"
+                                type="object" class="oe_stat_button" icon="fa-clock-o"
+                                groups="odoo-elastic-app.group_elastic_manager">
+                            <span class="o_stat_text">Configure Schedulers</span>
+                        </button>
+                        <button name="action_view_active_schedulers"
+                                type="object" class="oe_stat_button" icon="fa-play-circle"
+                                groups="base.group_system">
+                            <span class="o_stat_text">Active Schedulers</span>
+                        </button>
+                    </div>
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="Configuration Name"/>
@@ -99,7 +111,7 @@
                                            invisible="not rep_house_account_enabled"/>
                                 </group>
                             </group>
-                            <separator string="Enabled Exports"/>
+                            <separator string="Export All Selection"/>
                             <group>
                                 <group>
                                     <field name="enable_product_export"/>
@@ -115,12 +127,14 @@
                                     <field name="enable_rep_mapping_export"/>
                                     <field name="enable_inventory_export"/>
                                     <field name="enable_price_export"/>
+                                    <field name="enable_order_history_export"/>
                                 </group>
                             </group>
                             <separator string="Manual Export Actions"/>
                             <div class="alert alert-info" role="alert" style="margin-bottom: 15px;">
                                 <strong>Manual Exports:</strong> Click buttons below to run exports immediately.
-                                For automated scheduled exports, configure cron jobs.
+                                These selections control <strong>Export All Enabled</strong>.
+                                Use <strong>Configure Schedulers</strong> above for independent automated exports.
                             </div>
                             <div style="margin-bottom: 10px;">
                                 <button name="action_export_all" type="object" string="Export All Enabled" class="btn-primary me-2" icon="fa-upload"/>
@@ -140,6 +154,7 @@
                                         <button name="action_export_features" type="object" string="Export Features" class="btn-secondary me-1" icon="fa-list"/>
                                         <button name="action_export_prices" type="object" string="Export Prices" class="btn-secondary me-1" icon="fa-usd"/>
                                         <button name="action_export_inventory" type="object" string="Export Inventory" class="btn-secondary" icon="fa-cubes"/>
+                                        <button name="action_export_order_history" type="object" string="Export Order History" class="btn-secondary" icon="fa-history"/>
                                     </div>
                                 </group>
                             </group>
@@ -178,7 +193,6 @@
                                     <field name="order_import_auto_confirm"/>
                                     <field name="order_import_archive_processed"/>
                                     <field name="order_import_file_pattern"/>
-                                    <field name="order_import_interval_hours"/>
                                 </group>
                                 <group string="Product Matching">
                                     <field name="order_stock_item_key_field"/>

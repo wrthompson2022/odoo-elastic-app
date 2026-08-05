@@ -9,3 +9,4 @@ from . import rep_exporter
 from . import location_exporter
 from . import product_tags_exporter
 from . import feature_exporter
+from . import order_history_exporter
