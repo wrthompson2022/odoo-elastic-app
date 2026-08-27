@@ -275,13 +275,22 @@ class InventoryExporter(BaseExporter):
             component_qty = component_uom._compute_quantity(component_qty, product_uom)
         return component_qty
 
-    def _get_bom_buildable_qty(self, bom, warehouse):
+    def _get_bom_buildable_qty(self, bom, warehouse, product=None):
         bom_qty = bom.product_qty or 1.0
         buildable_quantities = []
 
         for bom_line in bom.bom_line_ids:
+            # Template-level BoMs may contain component lines for many variants.
+            # Let Odoo apply its native "Apply on Variants" rules so an
+            # unavailable component belonging to another variant cannot force
+            # this product's buildable quantity to zero.
+            if product and bom_line._skip_bom_line(product):
+                continue
+
             component = bom_line.product_id
             if not component or not getattr(component, 'is_storable', False):
+                continue
+            if not self._is_bom_inventory_component(component):
                 continue
 
             component_qty = self._get_bom_line_component_qty(bom_line)
@@ -308,19 +317,17 @@ class InventoryExporter(BaseExporter):
 
         return min(buildable_quantities)
 
-    def _is_bom_inventory_product(self, product):
+    def _is_bom_inventory_component(self, component):
         categories = self.config.inventory_bom_category_ids
-        if not categories or not product.categ_id:
+        if not categories or not component.categ_id:
             return False
         return bool(self.env['product.category'].search_count([
-            ('id', '=', product.categ_id.id),
+            ('id', '=', component.categ_id.id),
             ('id', 'child_of', categories.ids),
         ]))
 
     def _get_bom_component_fallback_qty(self, product, warehouse):
         if not getattr(self.config, 'inventory_use_bom_component_fallback', False):
-            return 0
-        if not self._is_bom_inventory_product(product):
             return 0
 
         boms = self._get_active_boms(product)
@@ -328,7 +335,7 @@ class InventoryExporter(BaseExporter):
             return 0
 
         return max(
-            self._get_bom_buildable_qty(bom, warehouse)
+            self._get_bom_buildable_qty(bom, warehouse, product)
             for bom in boms
         )
 

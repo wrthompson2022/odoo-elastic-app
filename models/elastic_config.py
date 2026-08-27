@@ -244,9 +244,10 @@ class ElasticConfig(models.Model):
     )
     inventory_bom_category_ids = fields.Many2many(
         'product.category',
-        string='BOM Inventory Categories',
-        help='Only finished products in these categories or their child '
-             'categories may use BOM component stock as Elastic ATP.',
+        string='BOM Component Categories',
+        help='Only BOM components in these categories or their child '
+             'categories constrain buildable inventory. Components in '
+             'unselected categories, such as packaging, are ignored.',
     )
 
     # ============================================

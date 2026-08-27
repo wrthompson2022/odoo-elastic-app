@@ -132,8 +132,7 @@ class TestInventoryExporter(TransactionCase):
         fallback_bom = SimpleNamespace()
 
         exporter._get_active_boms = lambda product: [preferred_bom, fallback_bom]
-        exporter._is_bom_inventory_product = lambda product: True
-        exporter._get_bom_buildable_qty = lambda bom, warehouse: (
+        exporter._get_bom_buildable_qty = lambda bom, warehouse, product=None: (
             3 if bom is preferred_bom else 11
         )
 
@@ -169,29 +168,98 @@ class TestInventoryExporter(TransactionCase):
             }[product.default_code]
 
         exporter._get_available_qty = available_qty
+        exporter._is_bom_inventory_component = lambda component: True
 
         self.assertEqual(exporter._get_bom_buildable_qty(bom, None), 4)
 
-    def test_bom_inventory_categories_include_child_categories_only(self):
+    def test_bom_buildable_qty_skips_lines_for_other_variants(self):
         exporter = self._build_exporter()
-        parent = self.env['product.category'].create({'name': 'Buildable Finished Goods'})
+        uom = SimpleNamespace()
+        selected_product = SimpleNamespace(default_code='FINISHED')
+        applicable_component = SimpleNamespace(
+            default_code='APPLIES', is_storable=True, uom_id=uom
+        )
+        other_variant_component = SimpleNamespace(
+            default_code='OTHER', is_storable=True, uom_id=uom
+        )
+        applicable_line = SimpleNamespace(
+            product_id=applicable_component,
+            product_qty=1,
+            product_uom_id=uom,
+            _skip_bom_line=lambda product: False,
+        )
+        other_variant_line = SimpleNamespace(
+            product_id=other_variant_component,
+            product_qty=1,
+            product_uom_id=uom,
+            _skip_bom_line=lambda product: True,
+        )
+        bom = SimpleNamespace(
+            product_qty=1,
+            bom_line_ids=[applicable_line, other_variant_line],
+        )
+        quantities = {'APPLIES': 12, 'OTHER': 0}
+        exporter._is_bom_inventory_component = lambda component: True
+        exporter._get_available_qty = (
+            lambda component, warehouse, exclude_reserved=False:
+            quantities[component.default_code]
+        )
+
+        self.assertEqual(
+            exporter._get_bom_buildable_qty(bom, None, selected_product),
+            12,
+        )
+
+    def test_bom_buildable_qty_ignores_unselected_component_categories(self):
+        exporter = self._build_exporter()
+        uom = SimpleNamespace()
+        lens = SimpleNamespace(default_code='LENS', is_storable=True, uom_id=uom)
+        packaging = SimpleNamespace(default_code='BOX', is_storable=True, uom_id=uom)
+        bom = SimpleNamespace(
+            product_qty=1,
+            bom_line_ids=[
+                SimpleNamespace(
+                    product_id=lens,
+                    product_qty=1,
+                    product_uom_id=uom,
+                ),
+                SimpleNamespace(
+                    product_id=packaging,
+                    product_qty=1,
+                    product_uom_id=uom,
+                ),
+            ],
+        )
+        exporter._is_bom_inventory_component = (
+            lambda component: component.default_code == 'LENS'
+        )
+        exporter._get_available_qty = (
+            lambda component, warehouse, exclude_reserved=False:
+            10 if component.default_code == 'LENS' else 0
+        )
+
+        self.assertEqual(exporter._get_bom_buildable_qty(bom, None), 10)
+
+    def test_bom_component_categories_include_child_categories_only(self):
+        exporter = self._build_exporter()
+        parent = self.env['product.category'].create({'name': 'Inventory-Constraining Components'})
         child = self.env['product.category'].create({
-            'name': 'Buildable Eyewear',
+            'name': 'Lenses',
             'parent_id': parent.id,
         })
-        excluded = self.env['product.category'].create({'name': 'Purchased Goods'})
-        included_product = self.env['product.product'].create({
-            'name': 'Included Finished Good',
+        excluded = self.env['product.category'].create({'name': 'Packaging'})
+        included_component = self.env['product.product'].create({
+            'name': 'Included Lens',
             'categ_id': child.id,
         })
-        excluded_product = self.env['product.product'].create({
-            'name': 'Excluded Finished Good',
+        excluded_component = self.env['product.product'].create({
+            'name': 'Excluded Box',
             'categ_id': excluded.id,
         })
         self.config.inventory_bom_category_ids = [(6, 0, [parent.id])]
 
-        self.assertTrue(exporter._is_bom_inventory_product(included_product))
-        self.assertFalse(exporter._is_bom_inventory_product(excluded_product))
+        self.assertTrue(exporter._is_bom_inventory_component(included_component))
+        self.assertFalse(exporter._is_bom_inventory_component(excluded_component))
 
     def test_component_availability_includes_child_location_and_excludes_reserved(self):
         exporter = self._build_exporter()
