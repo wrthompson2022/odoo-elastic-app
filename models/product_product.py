@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from odoo import api, models, fields
+
+
+_logger = logging.getLogger(__name__)
 
 # Default attribute-name detection used when a template does not explicitly
 # select which attribute plays the Elastic Color/Size role.
@@ -255,16 +260,86 @@ class ProductProduct(models.Model):
         code = name or ''
         return code[:3].upper() if len(code) > 5 else code
 
+    def _get_variant_color_code_identifiers(self):
+        """Identifiers that can distinguish this variant from its siblings.
+
+        Some source systems store all valid codes for a shared color value in
+        one comma-separated field (for example ``010,030`` for the glass and
+        polycarbonate variants).  The variant SKU/item number contains the
+        individual code, so prefer variant-specific identifiers over the
+        template-level ItemNumber when narrowing that list.
+        """
+        self.ensure_one()
+        identifiers = []
+        for identifier in (
+            self.elastic_item_number,
+            self.default_code,
+            self.elastic_sku,
+        ):
+            identifier = (identifier or '').strip()
+            if identifier and identifier not in identifiers:
+                identifiers.append(identifier)
+        if not identifiers:
+            item_number = (self._get_elastic_item_number() or '').strip()
+            if item_number:
+                identifiers.append(item_number)
+        return identifiers
+
+    def _select_variant_color_code(self, raw_code):
+        """Return one ColorCode for this variant from a possible code list.
+
+        Candidate codes are matched case-insensitively inside the variant's
+        identifiers.  A later occurrence wins when more than one candidate is
+        present because vendor item numbers conventionally append the variant
+        discriminator to a shared style prefix.  If the source value cannot be
+        disambiguated, use its first code rather than exporting an invalid
+        aggregate ColorCode.
+        """
+        self.ensure_one()
+        codes = []
+        seen = set()
+        for part in (raw_code or '').split(','):
+            code = part.strip()
+            normalized = code.upper()
+            if code and normalized not in seen:
+                seen.add(normalized)
+                codes.append(code)
+
+        if len(codes) <= 1:
+            return codes[0] if codes else ''
+
+        matches = []
+        for code_index, code in enumerate(codes):
+            normalized_code = code.upper()
+            best_position = -1
+            for identifier in self._get_variant_color_code_identifiers():
+                position = identifier.upper().rfind(normalized_code)
+                best_position = max(best_position, position)
+            if best_position >= 0:
+                matches.append((best_position, -code_index, code))
+
+        if matches:
+            return max(matches)[2]
+
+        _logger.warning(
+            'Could not match aggregated Elastic ColorCode %r to variant %s; '
+            'using first candidate %r',
+            raw_code,
+            self.display_name,
+            codes[0],
+        )
+        return codes[0]
+
     def _get_elastic_color_code(self):
         """ColorCode for the value playing the Color role. Shared by the
         product, product-tag, and catalog-mapping exports."""
         self.ensure_one()
         value = self._get_elastic_color_attribute_value()
         if value and value.elastic_color_code:
-            return value.elastic_color_code
+            return self._select_variant_color_code(value.elastic_color_code)
         elastic_color = self._find_elastic_color(value)
         if elastic_color:
-            return elastic_color.code
+            return self._select_variant_color_code(elastic_color.code)
         if value:
             return self._fallback_attribute_code(value.name)
         return ''

@@ -124,6 +124,30 @@ class TestProductExporter(TransactionCase):
         self.assertEqual(exporter._get_color_name(self.product), 'Classic Tortoise')
         self.assertEqual(exporter._get_color_sort(self.product), 30)
 
+    def test_aggregated_color_code_selects_code_in_variant_item_number(self):
+        self.tortoise.elastic_color_code = '001, 030'
+        self.product.default_code = 'FRAME-030'
+
+        exporter = self._build_exporter()
+
+        self.assertEqual(exporter._get_color_code(self.product), '030')
+
+    def test_aggregated_color_code_selects_code_before_reader_strength(self):
+        self.tortoise.elastic_color_code = '010,030'
+        self.product.default_code = 'ANN210030150'
+
+        exporter = self._build_exporter()
+
+        self.assertEqual(exporter._get_color_code(self.product), '030')
+
+    def test_aggregated_color_code_never_exports_the_full_list(self):
+        self.tortoise.elastic_color_code = '010,030'
+        self.product.default_code = 'FRAME-WITHOUT-COLOR'
+
+        exporter = self._build_exporter()
+
+        self.assertEqual(exporter._get_color_code(self.product), '010')
+
     def test_attribute_value_color_metadata_is_fallback(self):
         amber = self.env['product.attribute.value'].create({
             'name': 'Amber Gradient',

@@ -191,6 +191,56 @@ class TestCatalogMappingExporter(TransactionCase):
 
         self.assertEqual(rows, [['GRAY', 1, 'GRAY-001', '02A']])
 
+    def test_generate_mapping_lines_narrows_aggregated_color_codes(self):
+        color_attr = self.env['product.attribute'].create({'name': 'Color'})
+        material_attr = self.env['product.attribute'].create({'name': 'Lens Material'})
+        gray = self.env['product.attribute.value'].create({
+            'name': 'Gray',
+            'attribute_id': color_attr.id,
+            'elastic_color_code': '010,030',
+        })
+        glass = self.env['product.attribute.value'].create({
+            'name': 'Glass',
+            'attribute_id': material_attr.id,
+        })
+        polycarbonate = self.env['product.attribute.value'].create({
+            'name': 'PC',
+            'attribute_id': material_attr.id,
+        })
+        template = self.env['product.template'].create({
+            'name': 'Aggregated Gray Frame',
+            'sale_ok': True,
+            'attribute_line_ids': [
+                (0, 0, {
+                    'attribute_id': color_attr.id,
+                    'value_ids': [(6, 0, [gray.id])],
+                }),
+                (0, 0, {
+                    'attribute_id': material_attr.id,
+                    'value_ids': [(6, 0, [glass.id, polycarbonate.id])],
+                }),
+            ],
+        })
+        for product in template.product_variant_ids:
+            values = product.product_template_attribute_value_ids.product_attribute_value_id
+            product.default_code = 'ANN210010' if glass in values else 'ANN210030150'
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Aggregated Color Catalog',
+            'code': 'AGGREGATED',
+            'product_ids': [(6, 0, [template.id])],
+        })
+
+        catalog.action_generate_mapping_lines()
+        rows = self._build_exporter()._build_data_rows(catalog)
+
+        self.assertEqual(
+            sorted(rows),
+            [
+                ['AGGREGATED', 1, 'ANN210010', '010'],
+                ['AGGREGATED', 1, 'ANN210030150', '030'],
+            ],
+        )
+
     def test_generate_mapping_lines_dedupes_size_variants_to_style_color_grain(self):
         """A multi-size style must produce one mapping line per style+color,
         not one per variant (which used to violate the unique constraint)."""
