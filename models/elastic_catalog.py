@@ -223,7 +223,8 @@ class ElasticCatalog(models.Model):
         the catalog from the mapping-lines view without losing their work
         on the next regeneration.
         """
-        for catalog in self:
+        catalogs = self.with_context(_elastic_color_cache={})
+        for catalog in catalogs:
             rows = catalog._prepare_generated_mapping_rows()
             existing = {
                 (line.item_number, line.color_code or ''): line
@@ -256,11 +257,26 @@ class ElasticCatalog(models.Model):
                 if key not in seen_keys
             )
             catalog.write({'mapping_line_ids': commands})
-        row_count = sum(len(catalog.mapping_line_ids) for catalog in self)
-        return self._mapping_notification(
+        row_count = sum(len(catalog.mapping_line_ids) for catalog in catalogs)
+        return catalogs._mapping_notification(
             _('Catalog mappings generated: %s row(s).') % row_count,
             reload_view=True,
         )
+
+    @api.model
+    def _regenerate_mappings_after_membership_import(self, fields, result):
+        """Regenerate once after a successful product membership import.
+
+        Import rows intentionally suppress the write-time hook. Keeping this
+        work inside load() also keeps Odoo's Test-import rollback transactional.
+        """
+        imports_membership = any(
+            field and field.split('/', 1)[0] == 'elastic_catalog_ids'
+            for field in fields
+        )
+        if not imports_membership or result.get('ids') is False:
+            return 0
+        return self.generate_active_catalog_mapping_lines()
 
     @api.model
     def generate_active_catalog_mapping_lines(self):

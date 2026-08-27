@@ -50,15 +50,29 @@ class ProductTemplate(models.Model):
     )
 
     def write(self, vals):
+        regenerate_mappings = (
+            'elastic_catalog_ids' in vals
+            and not self.env.context.get('import_file')
+        )
         catalogs_before = self.env['elastic.catalog']
-        if 'elastic_catalog_ids' in vals:
+        if regenerate_mappings:
             catalogs_before = self.elastic_catalog_ids
         res = super().write(vals)
-        if 'elastic_catalog_ids' in vals:
+        if regenerate_mappings:
             catalogs = (catalogs_before | self.elastic_catalog_ids).filtered('active')
             if catalogs:
                 catalogs.action_generate_mapping_lines()
         return res
+
+    @api.model
+    def load(self, fields, data):
+        result = super().load(fields, data)
+        if self.env.context.get('import_file') and data:
+            self.env['elastic.catalog']._regenerate_mappings_after_membership_import(
+                fields, result,
+            )
+        return result
+
     elastic_features = fields.Text(
         string='Elastic Product Tag Text',
         help='Optional text field that can be selected by Product Tag Mappings.'

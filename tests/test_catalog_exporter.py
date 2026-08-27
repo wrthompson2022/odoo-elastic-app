@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from datetime import date
+from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase
 
 from ..exporters.catalog_exporter import CatalogExporter, CatalogMappingExporter
+from ..models.elastic_catalog import ElasticCatalog
 
 
 class TestCatalogExporter(TransactionCase):
@@ -345,3 +347,140 @@ class TestCatalogMappingExporter(TransactionCase):
 
         rows = self._build_exporter()._build_data_rows(catalog)
         self.assertEqual(rows, [['SORTED', 7, 'SORT-BLK', '210']])
+
+
+class TestCatalogMembershipImport(TransactionCase):
+
+    def _side_effect_counts(self):
+        model_names = [
+            'mail.message',
+            'shopify.product.data.queue.ept',
+            'shopify.product.data.queue.line.ept',
+            'shopify.export.stock.queue.ept',
+            'shopify.export.stock.queue.line.ept',
+        ]
+        return {
+            model_name: self.env[model_name].search_count([])
+            for model_name in model_names
+            if model_name in self.env.registry
+        }
+
+    def _track_mapping_regeneration(self):
+        calls = []
+        original = ElasticCatalog.action_generate_mapping_lines
+
+        def tracked(catalogs):
+            calls.append(catalogs.ids)
+            return original(catalogs)
+
+        return calls, patch.object(
+            ElasticCatalog,
+            'action_generate_mapping_lines',
+            tracked,
+        )
+
+    def _load_variant_catalogs(self, rows):
+        return self.env['product.product'].with_context(import_file=True).load(
+            ['.id', 'elastic_catalog_ids/.id'],
+            [[str(product.id), str(catalog.id)] for product, catalog in rows],
+        )
+
+    def test_variant_import_regenerates_once_and_updates_additions_and_removals(self):
+        catalog_a, catalog_b = self.env['elastic.catalog'].create([
+            {'name': 'Import Catalog A', 'code': 'IMPORT-A'},
+            {'name': 'Import Catalog B', 'code': 'IMPORT-B'},
+        ])
+        product_a, product_b = self.env['product.product'].create([
+            {'name': 'Imported Variant A', 'default_code': 'IMPORT-001', 'sale_ok': True},
+            {'name': 'Imported Variant B', 'default_code': 'IMPORT-002', 'sale_ok': True},
+        ])
+        product_a.write({'elastic_catalog_ids': [(6, 0, catalog_a.ids)]})
+        product_b.write({'elastic_catalog_ids': [(6, 0, catalog_b.ids)]})
+
+        calls, tracker = self._track_mapping_regeneration()
+        side_effects_before = self._side_effect_counts()
+        with tracker:
+            result = self._load_variant_catalogs([
+                (product_a, catalog_b),
+                (product_b, catalog_a),
+            ])
+        side_effects_after = self._side_effect_counts()
+
+        self.assertFalse([
+            message for message in result['messages']
+            if message['type'] == 'error'
+        ])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(side_effects_after, side_effects_before)
+        self.assertEqual(set(calls[0]), set((catalog_a | catalog_b).ids))
+        self.assertEqual(product_a.elastic_catalog_ids, catalog_b)
+        self.assertEqual(product_b.elastic_catalog_ids, catalog_a)
+        self.assertEqual(catalog_a.mapping_line_ids.mapped('item_number'), ['IMPORT-002'])
+        self.assertEqual(catalog_b.mapping_line_ids.mapped('item_number'), ['IMPORT-001'])
+
+    def test_interactive_membership_write_regenerates_immediately(self):
+        product = self.env['product.product'].create({
+            'name': 'Interactive Variant',
+            'default_code': 'INTERACTIVE-001',
+            'sale_ok': True,
+        })
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Interactive Catalog',
+            'code': 'INTERACTIVE',
+        })
+
+        calls, tracker = self._track_mapping_regeneration()
+        with tracker:
+            product.write({'elastic_catalog_ids': [(4, catalog.id)]})
+
+        self.assertEqual(calls, [catalog.ids])
+        self.assertEqual(catalog.mapping_line_ids.mapped('item_number'), ['INTERACTIVE-001'])
+
+    def test_template_membership_import_regenerates_once(self):
+        templates = self.env['product.template'].create([
+            {'name': 'Imported Template A', 'default_code': 'TMPL-001', 'sale_ok': True},
+            {'name': 'Imported Template B', 'default_code': 'TMPL-002', 'sale_ok': True},
+        ])
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Template Import Catalog',
+            'code': 'TMPL-IMPORT',
+        })
+        calls, tracker = self._track_mapping_regeneration()
+
+        with tracker:
+            result = self.env['product.template'].with_context(import_file=True).load(
+                ['.id', 'elastic_catalog_ids/.id'],
+                [[str(template.id), str(catalog.id)] for template in templates],
+            )
+
+        self.assertFalse([
+            message for message in result['messages']
+            if message['type'] == 'error'
+        ])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            set(catalog.mapping_line_ids.mapped('item_number')),
+            {'TMPL-001', 'TMPL-002'},
+        )
+
+    def test_import_mapping_regeneration_rolls_back_with_transaction(self):
+        product = self.env['product.product'].create({
+            'name': 'Dry-run Variant',
+            'default_code': 'DRY-RUN-001',
+            'sale_ok': True,
+        })
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Dry-run Catalog',
+            'code': 'DRY-RUN',
+        })
+        savepoint = self.env.cr.savepoint(flush=False)
+        try:
+            result = self._load_variant_catalogs([(product, catalog)])
+            self.assertTrue(result['ids'])
+            self.assertEqual(catalog.mapping_line_ids.mapped('item_number'), ['DRY-RUN-001'])
+        finally:
+            savepoint.rollback()
+
+        self.env.invalidate_all()
+        self.assertFalse(product.elastic_catalog_ids)
+        self.assertFalse(catalog.mapping_line_ids)

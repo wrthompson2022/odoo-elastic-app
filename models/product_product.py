@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields
+from odoo import api, models, fields
 
 # Default attribute-name detection used when a template does not explicitly
 # select which attribute plays the Elastic Color/Size role.
@@ -78,15 +78,28 @@ class ProductProduct(models.Model):
     )
 
     def write(self, vals):
+        regenerate_mappings = (
+            'elastic_catalog_ids' in vals
+            and not self.env.context.get('import_file')
+        )
         catalogs_before = self.env['elastic.catalog']
-        if 'elastic_catalog_ids' in vals:
+        if regenerate_mappings:
             catalogs_before = self.elastic_catalog_ids
         res = super().write(vals)
-        if 'elastic_catalog_ids' in vals:
+        if regenerate_mappings:
             catalogs = (catalogs_before | self.elastic_catalog_ids).filtered('active')
             if catalogs:
                 catalogs.action_generate_mapping_lines()
         return res
+
+    @api.model
+    def load(self, fields, data):
+        result = super().load(fields, data)
+        if self.env.context.get('import_file') and data:
+            self.env['elastic.catalog']._regenerate_mappings_after_membership_import(
+                fields, result,
+            )
+        return result
 
     # ============================================
     # Helper Methods
@@ -224,12 +237,18 @@ class ProductProduct(models.Model):
         """Governed elastic.color record linked to an attribute value."""
         if not value:
             return self.env['elastic.color'].browse()
-        return self.env['elastic.color'].search([
+        cache = self.env.context.get('_elastic_color_cache')
+        if cache is not None and value.id in cache:
+            return self.env['elastic.color'].browse(cache[value.id])
+        elastic_color = self.env['elastic.color'].search([
             '|',
             ('odoo_attribute_value_id', '=', value.id),
             ('odoo_attribute_value_ids', 'in', value.id),
             ('active', '=', True),
         ], limit=1)
+        if cache is not None:
+            cache[value.id] = elastic_color.id
+        return elastic_color
 
     @staticmethod
     def _fallback_attribute_code(name):
