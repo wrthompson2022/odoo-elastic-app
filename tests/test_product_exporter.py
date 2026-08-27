@@ -187,6 +187,13 @@ class TestProductExporter(TransactionCase):
         self.assertEqual(exporter._get_size_num(self.product), 40)
         self.assertEqual(exporter._get_alternate_size(self.product), 'Medium')
 
+    def test_exported_product_name_includes_all_variant_attributes(self):
+        exporter = self._build_exporter()
+        self.assertEqual(
+            exporter.get_field_mapping()['ProductName'](self.product),
+            'Elastic Frame Tortoise Shell Medium',
+        )
+
     def test_template_defaults_feed_permission_group_and_available_date(self):
         exporter = self._build_exporter()
         self.assertEqual(exporter._get_product_permission_group(self.product), 'OPTICAL')
@@ -316,6 +323,7 @@ class TestCompositeItemNumber(TransactionCase):
             'name': 'Black Matte',
             'attribute_id': self.frame_color.id,
             'elastic_attribute_code': 'BLKM',
+            'elastic_color_code': 'BLKM',
         })
         self.blue_mirror = self.env['product.attribute.value'].create({
             'name': 'Blue Mirror',
@@ -381,9 +389,10 @@ class TestCompositeItemNumber(TransactionCase):
             self.pc_variant._get_elastic_item_number(), 'BALESBEACHBLKM'
         )
 
-    def test_composite_product_name_appends_composite_value_names(self):
+    def test_composite_product_name_includes_all_variant_attributes(self):
         self.assertEqual(
-            self.glass_variant._get_elastic_product_name(), 'Bales Beach Black Matte'
+            self.glass_variant._get_elastic_product_name(),
+            'Bales Beach Black Matte Blue Mirror Glass',
         )
 
     def test_configured_separator_is_still_supported(self):
@@ -410,15 +419,15 @@ class TestCompositeItemNumber(TransactionCase):
         self.assertEqual(exporter._get_size_num(self.glass_variant), 1)
         self.assertEqual(exporter._get_size_num(self.pc_variant), 2)
 
-    def test_eyewear_role_fallback_prefers_lens_color_and_material(self):
+    def test_eyewear_role_fallback_prefers_frame_color_and_lens_material(self):
         self.template.write({
             'elastic_color_attribute_id': False,
             'elastic_size_attribute_id': False,
         })
         exporter = self._build_exporter()
 
-        self.assertEqual(exporter._get_color_code(self.glass_variant), 'BLU')
-        self.assertEqual(exporter._get_color_name(self.glass_variant), 'Blue Mirror')
+        self.assertEqual(exporter._get_color_code(self.glass_variant), 'BLKM')
+        self.assertEqual(exporter._get_color_name(self.glass_variant), 'Black Matte')
         self.assertEqual(exporter._get_size_name(self.glass_variant), 'Glass')
         self.assertEqual(exporter._get_size_name(self.pc_variant), 'PC')
 

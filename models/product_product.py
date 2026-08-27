@@ -10,11 +10,10 @@ _logger = logging.getLogger(__name__)
 # select which attribute plays the Elastic Color/Size role.
 COLOR_ATTRIBUTE_NAMES = {'color', 'colour', 'frame color', 'product color'}
 COLOR_ATTRIBUTE_PRIORITY = (
-    'lens color',
+    'frame color',
     'color',
     'colour',
     'product color',
-    'frame color',
 )
 SIZE_ATTRIBUTE_NAMES = {'size', 'talla', 'lens material'}
 SIZE_ATTRIBUTE_PRIORITY = ('lens material', 'size', 'talla')
@@ -169,20 +168,21 @@ class ProductProduct(models.Model):
         )
 
     def _get_elastic_product_name(self):
-        """ProductName for exports. When a composite ItemNumber is used, the
-        composite attribute value names are appended so each generated Elastic
-        product page is self-describing (e.g. "Bales Beach Black Matte")."""
+        """Return a self-describing variant name for Elastic exports.
+
+        ``product.product.name`` is the template name in Odoo, so exporting it
+        alone makes every variant of a style indistinguishable.  Append every
+        value in the variant combination, in template attribute order, whether
+        or not the template uses a composite Elastic ItemNumber.
+        """
         self.ensure_one()
-        name = self.name or ''
-        if self.product_tmpl_id.elastic_use_composite_item_number:
-            parts = [
-                value.name
-                for value in self._get_elastic_composite_values()
-                if value.name
-            ]
-            if parts:
-                return ' '.join([name] + parts)
-        return name
+        parts = [self.name] if self.name else []
+        parts.extend(
+            value.name
+            for value in self.product_template_attribute_value_ids
+            if value.name
+        )
+        return ' '.join(parts)
 
     def _get_elastic_composite_values(self):
         """Attribute values composing this variant's ItemNumber suffix, in the

@@ -100,9 +100,11 @@ week, or month intervals.
   example, each frame color of an eyewear style) becomes its own Elastic
   product page. A configurable separator joins the parts.
 - Per-template attribute role selection: choose which attribute is exported as
-  the Elastic Color dimension and which as the Size dimension (for example,
-  Lens Color as color and Lens Material as size), with name-based auto-detect
-  when unset.
+  the Elastic Color dimension and which as the Size dimension. When unset,
+  color auto-detection prefers Frame Color and does not use Lens Color unless
+  it is explicitly selected; size auto-detection prefers Lens Material.
+- Variant-aware product names append all attribute values to the template name
+  (for example, `Annette Black Gloss Blue Mirror Glass`).
 - Stable StockItemKey override for product, price, inventory, and order
   matching.
 - Product permission group and available-date controls.

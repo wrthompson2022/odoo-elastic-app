@@ -103,8 +103,9 @@ class ProductTemplate(models.Model):
         'product.attribute',
         string='Elastic Color Attribute',
         help='Attribute exported as the Elastic Color dimension. Leave empty '
-             'to auto-detect by attribute name (Color, Colour, Frame Color, '
-             'Product Color).'
+             'to auto-detect by attribute name, preferring Frame Color over '
+             'Color, Colour, or Product Color. Lens Color is only used when '
+             'explicitly selected here.'
     )
     elastic_size_attribute_id = fields.Many2one(
         'product.attribute',
