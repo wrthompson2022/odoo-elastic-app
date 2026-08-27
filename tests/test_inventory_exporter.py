@@ -132,6 +132,7 @@ class TestInventoryExporter(TransactionCase):
         fallback_bom = SimpleNamespace()
 
         exporter._get_active_boms = lambda product: [preferred_bom, fallback_bom]
+        exporter._is_bom_inventory_product = lambda product: True
         exporter._get_bom_buildable_qty = lambda bom, warehouse: (
             3 if bom is preferred_bom else 11
         )
@@ -161,7 +162,7 @@ class TestInventoryExporter(TransactionCase):
             ],
         )
 
-        def available_qty(product, warehouse=None):
+        def available_qty(product, warehouse=None, exclude_reserved=False):
             return {
                 'A': 20,
                 'B': 12,
@@ -170,3 +171,50 @@ class TestInventoryExporter(TransactionCase):
         exporter._get_available_qty = available_qty
 
         self.assertEqual(exporter._get_bom_buildable_qty(bom, None), 4)
+
+    def test_bom_inventory_categories_include_child_categories_only(self):
+        exporter = self._build_exporter()
+        parent = self.env['product.category'].create({'name': 'Buildable Finished Goods'})
+        child = self.env['product.category'].create({
+            'name': 'Buildable Eyewear',
+            'parent_id': parent.id,
+        })
+        excluded = self.env['product.category'].create({'name': 'Purchased Goods'})
+        included_product = self.env['product.product'].create({
+            'name': 'Included Finished Good',
+            'categ_id': child.id,
+        })
+        excluded_product = self.env['product.product'].create({
+            'name': 'Excluded Finished Good',
+            'categ_id': excluded.id,
+        })
+        self.config.inventory_bom_category_ids = [(6, 0, [parent.id])]
+
+        self.assertTrue(exporter._is_bom_inventory_product(included_product))
+        self.assertFalse(exporter._is_bom_inventory_product(excluded_product))
+
+    def test_component_availability_includes_child_location_and_excludes_reserved(self):
+        exporter = self._build_exporter()
+        warehouse = self.env['stock.warehouse'].search([], limit=1)
+        warehouse.elastic_inventory_enabled = True
+        raw_location = self.env['stock.location'].create({
+            'name': 'Elastic Raw Materials',
+            'usage': 'internal',
+            'location_id': warehouse.lot_stock_id.id,
+        })
+        component = self.env['product.product'].create({
+            'name': 'Elastic Raw Component',
+            'is_storable': True,
+        })
+        Quant = self.env['stock.quant']
+        Quant._update_available_quantity(component, raw_location, 10)
+        Quant._update_reserved_quantity(component, raw_location, 4)
+
+        self.assertEqual(
+            exporter._get_available_qty(
+                component,
+                warehouse,
+                exclude_reserved=True,
+            ),
+            6,
+        )

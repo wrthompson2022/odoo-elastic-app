@@ -191,8 +191,16 @@ class TestElasticConfig(TransactionCase):
         config = self.env['elastic.config'].get_config()
         self.assertEqual(config.elastic_warehouse_code(None), 'DEFAULT')
 
+        self.env['stock.warehouse'].search([]).write({
+            'elastic_inventory_enabled': False,
+        })
+        self.assertFalse(config.get_inventory_warehouses())
+        self.assertEqual(config.get_default_warehouse_code(), 'DEFAULT')
+
         warehouse = self.env['stock.warehouse'].search([], limit=1, order='sequence, id')
         if warehouse:
+            warehouse.elastic_inventory_enabled = True
+            self.assertEqual(config.get_inventory_warehouses(), warehouse)
             self.assertEqual(
                 config.get_default_warehouse_code(),
                 warehouse.code or warehouse.name or 'DEFAULT',

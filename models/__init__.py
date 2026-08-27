@@ -7,6 +7,7 @@ from . import elastic_import_log
 from . import product_template
 from . import product_product
 from . import product_pricelist
+from . import stock_warehouse
 from . import res_partner
 from . import sale_order
 from . import elastic_customer_xref

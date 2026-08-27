@@ -12,8 +12,8 @@
                     </group>
                     <group>
                         <field name="elastic_price_group_code"
-                               placeholder="LP, D, PL..."
-                               invisible="not elastic_sync_enabled"/>
+                               placeholder="Optional; generated automatically when blank"/>
+                        <field name="elastic_effective_price_group_code" readonly="1"/>
                     </group>
                 </group>
             </xpath>
@@ -28,6 +28,7 @@
             <field name="currency_id" position="after">
                 <field name="elastic_sync_enabled" optional="show"/>
                 <field name="elastic_price_group_code" optional="hide"/>
+                <field name="elastic_effective_price_group_code" optional="show"/>
             </field>
         </field>
     </record>
@@ -36,17 +37,18 @@
         <field name="name">Pricelists (Elastic)</field>
         <field name="res_model">product.pricelist</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('elastic_sync_enabled', '=', True)]</field>
         <field name="context">{'default_elastic_sync_enabled': True}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No pricelists are flagged for Elastic yet</p>
             <p>
                 Enable <strong>Send to Elastic</strong> on each pricelist you want to publish as
                 a price group. Optionally set an Elastic Price Group Code (e.g. <em>LP</em>,
-                <em>D</em>, <em>PL</em>); otherwise it is derived from the pricelist name.
+                <em>D</em>, <em>PL</em>); otherwise a stable code is generated automatically.
             </p>
             <p>
-                If no pricelist is flagged, the price export falls back to the product list price.
+                Pricelists assigned to exported customers are included automatically, even when
+                Send to Elastic is not checked. If none are assigned or enabled, the export falls
+                back to the product list price.
             </p>
         </field>
     </record>

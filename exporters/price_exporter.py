@@ -6,11 +6,11 @@ Exports product pricing data to the Elastic platform via SFTP.
 File format: prices.csv
 
 Behavior:
-* If any active pricelists have "Send to Elastic" enabled, one row per
-  product per enabled pricelist is exported using the price computed from
-  that pricelist (variant-aware).
-* Otherwise, a single row per product is exported using the product list
-  price under the default 'LP' price group.
+* Active pricelists assigned to exported customers are included automatically;
+  "Send to Elastic" additionally includes unassigned price levels. One row per
+  product per included pricelist is exported using its variant-aware price.
+* When no pricelists qualify, one row per product is exported using the product
+  list price under the default 'LP' price group.
 * Catalog membership (template or variant level) drives the exported
   population, and CatalogKey comes from that same membership; products in
   several catalogs get one row per catalog. Members whose only catalog has
@@ -121,11 +121,26 @@ class PriceExporter(BaseExporter):
     # Pricelist resolution
     # ------------------------------------------------------------------
     def _get_enabled_pricelists(self):
-        """Return active pricelists flagged 'Send to Elastic', if any."""
-        return self.env['product.pricelist'].search([
+        """Pricelists explicitly enabled or assigned to exported customers.
+
+        A customer assignment is sufficient to publish its price level; users
+        do not need to duplicate that decision with Send to Elastic.
+        """
+        enabled = self.env['product.pricelist'].search([
             ('active', '=', True),
             ('elastic_sync_enabled', '=', True),
         ])
+        customers = self.env['res.partner'].search([
+            ('is_company', '=', True),
+            ('customer_rank', '>', 0),
+            ('elastic_sync_enabled', '=', True),
+        ])
+        assigned = customers.mapped('property_product_pricelist').filtered('active')
+        pricelist_ids = (enabled | assigned).ids
+        return self.env['product.pricelist'].search(
+            [('id', 'in', pricelist_ids)],
+            order='id',
+        )
 
     def _get_company_currency_code(self):
         company = self.env.company
@@ -217,6 +232,20 @@ class PriceExporter(BaseExporter):
                 ])
         return rows
 
+    def _build_export_rows(self, products, pricelists):
+        """Build customer price levels and guarantee the shared LP baseline."""
+        if not pricelists:
+            return self._build_rows_from_lst_price(products)
+
+        rows = self._build_rows_from_pricelists(products, pricelists)
+        price_groups = {
+            pricelist._get_elastic_price_group_code()
+            for pricelist in pricelists
+        }
+        if self.DEFAULT_PRICE_GROUP not in price_groups:
+            rows.extend(self._build_rows_from_lst_price(products))
+        return rows
+
     # ------------------------------------------------------------------
     # Export
     # ------------------------------------------------------------------
@@ -237,15 +266,17 @@ class PriceExporter(BaseExporter):
             pricelists = self._get_enabled_pricelists()
             if pricelists:
                 _logger.info(
-                    'Exporting %d pricelist(s) flagged for Elastic: %s',
+                    'Exporting %d customer-assigned or explicitly enabled '
+                    'pricelist(s): %s',
                     len(pricelists), ', '.join(pricelists.mapped('name')),
                 )
-                data_rows = self._build_rows_from_pricelists(products, pricelists)
+                data_rows = self._build_export_rows(products, pricelists)
             else:
                 _logger.info(
-                    'No pricelists flagged "Send to Elastic"; falling back to product list price.'
+                    'No enabled or customer-assigned pricelists found; falling '
+                    'back to product list price.'
                 )
-                data_rows = self._build_rows_from_lst_price(products)
+                data_rows = self._build_export_rows(products, pricelists)
 
             if not data_rows:
                 return self._empty_result(

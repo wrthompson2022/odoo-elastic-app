@@ -178,6 +178,10 @@
                                 <group>
                                     <field name="inventory_include_quotation_demand"/>
                                     <field name="inventory_use_bom_component_fallback"/>
+                                    <field name="inventory_bom_category_ids"
+                                           widget="many2many_tags"
+                                           invisible="not inventory_use_bom_component_fallback"
+                                           required="inventory_use_bom_component_fallback"/>
                                 </group>
                                 <group>
                                     <!-- Empty group for balanced two-column layout -->

@@ -35,16 +35,19 @@ class TestCustomerExporter(TransactionCase):
             self.exporter.get_field_mapping()['PriceGroup'](customer), 'VIP'
         )
 
-    def test_price_group_uses_customer_pricelist_inferred_code(self):
+    def test_price_group_uses_customer_pricelist_automatic_code(self):
         pricelist = self.env['product.pricelist'].create({
             'name': 'Wholesale Customers',
         })
         customer = self._create_customer(pricelist)
 
-        self.assertEqual(self.exporter._get_price_group(customer), 'D')
+        self.assertEqual(
+            self.exporter._get_price_group(customer),
+            f'ODOO{pricelist.id}',
+        )
 
     def test_price_group_falls_back_when_customer_has_no_pricelist(self):
         customer = MagicMock()
         customer.property_product_pricelist = False
 
-        self.assertEqual(self.exporter._get_price_group(customer), 'D')
+        self.assertEqual(self.exporter._get_price_group(customer), 'LP')

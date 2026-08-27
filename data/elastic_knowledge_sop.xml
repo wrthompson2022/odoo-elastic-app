@@ -179,7 +179,7 @@
 <h2>Export Filters</h2>
 <p>Use <strong>Export Only Synced Products</strong> to limit product, price, inventory, feature, and tag exports to products with Elastic sync enabled. Product exports also require the template and variant to be enabled.</p>
 <p>Use <strong>Include Quotations in ATP Demand</strong> when draft/sent sales quotations should reduce exported inventory availability. Leave it disabled when only confirmed sales demand should reduce ATP.</p>
-<p>Use <strong>Use BOM Component Fallback for ATP</strong> when made-to-order finished goods should be sellable based on raw-material stock. Finished-goods ATP is used first; BOM component availability is only used when the finished good has no positive ATP.</p>
+<p>Enable <strong>Send Inventory to Elastic</strong> on every warehouse that should contribute inventory. Use <strong>Use BOM Component Fallback for ATP</strong> when made-to-order finished goods should be sellable based on raw-material stock, and select the eligible BOM Inventory Categories. Finished-goods ATP is used first; BOM component availability is only used when the finished good has no positive ATP.</p>
 <p>Use <strong>Export Only Synced Customers</strong> to limit customer, location, custom-field, and rep-mapping exports to customers with Elastic sync enabled.</p>
 
 <h2>Customer Setup</h2>
@@ -217,7 +217,7 @@
 </ol>
 
 <h2>Pricing Setup</h2>
-<p>Go to <strong>Elastic &gt; Configuration &gt; Pricelists (Elastic)</strong>. Mark pricelists <strong>Send to Elastic</strong> and assign an Elastic Price Group Code. Assign the appropriate pricelist to each customer; customers.csv uses the assigned pricelist's group code. If no active pricelist is marked for Elastic, the price export falls back to product list price with price group LP.</p>
+<p>Assign the appropriate Odoo pricelist to each customer. Customer-assigned pricelists are included in prices.csv automatically, and customers.csv uses the same price group. An explicit Elastic Price Group Code is optional; blank codes receive a stable automatic code. Use <strong>Send to Elastic</strong> only for additional price levels that are not assigned to an exported customer. The product list-price group LP is always included unless an included pricelist already supplies LP.</p>
 
 <h2>Customer Cross-References</h2>
 <p>Use <strong>Elastic &gt; Configuration &gt; Customer Cross-References</strong> to maintain external Sold-To and Ship-To IDs when order files need explicit mapping to Odoo partners. During order import, mappings are also recorded automatically after a match is found.</p>
@@ -361,12 +361,12 @@
         <tr>
             <td>Export Prices</td>
             <td>prices.csv</td>
-            <td>Sellable active product variants and Elastic-enabled pricelists</td>
+            <td>Sellable active product variants and customer-assigned or Elastic-enabled pricelists</td>
         </tr>
         <tr>
             <td>Export Inventory</td>
             <td>inventory.csv</td>
-            <td>Time-phased ATP for storable active products by active warehouse</td>
+            <td>Time-phased ATP for storable active products by inventory-enabled warehouse</td>
         </tr>
         <tr>
             <td>Export Catalogs</td>
@@ -393,7 +393,7 @@
 
 <h2>Inventory ATP Logic</h2>
 <p>The inventory export sends available-to-promise quantities by product and warehouse. It starts with current finished-goods on-hand stock, applies open incoming and outgoing stock moves in date order, optionally subtracts draft/sent quotations, and sends negative quantities as 0. The internal running balance can go negative so later receipts first cover earlier shortages before increasing sellable availability.</p>
-<p>If <strong>Use BOM Component Fallback for ATP</strong> is enabled and a finished good has no positive finished-goods ATP, Odoo evaluates every active BOM for that product/template. For each BOM, the buildable quantity is the lowest available component quantity after BOM usage is considered. If multiple active BOMs exist, Odoo uses the BOM that can build the highest number of finished units. Existing finished-good demand still reduces that BOM-derived quantity before export.</p>
+<p>If <strong>Use BOM Component Fallback for ATP</strong> is enabled, the finished product belongs to a selected BOM Inventory Category (or child category), and it has no positive finished-goods ATP, Odoo evaluates every active BOM for that product/template. For each BOM, the buildable quantity is the lowest unreserved component quantity after BOM usage is considered across internal locations in the enabled warehouse. If multiple active BOMs exist, Odoo uses the BOM that can build the highest number of finished units. Existing finished-good demand still reduces that BOM-derived quantity before export.</p>
 
 <h3>Inventory Examples</h3>
 <ul>
@@ -424,7 +424,7 @@
 <ul>
     <li>Products have ItemNumber and StockItemKey values.</li>
     <li>Customers have SoldToID values that match Elastic expectations.</li>
-    <li>Pricelists marked Send to Elastic have unique price group codes.</li>
+    <li>Every customer-assigned pricelist is active; explicit price group codes, when used, are unique.</li>
     <li>Catalogs have unique codes and mapping lines.</li>
     <li>Product tag mappings point to fields that still exist.</li>
     <li>Feature assignments have values and active/exportable features.</li>
@@ -650,8 +650,8 @@
         </tr>
         <tr>
             <td>Unexpected price rows</td>
-            <td>Pricelists marked Send to Elastic drive price groups; otherwise list price is used.</td>
-            <td>Review Elastic pricelist settings and price group codes.</td>
+            <td>Customer-assigned or explicitly enabled pricelists drive price groups; otherwise list price is used.</td>
+            <td>Review customer pricelist assignments and optional Elastic price group codes.</td>
         </tr>
     </tbody>
 </table>

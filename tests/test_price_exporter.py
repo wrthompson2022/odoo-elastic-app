@@ -88,6 +88,48 @@ class TestPriceExporter(TransactionCase):
             self.assertEqual(row[0], 'ALL')
             self.assertEqual(row[1], 'ET-001')
 
+    def test_customer_assigned_pricelist_is_exported_without_toggle_or_code(self):
+        pricelist = self.env['product.pricelist'].create({
+            'name': 'Assigned Contract Level',
+            'elastic_sync_enabled': False,
+        })
+        customer = self.env['res.partner'].create({
+            'name': 'Assigned Pricing Customer',
+            'is_company': True,
+            'customer_rank': 1,
+            'elastic_sync_enabled': True,
+            'property_product_pricelist': pricelist.id,
+        })
+        exporter = self._build_exporter()
+
+        self.assertIn(pricelist, exporter._get_enabled_pricelists())
+        price_group = pricelist._get_elastic_price_group_code()
+        self.assertEqual(price_group, f'ODOO{pricelist.id}')
+        self.assertEqual(
+            customer.property_product_pricelist._get_elastic_price_group_code(),
+            price_group,
+        )
+        self.assertEqual(
+            exporter._build_rows_from_pricelists(self.product, pricelist)[0][2],
+            price_group,
+        )
+        groups = [
+            row[2]
+            for row in exporter._build_export_rows(self.product, pricelist)
+        ]
+        self.assertEqual(groups, [price_group, 'LP'])
+
+    def test_explicit_lp_pricelist_does_not_duplicate_list_price_group(self):
+        pricelist = self.env['product.pricelist'].create({
+            'name': 'Published List Price',
+            'elastic_price_group_code': 'LP',
+        })
+        exporter = self._build_exporter()
+
+        rows = exporter._build_export_rows(self.product, pricelist)
+
+        self.assertEqual([row[2] for row in rows], ['LP'])
+
     def test_rows_use_catalog_code_for_assigned_products(self):
         catalog = self.env['elastic.catalog'].create({
             'name': 'Ducks Unlimited',

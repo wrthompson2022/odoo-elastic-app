@@ -150,6 +150,7 @@ class TestRepExports(TransactionCase):
         warehouse = self.env['stock.warehouse'].create({
             'name': 'Elastic Test Warehouse',
             'code': 'ELW',
+            'elastic_inventory_enabled': True,
         })
         self.customer_with_rep.elastic_warehouse_id = warehouse
         self.assertEqual(

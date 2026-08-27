@@ -12,16 +12,20 @@ class TestPricelistElastic(TransactionCase):
         })
         self.assertEqual(pricelist._get_elastic_price_group_code(), 'WS')
 
-    def test_code_derived_from_name_when_blank(self):
+    def test_blank_codes_are_stable_and_unique(self):
         Pricelist = self.env['product.pricelist']
         dealer = Pricelist.create({'name': 'Dealer Pricing', 'elastic_sync_enabled': True})
         promo = Pricelist.create({'name': 'Holiday Promo', 'elastic_sync_enabled': True})
         retail = Pricelist.create({'name': 'Retail List', 'elastic_sync_enabled': True})
         other = Pricelist.create({'name': 'Other', 'elastic_sync_enabled': True})
-        self.assertEqual(dealer._get_elastic_price_group_code(), 'D')
-        self.assertEqual(promo._get_elastic_price_group_code(), 'PL')
-        self.assertEqual(retail._get_elastic_price_group_code(), 'LP')
-        self.assertEqual(other._get_elastic_price_group_code(), 'LP')
+        pricelists = dealer | promo | retail | other
+        codes = pricelists.mapped(lambda p: p._get_elastic_price_group_code())
+        self.assertEqual(codes, [f'ODOO{p.id}' for p in pricelists])
+        self.assertEqual(len(codes), len(set(codes)))
+        self.assertEqual(
+            pricelists.mapped('elastic_effective_price_group_code'),
+            codes,
+        )
 
     def test_duplicate_explicit_codes_rejected(self):
         Pricelist = self.env['product.pricelist']

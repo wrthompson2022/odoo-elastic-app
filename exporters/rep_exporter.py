@@ -66,12 +66,12 @@ class RepExporter(BaseExporter):
 
     def _get_warehouse_code(self, employee):
         """Warehouse code from the employee user's default warehouse (sale_stock),
-        falling back to the first active warehouse in Odoo."""
+        falling back to the first inventory-enabled warehouse in Odoo."""
         warehouse = None
         user = employee.user_id
         if user and 'property_warehouse_id' in user._fields:
             warehouse = user.property_warehouse_id
-        if warehouse:
+        if warehouse and warehouse.active and warehouse.elastic_inventory_enabled:
             return self.config.elastic_warehouse_code(warehouse)
         return self.config.get_default_warehouse_code()
 

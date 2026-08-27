@@ -80,7 +80,7 @@ class InventoryExporter(BaseExporter):
     def _get_stock_item_key(product):
         return product._get_elastic_stock_item_key()
 
-    def _get_available_qty(self, product, warehouse=None):
+    def _get_available_qty(self, product, warehouse=None, exclude_reserved=False):
         """
         Get on-hand quantity for a product.
         This is the starting balance for ATP; open demand and supply are applied
@@ -93,7 +93,8 @@ class InventoryExporter(BaseExporter):
                 ('location_id.warehouse_id', '=', warehouse.id),
                 ('location_id.usage', '=', 'internal'),
             ])
-            return sum(q.quantity for q in quants)
+            quantity_field = 'available_quantity' if exclude_reserved else 'quantity'
+            return sum(q[quantity_field] for q in quants)
         else:
             # Get total on-hand quantity across all warehouses
             return product.qty_available
@@ -288,7 +289,16 @@ class InventoryExporter(BaseExporter):
             if required_per_finished <= 0:
                 continue
 
-            component_available = max(self._get_available_qty(component, warehouse), 0)
+            # Component reservations already belong to other manufacturing or
+            # transfer demand and cannot support another finished good.
+            component_available = max(
+                self._get_available_qty(
+                    component,
+                    warehouse,
+                    exclude_reserved=True,
+                ),
+                0,
+            )
             buildable_quantities.append(
                 floor(component_available / required_per_finished)
             )
@@ -298,8 +308,19 @@ class InventoryExporter(BaseExporter):
 
         return min(buildable_quantities)
 
+    def _is_bom_inventory_product(self, product):
+        categories = self.config.inventory_bom_category_ids
+        if not categories or not product.categ_id:
+            return False
+        return bool(self.env['product.category'].search_count([
+            ('id', '=', product.categ_id.id),
+            ('id', 'child_of', categories.ids),
+        ]))
+
     def _get_bom_component_fallback_qty(self, product, warehouse):
         if not getattr(self.config, 'inventory_use_bom_component_fallback', False):
+            return 0
+        if not self._is_bom_inventory_product(product):
             return 0
 
         boms = self._get_active_boms(product)
@@ -359,11 +380,12 @@ class InventoryExporter(BaseExporter):
             self.pre_export_hook(products)
             today = fields.Date.context_today(self.config)
 
-            # Get all warehouses
-            warehouses = self.env['stock.warehouse'].search([('active', '=', True)])
-
-            # If no warehouses configured, use DEFAULT
-            use_default_warehouse = len(warehouses) == 0
+            warehouses = self.config.get_inventory_warehouses()
+            if not warehouses:
+                return self._empty_result(
+                    'No active warehouses have Send Inventory to Elastic enabled; '
+                    'nothing uploaded'
+                )
 
             # Build data rows
             data_rows = []
@@ -374,23 +396,18 @@ class InventoryExporter(BaseExporter):
 
                 stock_item_key = self._get_stock_item_key(product)
 
-                if use_default_warehouse:
+                # One ATP timeline per explicitly enabled warehouse.
+                for warehouse in warehouses:
+                    warehouse_code = self._get_warehouse_code(warehouse)
                     data_rows.extend(
-                        self._build_atp_rows(product, None, 'DEFAULT', stock_item_key, today)
-                    )
-                else:
-                    # One ATP timeline per warehouse
-                    for warehouse in warehouses:
-                        warehouse_code = self._get_warehouse_code(warehouse)
-                        data_rows.extend(
-                            self._build_atp_rows(
-                                product,
-                                warehouse,
-                                warehouse_code,
-                                stock_item_key,
-                                today,
-                            )
+                        self._build_atp_rows(
+                            product,
+                            warehouse,
+                            warehouse_code,
+                            stock_item_key,
+                            today,
                         )
+                    )
 
             if not data_rows:
                 return self._empty_result(

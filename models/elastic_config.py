@@ -242,6 +242,12 @@ class ElasticConfig(models.Model):
         default=False,
         help='When enabled, products with no finished-goods ATP fall back to buildable quantity from active BOM component stock.'
     )
+    inventory_bom_category_ids = fields.Many2many(
+        'product.category',
+        string='BOM Inventory Categories',
+        help='Only finished products in these categories or their child '
+             'categories may use BOM component stock as Elastic ATP.',
+    )
 
     # ============================================
     # Computed Methods
@@ -758,12 +764,20 @@ class ElasticConfig(models.Model):
             return warehouse.code or warehouse.name or 'DEFAULT'
         return 'DEFAULT'
 
+    def get_inventory_warehouses(self):
+        """Active warehouses explicitly enabled for inventory.csv."""
+        self.ensure_one()
+        return self.env['stock.warehouse'].search([
+            ('active', '=', True),
+            ('elastic_inventory_enabled', '=', True),
+        ], order='sequence, id')
+
     def get_default_warehouse_code(self):
         """Warehouse code used when a record has no explicit warehouse:
-        the first active warehouse in Odoo (matching what inventory.csv
-        exports), or 'DEFAULT' on databases without warehouses."""
+        the first inventory-enabled warehouse (matching inventory.csv), or
+        'DEFAULT' when no warehouse is enabled."""
         self.ensure_one()
-        warehouse = self.env['stock.warehouse'].search([], limit=1, order='sequence, id')
+        warehouse = self.get_inventory_warehouses()[:1]
         return self.elastic_warehouse_code(warehouse)
 
     def get_default_catalog_key(self):

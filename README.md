@@ -119,9 +119,10 @@ week, or month intervals.
   credit limit, notes, and drop-ship approval. Each customer's Elastic price group
   is derived from their assigned Odoo pricelist.
 - Customer warehouse assignment: `customers.csv` sends the customer's Elastic
-  Warehouse code, falling back to the first active Odoo warehouse so the code
-  always matches `inventory.csv`. Rep warehouses use the employee's linked
-  user's default warehouse the same way.
+  Warehouse code when that warehouse has **Send Inventory to Elastic** enabled,
+  falling back to the first enabled warehouse so the code always matches
+  `inventory.csv`. Rep warehouses use the employee's linked user's default
+  warehouse the same way.
 - Connection-scoped and global customer cross-reference mappings.
 - Catalog metadata including permission group, ship/cancel dates, season,
   brand, classification, and price group. Catalog mapping lines are generated
@@ -131,21 +132,26 @@ week, or month intervals.
   immediately regenerates that catalog's mapping lines. Manual sort edits on
   mapping lines survive regeneration, so the mapping-lines view doubles as
   the catalog sort editor.
-- Per-pricelist **Send to Elastic** toggle and unique Elastic price-group code.
+- Customer-assigned pricelists are exported automatically. The optional
+  **Send to Elastic** toggle also publishes unassigned price levels. Blank
+  Elastic price-group codes receive stable automatic codes shared by
+  `customers.csv` and `prices.csv`.
 - Variant-aware pricing export, with list-price fallback when no pricelists are
-  flagged.
+  assigned or explicitly enabled. The `LP` list-price group is always included
+  unless an included pricelist already supplies it.
 
 ### Inventory ATP
 
-The `inventory.csv` export sends time-phased available-to-promise rows by
-warehouse. It starts from current internal on-hand stock, applies open incoming
+The `inventory.csv` export sends time-phased available-to-promise rows for each
+warehouse marked **Send Inventory to Elastic**. It starts from current internal on-hand stock, applies open incoming
 and outgoing stock moves in date order, and allows the internal running balance
 to go negative so later receipts first satisfy prior shortages. Exported
 quantities are clamped to `0`.
 
 Optional inventory settings allow draft/sent quotations to reduce ATP demand
-and allow make-to-order finished goods to fall back to buildable quantity from
-active BOM component stock when finished-goods ATP is unavailable.
+and allow configured finished-goods category trees to fall back to buildable
+quantity from unreserved active-BOM component stock when finished-goods ATP is
+unavailable.
 
 ## Configuration Steps
 

@@ -89,8 +89,12 @@ class CustomerExporter(BaseExporter):
 
     def _get_warehouse_code(self, record):
         """Warehouse code from the customer's Elastic Warehouse, falling
-        back to the first active warehouse (matching inventory.csv codes)."""
-        if record.elastic_warehouse_id:
+        back to the first inventory-enabled warehouse."""
+        if (
+            record.elastic_warehouse_id
+            and record.elastic_warehouse_id.active
+            and record.elastic_warehouse_id.elastic_inventory_enabled
+        ):
             return self.config.elastic_warehouse_code(record.elastic_warehouse_id)
         return self.config.get_default_warehouse_code()
 
@@ -113,9 +117,9 @@ class CustomerExporter(BaseExporter):
     def _get_price_group(self, record):
         """Get the Elastic price group from the customer's Odoo pricelist."""
         pricelist = record.property_product_pricelist
-        if pricelist:
+        if pricelist and pricelist.active:
             return pricelist._get_elastic_price_group_code()
-        return 'D'
+        return 'LP'
 
     def _get_language_code(self, record):
         """Convert Odoo language code to Elastic format"""
