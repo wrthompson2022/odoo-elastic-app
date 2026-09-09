@@ -136,24 +136,35 @@ class ResPartner(models.Model):
     @api.model
     def _search_by_sold_to_id(self, sold_to_id):
         """
-        Search for partner by SoldToID (either legacy account number or Odoo ID)
-        Used during order import to match customers
+        Search for partner by SoldToID (either legacy account number or Odoo ID).
+        Used during order import to match customers.
+
+        Mirrors ``_get_sold_to_id``: when the legacy account number is configured
+        as the SoldToID source it is tried first, otherwise the Odoo ID is tried
+        first. Both keys are always attempted so accounts that were exported
+        with a plain Odoo ID (no legacy number) still resolve.
         """
+        sold_to_id = (sold_to_id or '').strip()
+        if not sold_to_id:
+            return self.env['res.partner']
+
         config = self.env['elastic.config'].get_config()
 
-        # First try to find by legacy account number if that's enabled
-        if config.use_legacy_account_number:
-            partner = self.search([('legacy_account_number', '=', sold_to_id)], limit=1)
+        def by_legacy():
+            return self.search([('legacy_account_number', '=', sold_to_id)], limit=1)
+
+        def by_odoo_id():
+            try:
+                partner_id = int(sold_to_id)
+            except (ValueError, TypeError):
+                return self.env['res.partner']
+            partner = self.browse(partner_id)
+            return partner if partner.exists() else self.env['res.partner']
+
+        lookups = [by_legacy, by_odoo_id] if config.use_legacy_account_number else [by_odoo_id, by_legacy]
+        for lookup in lookups:
+            partner = lookup()
             if partner:
                 return partner
-
-        # Try to find by Odoo ID
-        try:
-            partner_id = int(sold_to_id)
-            partner = self.browse(partner_id)
-            if partner.exists():
-                return partner
-        except (ValueError, TypeError):
-            pass
 
         return self.env['res.partner']

@@ -51,7 +51,9 @@ class ElasticCustomerXref(models.Model):
         Lookup order:
           1. XREF scoped to the provided connection
           2. Global XREF (connection_id = False)
-          3. res.partner.legacy_account_number
+          3. res.partner.legacy_account_number / Odoo partner ID
+             (see ``res.partner._search_by_sold_to_id``; the order of those
+             two mirrors how the exporters emit SoldToID / ShipToID)
 
         Returns res.partner recordset (empty if no match).
         """
@@ -71,10 +73,7 @@ class ElasticCustomerXref(models.Model):
         if xref:
             return xref.partner_id
 
-        partner = self.env['res.partner'].search(
-            [('legacy_account_number', '=', external_id)], limit=1
-        )
-        return partner
+        return self.env['res.partner']._search_by_sold_to_id(external_id)
 
     @api.model
     def record_mapping(self, external_id, partner, connection=None, is_ship_to=False):

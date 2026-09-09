@@ -25,12 +25,15 @@ class TestElasticConfig(TransactionCase):
 
     def test_active_connection_follows_active_environment(self):
         config = self.env['elastic.config'].get_config()
+        # The default "verify" host-key policy requires a stored host key, so
+        # these unit-test connections opt into trust-on-first-connect.
         beta = self.env['elastic.connection'].create({
             'name': 'Beta',
             'environment': 'beta',
             'sftp_host': 'beta.example.com',
             'sftp_username': 'beta',
             'sftp_password': 'pw',
+            'sftp_host_key_policy': 'auto_add',
         })
         prod = self.env['elastic.connection'].create({
             'name': 'Prod',
@@ -38,6 +41,7 @@ class TestElasticConfig(TransactionCase):
             'sftp_host': 'prod.example.com',
             'sftp_username': 'prod',
             'sftp_password': 'pw',
+            'sftp_host_key_policy': 'auto_add',
         })
         config.write({
             'active_environment': 'beta',

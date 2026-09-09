@@ -44,6 +44,36 @@ class TestOrderImporter(TransactionCase):
         ], limit=1)
         self.assertEqual(xref.partner_id, self.delivery)
 
+    def test_ship_to_id_matches_delivery_contact_odoo_id(self):
+        """Delivery contacts without a legacy number are exported with ShipToID = contact ID."""
+        importer = self._build_importer()
+        plain_delivery = self.env['res.partner'].create({
+            'name': 'Acme Outlet',
+            'parent_id': self.customer.id,
+            'type': 'delivery',
+        })
+
+        ship_partner = importer._resolve_ship_to(
+            self.customer,
+            str(plain_delivery.id),
+            {'Ship To Name': 'Should not be created'},
+            connection=False,
+        )
+
+        self.assertEqual(ship_partner, plain_delivery)
+        self.assertFalse(self.env['res.partner'].search([('name', '=', 'Should not be created')]))
+
+    def test_sold_to_id_matches_customer_odoo_id(self):
+        plain_customer = self.env['res.partner'].create({
+            'name': 'No Legacy Co',
+            'is_company': True,
+            'customer_rank': 1,
+        })
+        found = self.env['elastic.customer.xref'].find_partner(
+            str(plain_customer.id), connection=None, is_ship_to=False,
+        )
+        self.assertEqual(found, plain_customer)
+
     def test_find_variant_by_composite_item_number(self):
         frame_color = self.env['product.attribute'].create({'name': 'Frame Color'})
         lens_color = self.env['product.attribute'].create({'name': 'Lens Color'})
@@ -97,9 +127,20 @@ class TestOrderImporter(TransactionCase):
         )
         importer = self._build_importer()
 
+        # Composite ItemNumbers carry no separator by default; the inbound
+        # Product Number below is hyphenated, so configure it explicitly.
+        self.config.export_item_number_separator = '-'
+
         # Variation Code arrives as the lens color CODE, size as the material name.
         variant = importer._find_variant_by_attributes(
             'BALESBEACH-BLKM', 'BLU', 'Glass'
         )
 
+        self.assertEqual(variant, glass_variant)
+
+        # And with the default (no separator) the same lookup still resolves.
+        self.config.export_item_number_separator = False
+        variant = importer._find_variant_by_attributes(
+            'BALESBEACHBLKM', 'BLU', 'Glass'
+        )
         self.assertEqual(variant, glass_variant)
