@@ -150,7 +150,10 @@ class ElasticConfig(models.Model):
     enable_rep_mapping_export = fields.Boolean(string='Enable Rep Mapping Export', default=False)
     enable_inventory_export = fields.Boolean(string='Enable Inventory Export', default=False)
     enable_price_export = fields.Boolean(string='Enable Price Export', default=False)
-    enable_order_history_export = fields.Boolean(string='Enable Order History Export', default=False)
+    enable_order_history_export = fields.Boolean(
+        string='Enable Order History Export', default=False,
+        help='Export order_headers.csv and order_lines.csv for confirmed and cancelled orders.',
+    )
 
     # ============================================
     # Import Settings
@@ -240,7 +243,7 @@ class ElasticConfig(models.Model):
     inventory_use_bom_component_fallback = fields.Boolean(
         string='Use BOM Component Fallback for ATP',
         default=False,
-        help='When enabled, products with no finished-goods ATP fall back to buildable quantity from active BOM component stock.'
+        help='When enabled, products with no positive finished-goods ATP at any date use current buildable BOM component stock, protected against reservations and future demand. Finished-goods deficits and commitments still reduce availability.'
     )
     inventory_bom_category_ids = fields.Many2many(
         'product.category',
@@ -888,6 +891,43 @@ class ElasticConfig(models.Model):
         """Export sale-order history to Elastic SFTP."""
         from ..exporters.order_history_exporter import OrderHistoryExporter
         return self._run_export(OrderHistoryExporter, 'Order History')
+
+    def action_download_order_history(self):
+        """Generate a reviewable ZIP without requiring or uploading to SFTP."""
+        import base64
+        from io import BytesIO
+        from zipfile import ZIP_DEFLATED, ZipFile
+        from ..exporters.order_history_exporter import OrderHistoryExporter
+
+        self.ensure_one()
+        self.check_access_rights('read')
+        self.check_access_rule('read')
+        exporter = OrderHistoryExporter(self.env, self, prepare_upload=False)
+        try:
+            files = exporter.generate_files()
+        except ValueError as exc:
+            raise UserError(str(exc)) from exc
+        if not files:
+            raise UserError(_('No eligible order history found to download.'))
+        output = BytesIO()
+        with ZipFile(output, 'w', ZIP_DEFLATED) as archive:
+            for file in files:
+                archive.writestr(
+                    file['filename'], file['content'].encode(self.export_encoding or 'utf-8'),
+                )
+        attachment = self.env['ir.attachment'].create({
+            'name': 'order_history.zip',
+            'type': 'binary',
+            'datas': base64.b64encode(output.getvalue()),
+            'mimetype': 'application/zip',
+            'res_model': self._name,
+            'res_id': self.id,
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
 
     def action_export_prices(self):
         """Export prices to Elastic SFTP"""

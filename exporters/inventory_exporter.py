@@ -8,11 +8,13 @@ File format: inventory.csv
 import logging
 from collections import defaultdict
 from datetime import date, datetime
+from decimal import Decimal, ROUND_DOWN
 from math import floor
 
 from odoo import fields
 
 from .base_exporter import BaseExporter
+from ..services.inventory_availability import availability_timeline
 
 _logger = logging.getLogger(__name__)
 
@@ -97,7 +99,7 @@ class InventoryExporter(BaseExporter):
             return sum(q[quantity_field] for q in quants)
         else:
             # Get total on-hand quantity across all warehouses
-            return product.qty_available
+            return product.free_qty if exclude_reserved else product.qty_available
 
     @staticmethod
     def _format_available_date(value):
@@ -140,6 +142,19 @@ class InventoryExporter(BaseExporter):
             domain.append(('warehouse_id', '=', warehouse.id))
         return self.env['stock.location'].search(domain).ids
 
+    def _get_stock_move_event_date(self, move, today, incoming):
+        """Respect both operational schedules and updated order deadlines.
+
+        Odoo PO expected-date edits update move deadlines, not necessarily the
+        scheduled date. Do not promise a receipt before either date, or defer
+        demand beyond either its scheduled movement or promised deadline.
+        """
+        dates = [
+            self._normalize_event_date(value, today)
+            for value in (move.date, move.date_deadline) if value
+        ]
+        return (max(dates) if incoming else min(dates)) if dates else today
+
     def _get_stock_move_events(self, product, warehouse, today):
         """
         Return dated ATP deltas from open stock moves.
@@ -173,11 +188,8 @@ class InventoryExporter(BaseExporter):
             else:
                 continue
 
-            move_date = (
-                getattr(move, 'date', False)
-                or getattr(move, 'date_deadline', False)
-            )
-            events[self._normalize_event_date(move_date, today)] += delta
+            move_date = self._get_stock_move_event_date(move, today, incoming=delta > 0)
+            events[move_date] += delta
 
         return events
 
@@ -222,34 +234,23 @@ class InventoryExporter(BaseExporter):
 
     def _build_atp_snapshots(self, starting_qty, dated_events, today):
         """
-        Build running ATP snapshots from current on-hand and dated deltas.
-
-        The balance is allowed to go negative internally so later receipts first
-        satisfy earlier shortages. Only the emitted CSV quantity is clamped to 0.
+        Publish cumulative ATP after forward deficit and backward demand checks.
+        Always send a current row (including zero), then only changed quantities.
         """
-        balance = starting_qty
-        current_delta = sum(
-            qty for event_date, qty in dated_events.items()
-            if event_date <= today
-        )
-        balance += current_delta
-
-        current_qty = max(balance, 0)
-        snapshots = [('', current_qty)]
-        last_exported_qty = current_qty
-
-        future_dates = sorted(
-            event_date for event_date in dated_events
-            if event_date > today
-        )
-        for event_date in future_dates:
-            balance += dated_events[event_date]
-            export_qty = max(balance, 0)
-            if export_qty == last_exported_qty:
+        snapshots = []
+        for event_date, _projected, export_qty in availability_timeline(
+            starting_qty, dated_events, today
+        ):
+            # FileGenerator writes two decimal places. Never round a fractional
+            # surplus up into more inventory than is actually available.
+            if export_qty > 0:
+                export_qty = float(Decimal(str(export_qty)).quantize(
+                    Decimal('0.01'), rounding=ROUND_DOWN
+                ))
+            if snapshots and export_qty == snapshots[-1][1]:
                 continue
-            snapshots.append((self._format_available_date(event_date), export_qty))
-            last_exported_qty = export_qty
-
+            available_date = '' if event_date == today else self._format_available_date(event_date)
+            snapshots.append((available_date, export_qty))
         return snapshots
 
     @staticmethod
@@ -272,12 +273,33 @@ class InventoryExporter(BaseExporter):
         component_uom = bom_line.product_uom_id
         product_uom = bom_line.product_id.uom_id
         if component_uom and product_uom and component_uom != product_uom:
-            component_qty = component_uom._compute_quantity(component_qty, product_uom)
+            component_qty = component_uom._compute_quantity(component_qty, product_uom, round=False)
         return component_qty
 
-    def _get_bom_buildable_qty(self, bom, warehouse, product=None):
+    def _get_bom_component_available_qty(self, component, warehouse, today):
+        """Current component stock protected against reservations and demand.
+
+        Start the timeline from physical stock so reserved outgoing moves are
+        not deducted twice. Separately cap by unreserved stock, including
+        reservations for internal transfers that net to zero in the timeline.
+        Future receipts may protect today's stock but are not buildable today.
+        """
+        on_hand = self._get_available_qty(component, warehouse)
+        unreserved = self._get_available_qty(component, warehouse, exclude_reserved=True)
+        events = self._get_atp_events(component, warehouse, today)
+        # Keep component precision until conversion to finished units. The
+        # inventory CSV's precision applies to exported products, not raw usage.
+        current_atp = availability_timeline(on_hand, events, today)[0][2]
+        return max(min(on_hand, unreserved, current_atp), 0)
+
+    def _get_bom_buildable_qty(self, bom, warehouse, product=None, today=None):
+        today = today or fields.Date.context_today(self.config)
         bom_qty = bom.product_qty or 1.0
-        buildable_quantities = []
+        # BOM output and component usage must both be in product base units.
+        if product and bom.product_uom_id != product.uom_id:
+            bom_qty = bom.product_uom_id._compute_quantity(bom_qty, product.uom_id, round=False)
+        requirements = defaultdict(float)
+        components = {}
 
         for bom_line in bom.bom_line_ids:
             # Template-level BoMs may contain component lines for many variants.
@@ -298,24 +320,18 @@ class InventoryExporter(BaseExporter):
             if required_per_finished <= 0:
                 continue
 
-            # Component reservations already belong to other manufacturing or
-            # transfer demand and cannot support another finished good.
-            component_available = max(
-                self._get_available_qty(
-                    component,
-                    warehouse,
-                    exclude_reserved=True,
-                ),
-                0,
-            )
-            buildable_quantities.append(
-                floor(component_available / required_per_finished)
-            )
+            # Repeated lines consume the same stock pool; combine their usage.
+            requirements[component.id] += required_per_finished
+            components[component.id] = component
 
-        if not buildable_quantities:
+        if not requirements:
             return 0
-
-        return min(buildable_quantities)
+        return min(
+            floor(self._get_bom_component_available_qty(
+                components[component_id], warehouse, today
+            ) / required)
+            for component_id, required in requirements.items()
+        )
 
     def _is_bom_inventory_component(self, component):
         categories = self.config.inventory_bom_category_ids
@@ -326,7 +342,7 @@ class InventoryExporter(BaseExporter):
             ('id', 'child_of', categories.ids),
         ]))
 
-    def _get_bom_component_fallback_qty(self, product, warehouse):
+    def _get_bom_component_fallback_qty(self, product, warehouse, today=None):
         if not getattr(self.config, 'inventory_use_bom_component_fallback', False):
             return 0
 
@@ -335,7 +351,7 @@ class InventoryExporter(BaseExporter):
             return 0
 
         return max(
-            self._get_bom_buildable_qty(bom, warehouse, product)
+            self._get_bom_buildable_qty(bom, warehouse, product, today=today)
             for bom in boms
         )
 
@@ -345,9 +361,11 @@ class InventoryExporter(BaseExporter):
         snapshots = self._build_atp_snapshots(starting_qty, events, today)
 
         if not self._has_finished_goods_availability(snapshots):
-            fallback_qty = self._get_bom_component_fallback_qty(product, warehouse)
+            fallback_qty = self._get_bom_component_fallback_qty(product, warehouse, today=today)
             if fallback_qty > 0:
-                snapshots = self._build_atp_snapshots(fallback_qty, events, today)
+                # Buildable units supplement physical stock; never erase an
+                # existing negative balance or discard committed on-hand units.
+                snapshots = self._build_atp_snapshots(starting_qty + fallback_qty, events, today)
 
         return [
             [
@@ -366,7 +384,7 @@ class InventoryExporter(BaseExporter):
     def export(self):
         """
         Custom export method for inventory.
-        Generates one row per product per warehouse.
+        Generates a current row and dated cumulative ATP changes per product/warehouse.
         """
         export_type = self.get_export_type()
         model_name = self.get_model_name()

@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
-from datetime import date
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+from odoo import fields
 from odoo.tests.common import TransactionCase
 
 from ..exporters.inventory_exporter import InventoryExporter
+from ..services.file_generator import FileGenerator
 
 
 class TestInventoryExporter(TransactionCase):
@@ -70,8 +72,7 @@ class TestInventoryExporter(TransactionCase):
         self.assertEqual(
             snapshots,
             [
-                ('', 10.0),
-                ('20260701', 0),
+                ('', 0),
                 ('20260710', 10.0),
             ],
         )
@@ -83,7 +84,7 @@ class TestInventoryExporter(TransactionCase):
 
         exporter._get_available_qty = lambda product, warehouse=None: 0
         exporter._get_atp_events = lambda product, warehouse, today: {}
-        exporter._get_bom_component_fallback_qty = lambda product, warehouse: 17
+        exporter._get_bom_component_fallback_qty = lambda product, warehouse, today=None: 17
 
         rows = exporter._build_atp_rows(product, None, 'MAIN', 'FG-001', today)
 
@@ -96,7 +97,7 @@ class TestInventoryExporter(TransactionCase):
 
         exporter._get_available_qty = lambda product, warehouse=None: 5
         exporter._get_atp_events = lambda product, warehouse, today: {}
-        exporter._get_bom_component_fallback_qty = lambda product, warehouse: 17
+        exporter._get_bom_component_fallback_qty = lambda product, warehouse, today=None: 17
 
         rows = exporter._build_atp_rows(product, None, 'MAIN', 'FG-001', today)
 
@@ -112,15 +113,14 @@ class TestInventoryExporter(TransactionCase):
             date(2026, 6, 30): -25,
             date(2026, 7, 10): -10,
         }
-        exporter._get_bom_component_fallback_qty = lambda product, warehouse: 100
+        exporter._get_bom_component_fallback_qty = lambda product, warehouse, today=None: 100
 
         rows = exporter._build_atp_rows(product, None, 'MAIN', 'FG-001', today)
 
         self.assertEqual(
             rows,
             [
-                ['MAIN', 'FG-001', '', 75],
-                ['MAIN', 'FG-001', '20260710', 65],
+                ['MAIN', 'FG-001', '', 65],
             ],
         )
 
@@ -132,7 +132,7 @@ class TestInventoryExporter(TransactionCase):
         fallback_bom = SimpleNamespace()
 
         exporter._get_active_boms = lambda product: [preferred_bom, fallback_bom]
-        exporter._get_bom_buildable_qty = lambda bom, warehouse, product=None: (
+        exporter._get_bom_buildable_qty = lambda bom, warehouse, product=None, today=None: (
             3 if bom is preferred_bom else 11
         )
 
@@ -143,8 +143,8 @@ class TestInventoryExporter(TransactionCase):
     def test_bom_buildable_qty_uses_limiting_component(self):
         exporter = self._build_exporter()
         uom = SimpleNamespace()
-        component_a = SimpleNamespace(default_code='A', is_storable=True, uom_id=uom)
-        component_b = SimpleNamespace(default_code='B', is_storable=True, uom_id=uom)
+        component_a = SimpleNamespace(id=101, default_code='A', is_storable=True, uom_id=uom)
+        component_b = SimpleNamespace(id=102, default_code='B', is_storable=True, uom_id=uom)
         bom = SimpleNamespace(
             product_qty=1.0,
             bom_line_ids=[
@@ -167,7 +167,7 @@ class TestInventoryExporter(TransactionCase):
                 'B': 12,
             }[product.default_code]
 
-        exporter._get_available_qty = available_qty
+        exporter._get_bom_component_available_qty = lambda component, warehouse, today: available_qty(component, warehouse, True)
         exporter._is_bom_inventory_component = lambda component: True
 
         self.assertEqual(exporter._get_bom_buildable_qty(bom, None), 4)
@@ -175,12 +175,12 @@ class TestInventoryExporter(TransactionCase):
     def test_bom_buildable_qty_skips_lines_for_other_variants(self):
         exporter = self._build_exporter()
         uom = SimpleNamespace()
-        selected_product = SimpleNamespace(default_code='FINISHED')
+        selected_product = SimpleNamespace(default_code='FINISHED', uom_id=uom)
         applicable_component = SimpleNamespace(
-            default_code='APPLIES', is_storable=True, uom_id=uom
+            id=101, default_code='APPLIES', is_storable=True, uom_id=uom
         )
         other_variant_component = SimpleNamespace(
-            default_code='OTHER', is_storable=True, uom_id=uom
+            id=102, default_code='OTHER', is_storable=True, uom_id=uom
         )
         applicable_line = SimpleNamespace(
             product_id=applicable_component,
@@ -196,12 +196,13 @@ class TestInventoryExporter(TransactionCase):
         )
         bom = SimpleNamespace(
             product_qty=1,
+            product_uom_id=uom,
             bom_line_ids=[applicable_line, other_variant_line],
         )
         quantities = {'APPLIES': 12, 'OTHER': 0}
         exporter._is_bom_inventory_component = lambda component: True
-        exporter._get_available_qty = (
-            lambda component, warehouse, exclude_reserved=False:
+        exporter._get_bom_component_available_qty = (
+            lambda component, warehouse, today:
             quantities[component.default_code]
         )
 
@@ -213,10 +214,11 @@ class TestInventoryExporter(TransactionCase):
     def test_bom_buildable_qty_ignores_unselected_component_categories(self):
         exporter = self._build_exporter()
         uom = SimpleNamespace()
-        lens = SimpleNamespace(default_code='LENS', is_storable=True, uom_id=uom)
-        packaging = SimpleNamespace(default_code='BOX', is_storable=True, uom_id=uom)
+        lens = SimpleNamespace(id=101, default_code='LENS', is_storable=True, uom_id=uom)
+        packaging = SimpleNamespace(id=102, default_code='BOX', is_storable=True, uom_id=uom)
         bom = SimpleNamespace(
             product_qty=1,
+            product_uom_id=uom,
             bom_line_ids=[
                 SimpleNamespace(
                     product_id=lens,
@@ -233,8 +235,8 @@ class TestInventoryExporter(TransactionCase):
         exporter._is_bom_inventory_component = (
             lambda component: component.default_code == 'LENS'
         )
-        exporter._get_available_qty = (
-            lambda component, warehouse, exclude_reserved=False:
+        exporter._get_bom_component_available_qty = (
+            lambda component, warehouse, today:
             10 if component.default_code == 'LENS' else 0
         )
 
@@ -285,4 +287,93 @@ class TestInventoryExporter(TransactionCase):
                 exclude_reserved=True,
             ),
             6,
+        )
+
+    def _create_inventory_move(self, product, qty, source, destination, move_date):
+        return self.env['stock.move'].create({
+            'name': 'Elastic ATP regression', 'product_id': product.id,
+            'product_uom_qty': qty, 'product_uom': product.uom_id.id,
+            'location_id': source.id, 'location_dest_id': destination.id,
+            'date': move_date, 'date_deadline': move_date, 'state': 'confirmed',
+        })
+
+    def test_real_stock_moves_export_demand_protected_csv_and_delayed_receipt(self):
+        exporter = self._build_exporter()
+        today = date(2026, 9, 10)
+        warehouse = self.env['stock.warehouse'].search([], limit=1)
+        product = self.env['product.product'].create({
+            'name': 'ATS regression', 'default_code': 'ATS-REGRESSION',
+            'is_storable': True,
+        })
+        internal = warehouse.lot_stock_id
+        customer = self.env.ref('stock.stock_location_customers')
+        supplier = self.env.ref('stock.stock_location_suppliers')
+        self.env['stock.quant']._update_available_quantity(product, internal, 20)
+        when = lambda days: datetime.combine(today + timedelta(days=days), datetime.min.time())
+        self._create_inventory_move(product, 30, internal, customer, when(3))
+        receipt = self._create_inventory_move(product, 40, supplier, internal, when(7))
+        self._create_inventory_move(product, 12, internal, customer, when(10))
+        exporter.config = SimpleNamespace(
+            inventory_include_quotation_demand=False,
+            inventory_use_bom_component_fallback=False,
+            get_inventory_warehouses=lambda: warehouse,
+            elastic_warehouse_code=lambda wh: 'MAIN',
+            sftp_export_path='/test', export_encoding='utf-8',
+        )
+        exporter.get_export_domain = lambda: [('id', '=', product.id)]
+        exporter.transform_record = lambda record: record
+        exporter._get_stock_item_key = lambda record: 'ATS-REGRESSION'
+        exporter.file_generator = FileGenerator()
+        exporter.sftp_service.upload_file.return_value = (True, 'Uploaded')
+        with patch.object(fields.Date, 'context_today', return_value=today):
+            self.assertTrue(exporter.export()['success'])
+        self.assertEqual(
+            exporter.sftp_service.upload_file.call_args.kwargs['local_file_content'],
+            'Warehouse,StockItemKey,AvailableDate,Quantity\n'
+            'MAIN,ATS-REGRESSION,,0\nMAIN,ATS-REGRESSION,20260917,18.00\n',
+        )
+        # Mirrors the deadline update performed by an Odoo PO expected-date edit.
+        receipt.date_deadline = when(14)
+        self.assertEqual(
+            exporter._build_atp_rows(product, warehouse, 'MAIN', 'ATS-REGRESSION', today),
+            [['MAIN', 'ATS-REGRESSION', '', 0], ['MAIN', 'ATS-REGRESSION', '20260924', 18]],
+        )
+
+    def test_real_bom_protects_component_demand_and_finished_stock_deficit(self):
+        exporter = self._build_exporter()
+        today = date(2026, 9, 10)
+        warehouse = self.env['stock.warehouse'].search([], limit=1)
+        category = self.env['product.category'].create({'name': 'ATS components'})
+        component = self.env['product.product'].create({
+            'name': 'ATS component', 'is_storable': True, 'categ_id': category.id,
+        })
+        finished = self.env['product.product'].create({
+            'name': 'ATS finished', 'is_storable': True,
+        })
+        self.config.inventory_use_bom_component_fallback = True
+        self.config.inventory_include_quotation_demand = False
+        self.config.inventory_bom_category_ids = [(6, 0, [category.id])]
+        self.env['mrp.bom'].create({
+            'product_tmpl_id': finished.product_tmpl_id.id,
+            'product_id': finished.id, 'product_qty': 1,
+            'product_uom_id': finished.uom_id.id,
+            'bom_line_ids': [(0, 0, {
+                'product_id': component.id, 'product_qty': qty,
+                'product_uom_id': component.uom_id.id,
+            }) for qty in (2, 3)],
+        })
+        internal = warehouse.lot_stock_id
+        customer = self.env.ref('stock.stock_location_customers')
+        Quant = self.env['stock.quant']
+        Quant._update_available_quantity(component, internal, 100)
+        Quant._update_reserved_quantity(component, internal, 40)
+        Quant._update_available_quantity(finished, internal, -2)
+        when = datetime(2026, 9, 13)
+        self._create_inventory_move(component, 75, internal, customer, when)
+        self._create_inventory_move(finished, 1, internal, customer, when)
+        # 25 safe component units / 5 combined usage = 5 buildable units.
+        # Preserve the finished deficit of 2 and its future demand of 1.
+        self.assertEqual(
+            exporter._build_atp_rows(finished, warehouse, 'MAIN', 'BOM-REGRESSION', today),
+            [['MAIN', 'BOM-REGRESSION', '', 2]],
         )

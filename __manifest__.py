@@ -20,7 +20,7 @@ Features
 * Configurable file delimiter, encoding, and date formats.
 * Detailed export and import logs.
 """,
-    "version": "18.0.1.5.2",
+    "version": "18.0.1.6.0",
     "category": "Sales/Sales",
     "author": "P2 Business Solutions",
     "website": "https://www.p2bsi.com",
@@ -31,6 +31,7 @@ Features
         "contacts",
         "product",
         "sale_management",
+        "sale_stock",
         "sales_rep_commission",
         "stock",
         "mrp",

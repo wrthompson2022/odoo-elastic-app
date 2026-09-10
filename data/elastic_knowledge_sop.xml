@@ -392,13 +392,13 @@
 </table>
 
 <h2>Inventory ATP Logic</h2>
-<p>The inventory export sends available-to-promise quantities by product and warehouse. It starts with current finished-goods on-hand stock, applies open incoming and outgoing stock moves in date order, optionally subtracts draft/sent quotations, and sends negative quantities as 0. The internal running balance can go negative so later receipts first cover earlier shortages before increasing sellable availability.</p>
-<p>If <strong>Use BOM Component Fallback for ATP</strong> is enabled and a finished product has no positive finished-goods ATP, Odoo evaluates every active BOM for that product/template. Only component lines whose product category is one of the selected <strong>BOM Component Categories</strong> (or a child category) constrain buildable inventory; unselected categories such as packaging are ignored. For each BOM, the buildable quantity is the lowest unreserved eligible-component quantity after BOM usage is considered across internal locations in the enabled warehouse. If multiple active BOMs exist, Odoo uses the BOM that can build the highest number of finished units. Existing finished-good demand still reduces that BOM-derived quantity before export.</p>
+<p>The inventory export sends available-to-promise quantities by product and warehouse. It starts with current finished-goods on-hand stock, applies open incoming and outgoing stock moves in date order, optionally subtracts draft/sent quotations, and sends negative quantities as 0. The internal running balance can go negative so later receipts first cover earlier shortages. A backward check then protects future commitments before offering stock at an earlier date. Incoming supply uses the later scheduled date or receipt deadline; demand uses the earlier. The CSV contains cumulative availability, not additive receipt quantities.</p>
+<p>If <strong>Use BOM Component Fallback for ATP</strong> is enabled and a finished product has no positive finished-goods ATP, Odoo evaluates every active BOM for that product/template. Only component lines whose product category is one of the selected <strong>BOM Component Categories</strong> (or a child category) constrain buildable inventory; unselected categories such as packaging are ignored. For each BOM, the buildable quantity uses the limiting eligible component after reservations and future demand are protected across internal locations in the enabled warehouse. Repeated usage of the same component is combined, and both component and finished output units are converted. Only current physical component stock supports buildable units. If multiple active BOMs exist, Odoo uses the BOM that can build the highest number of finished units. Buildable units supplement physical finished stock without erasing a negative balance. Current and future finished-good demand still reduce availability before export. Shared-component allocation and production lead times are separate policies.</p>
 
 <h3>Inventory Examples</h3>
 <ul>
     <li><strong>Future receipts cover old shortages:</strong> a SKU has 50 on hand, 75 units of demand due now, 50 units arriving next week, and 100 units arriving the week after. The current row exports 0, next week's row exports 25, and the following receipt increases availability to 125.</li>
-    <li><strong>Negative quantities are never sent:</strong> a SKU has 10 on hand and 25 units of future demand before any receipt. The row for that demand date exports 0, not -15. Later receipts first cover the shortage before increasing availability.</li>
+    <li><strong>Negative quantities are never sent:</strong> a SKU has 10 on hand and 25 units of future demand before any receipt. The current row already exports 0 because the future demand consumes all current stock. Later receipts first cover the shortage before increasing availability.</li>
     <li><strong>BOM fallback for MTO goods:</strong> a finished good has no finished stock or open manufacturing supply. Frames and lenses are selected as BOM Component Categories while packaging is not. Active BOM A can build 40 units from its frame and lens stock, and active BOM B can build 60; a packaging shortage does not constrain either result. Odoo uses 60 as fallback supply, then subtracts any existing finished-good demand before writing inventory.csv.</li>
 </ul>
 
@@ -567,7 +567,7 @@
             <td>Elastic: Export Order History</td>
             <td>No</td>
             <td>Every 1 day</td>
-            <td>Confirmed sale-order history feed.</td>
+            <td>Order headers and lines for confirmed and cancelled orders: order_headers.csv and order_lines.csv. Use Download Order History in Settings to obtain both files as a ZIP without SFTP.</td>
         </tr>
     </tbody>
 </table>

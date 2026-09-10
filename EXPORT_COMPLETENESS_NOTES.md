@@ -14,7 +14,9 @@ The module includes working exporter classes for the major flat-file areas:
 - `reps.csv` and `rep_mappings.csv` via `exporters/rep_exporter.py`
 - `product_tags.csv` via `exporters/product_tags_exporter.py`
 - `features.csv` via `exporters/feature_exporter.py`
-- `order_history.csv` via `exporters/order_history_exporter.py`
+- `order_headers.csv` and `order_lines.csv` via `exporters/order_history_exporter.py`,
+  with SFTP export and ZIP download. The optional invoice pair still needs the
+  missing invoice-header specification from the supplied order-history PDF.
 
 Order import is also present, with SFTP polling, staging, retry, duplicate
 detection, customer cross-reference lookup, sale-order creation, and configurable
@@ -90,23 +92,20 @@ defaults.
 
 ### 5. Inventory ATP policy
 
-Inventory exports time-phased ATP rows per product and warehouse. It starts with
-current internal on-hand stock, applies open stock moves in date order,
-optionally includes draft/sent quotation demand, folds overdue moves into the
-current bucket, and clamps negative exported quantities to `0`.
+Inventory exports cumulative ATP after forward shortage carry and backward
+commitment protection. Dated incoming supply uses the later schedule/deadline;
+demand uses the earlier. Current zero rows and future changes retain the existing
+CSV contract. Optional quotes participate in the same calculation.
 
-The optional BOM component fallback lets make-to-order finished goods with no
-positive finished-goods ATP use buildable quantity from active BOM component
-stock.
+BOM fallback protects selected component stock against reservations and open
+demand, combines repeated usage, converts component and finished output units,
+and preserves finished-stock deficits when adding buildable units. It remains
+an optional current-stock fallback, not a production scheduling or shared-SKU
+allocation engine.
 
-Future hardening may include:
-
-- Warehouse inclusion/exclusion and explicit Elastic warehouse codes.
-- Safety stock.
-- Backorder policy.
-- Dropship behavior.
-- Quote probability or expiration rules.
-- Component allocation across multiple finished goods.
+See `docs/inventory_availability.md` for the policy, tests, and pending Odoo/Beta
+validation. Future policies may include safety stock, backorder/dropship rules,
+quote probability/expiration, and component allocation across finished goods.
 
 ### 6. Sales rep stability
 

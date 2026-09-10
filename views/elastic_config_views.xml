@@ -154,7 +154,6 @@
                                         <button name="action_export_features" type="object" string="Export Features" class="btn-secondary me-1" icon="fa-list"/>
                                         <button name="action_export_prices" type="object" string="Export Prices" class="btn-secondary me-1" icon="fa-usd"/>
                                         <button name="action_export_inventory" type="object" string="Export Inventory" class="btn-secondary" icon="fa-cubes"/>
-                                        <button name="action_export_order_history" type="object" string="Export Order History" class="btn-secondary" icon="fa-history"/>
                                     </div>
                                 </group>
                             </group>
@@ -172,6 +171,13 @@
                                         <button name="action_export_rep_mappings" type="object" string="Export Rep Mappings" class="btn-secondary" icon="fa-handshake-o"/>
                                     </div>
                                 </group>
+                            </group>
+                            <group string="Order History">
+                                <div>
+                                    <button name="action_export_order_history" type="object" string="Export Order History" class="btn-secondary me-1" icon="fa-history"/>
+                                    <button name="action_download_order_history" type="object" string="Download Order History" class="btn-secondary" icon="fa-download"/>
+                                    <p class="text-muted mt-2">Generate order_headers.csv and order_lines.csv. Download saves both files as a ZIP; Export sends them to the active SFTP connection.</p>
+                                </div>
                             </group>
                             <separator string="Export Filters"/>
                             <group>

@@ -49,7 +49,7 @@ areas:
 | Catalog mappings | `catalog_mapping.csv` | Catalog-to-product/color mappings |
 | Sales reps | `reps.csv` | Employee sales reps from `sales_rep_commission` |
 | Rep mappings | `rep_mappings.csv` | Customer-to-rep relationships |
-| Order history | `order_history.csv` | Confirmed Odoo sale-order lines, fulfillment, and invoicing status |
+| Order history | `order_headers.csv`, `order_lines.csv` | Confirmed and cancelled Odoo orders, lines, amounts, and fulfillment |
 
 The product-related feeds (products, prices, product tags, features, and
 inventory) share one population rule: a variant is exported only when it
@@ -72,6 +72,46 @@ the individual feed buttons or **Export All Enabled**. Elastic Managers can use
 **Configure Schedulers** on that same settings record to independently schedule
 product, customer, inventory, and order-history exports with minute, hour, day,
 week, or month intervals.
+
+### Order History Files
+
+Version **18.0.1.6.0** replaces the legacy `order_history.csv` export with the
+two required files from **Order History Import Files.pdf**: `order_headers.csv`
+(83 columns) and `order_lines.csv` (56 columns). Upgrade the addon to install
+the new download button. The existing **Export Order History**, **Export All
+Enabled**, and order-history scheduler now send this pair.
+
+Use **Elastic > Configuration > Settings > Download Order History** to generate
+a ZIP containing both files without configuring or contacting SFTP. Use
+**Export Order History** to upload the same files to the active connection.
+The configured delimiter, encoding, and header-row setting apply to both
+download and upload; the defaults produce UTF-8, comma-separated CSV with headers.
+
+The export includes confirmed and cancelled orders for company customers with
+**Push to Elastic** enabled and customer rank greater than zero, subject to the
+current user's company access and record rules. It includes historical products
+even when archived or removed from catalogs. Sections, notes, down payments,
+and delivery-fee lines are excluded from order line rows and unit totals.
+
+Each run resends all eligible history. Elastic upserts headers by `OrderNumber`
+and lines by `OrderNumber` + `LineNumber`. Line numbers use stable Odoo sale-line
+IDs, so rearranging lines does not create duplicate history. Duplicate order
+numbers across the exported population stop generation. Renaming orders or
+deleting previously exported lines requires reconciliation in Elastic: the
+supplied specification does not define deletion records.
+
+Both files are fully generated and validated before the first upload. Required
+fields, string lengths, integer units, decimal precision, dates, and encoding
+are checked. Invalid values produce an error identifying the order and field;
+identifiers are never silently truncated and fractional units are never rounded
+to integers. Headers upload first, then lines. Each upload is logged; a failure
+after the first file is reported as partial success and retry resends both files.
+SFTP publication of the two files is not atomic.
+
+See [order history mappings](docs/order_history_export.md) for field sources,
+optional fields, and validation commands. Invoice exports are not included:
+the supplied PDF lists `invoice_headers.csv` but omits its column specification,
+so a complete linked invoice feed cannot yet be generated from it.
 
 ### Inbound Order Import
 
@@ -144,16 +184,22 @@ week, or month intervals.
 
 ### Inventory ATP
 
-The `inventory.csv` export sends time-phased available-to-promise rows for each
-warehouse marked **Send Inventory to Elastic**. It starts from current internal on-hand stock, applies open incoming
-and outgoing stock moves in date order, and allows the internal running balance
-to go negative so later receipts first satisfy prior shortages. Exported
-quantities are clamped to `0`.
+The `inventory.csv` export sends cumulative available-to-promise rows for each
+warehouse marked **Send Inventory to Elastic**. It carries shortages forward
+and checks future commitments backward so only uncommitted surplus is offered.
+Incoming supply respects both scheduled dates and receipt deadlines; outgoing
+demand is protected by the earlier scheduled date or deadline. A current row
+(including zero) and subsequent changes use the existing Elastic CSV format.
 
-Optional inventory settings allow draft/sent quotations to reduce ATP demand
-and allow configured finished-goods category trees to fall back to buildable
-quantity from unreserved active-BOM component stock when finished-goods ATP is
-unavailable.
+Optional settings include draft/sent quotation demand and BOM component fallback
+when no finished-goods date has positive ATP. Selected component category trees,
+reservations, future component demand, variant rules, combined component usage,
+and unit conversions constrain buildable units. Finished-goods deficits and
+commitments still reduce the fallback. Shared-component allocation and production
+lead times remain separate policies.
+
+See [Inventory availability policy](docs/inventory_availability.md) for examples,
+calculation details, verification coverage, and deployment checks.
 
 ## Configuration Steps
 
@@ -221,7 +267,7 @@ upgrade log and assign those customers manually.
 
 - Odoo 18.0
 - Python package: `paramiko>=3.4.0`
-- Odoo modules: `base`, `mail`, `contacts`, `product`, `sale_management`,
+- Odoo modules: `base`, `mail`, `contacts`, `product`, `sale_management`, `sale_stock`,
   `sales_rep_commission`, `stock`, `mrp`, and `knowledge`
 
 ## Client-Facing Documentation
