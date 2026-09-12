@@ -70,8 +70,8 @@ template-level values are not repeated per size or material variant.
 Exports can be run manually from **Elastic > Configuration > Settings** using
 the individual feed buttons or **Export All Enabled**. Elastic Managers can use
 **Configure Schedulers** on that same settings record to independently schedule
-product, customer, inventory, and order-history exports with minute, hour, day,
-week, or month intervals.
+product, customer, inventory and order-history exports, order imports and
+ecommerce feature imports with minute, hour, day, week or month intervals.
 
 ### Order History Files
 
@@ -151,8 +151,10 @@ so a complete linked invoice feed cannot yet be generated from it.
 - Governed Elastic color records and Odoo attribute-value color overrides.
 - Governed Elastic size scales and size values.
 - Governed feature, technology, and merchandising taxonomies.
-- Optional Shopify feature import mappings for populating Elastic product
-  feature assignments.
+- Ecommerce sources for Shopify, WooCommerce, Magento 2, Shopware 6, PrestaShop,
+  BigCommerce and Odoo product data, with field discovery, governed mappings,
+  product links, locale selection and per-source Elastic regions.
+- Shopify GraphQL imports and discovered rich-text metafield parsing.
 
 ### Customer, Catalog, And Price Controls
 
@@ -214,8 +216,10 @@ calculation details, verification coverage, and deployment checks.
 9. Configure products, customers, catalogs, pricelists, feature metadata, and
    customer cross-reference rows as needed.
 10. Run individual exports or **Export All Enabled** from the settings page.
-11. Click **Configure Schedulers** and enable the required exports and order
-    import after their manual runs have been validated.
+11. Use **Inventory Explanation** to spot-check one SKU and warehouse, including
+    grouped Sales Orders, receipt drill-downs, running availability and Elastic output.
+12. Click **Configure Schedulers** and enable the required exports, order import
+    and ecommerce feature imports after their manual runs have been validated.
 
 When upgrading to **18.0.1.5.0** or later, upgrade the module to install the
 dedicated product, customer, inventory, order-history, and order-import
@@ -253,7 +257,7 @@ upgrade log and assign those customers manually.
 - `models/` extends Odoo records and defines Elastic configuration, metadata,
   catalog, cross-reference, order staging, and log models.
 - `exporters/` contains concrete feed exporters built on `BaseExporter`.
-- `importers/` contains order and Shopify feature import logic built on reusable
+- `importers/` contains order and ecommerce feature import logic built on reusable
   importer patterns.
 - `wizard/` contains the business-facing scheduler configuration UI.
 - `services/` contains SFTP and delimited-file generation services.
@@ -289,3 +293,22 @@ LGPL-3
 ## Author
 
 P2 Business Solutions
+
+## 18.0.1.7.0: current upstream functionality
+
+This release incorporates the distributable connector's 18.0.1.3.1 features
+while retaining this app's existing customer, catalog, warehouse and scheduler
+rules. See [upstream synchronization and upgrade notes](docs/upstream_sync.md).
+
+Inventory Explanation calculates only the selected SKU/warehouse on demand;
+normal exports do not store diagnostic rows. It shows grouped source links,
+BOM limits and the same calculation used by inventory.csv. Results expire after
+15 minutes and are removed by a five-minute cleanup job. They are current
+calculations, not historical snapshots of previously uploaded files.
+
+The packaged Knowledge SOP now contains nine articles. Upgrading refreshes
+existing managed article bodies, preserves permissions and customer-created
+pages, and attaches the previous text to each changed article as an HTML backup.
+Legacy Shopify connections and mappings migrate to Ecommerce Feature Sources;
+review product ownership when more than one legacy store exists. New ecommerce
+schedules start disabled.

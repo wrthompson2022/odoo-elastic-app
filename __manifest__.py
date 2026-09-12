@@ -19,8 +19,12 @@ Features
 * Order staging with retry workflow for failed rows.
 * Configurable file delimiter, encoding, and date formats.
 * Detailed export and import logs.
+* Temporary SKU inventory explanations with grouped source drill-downs.
+* Shopify, WooCommerce, Magento, Shopware, PrestaShop, BigCommerce and Odoo feature sources.
+* Field discovery, governed mappings, locale/region support and import scheduling.
+* Packaged Knowledge operating guide with upgrade-safe content refresh.
 """,
-    "version": "18.0.1.6.0",
+    "version": "18.0.1.7.0",
     "category": "Sales/Sales",
     "author": "P2 Business Solutions",
     "website": "https://www.p2bsi.com",
@@ -50,7 +54,16 @@ Features
         "views/elastic_product_metadata_views.xml",
         "views/elastic_customer_xref_views.xml",
         "views/elastic_order_staging_views.xml",
-        "views/product_views.xml",
+        "security/elastic_inventory_explanation_security.xml",
+"views/elastic_inventory_explanation_views.xml",
+"views/elastic_ecommerce_views.xml",
+"views/ecommerce_shopify_views.xml",
+"views/ecommerce_woocommerce_views.xml",
+"views/ecommerce_magento_views.xml",
+"views/ecommerce_shopware_views.xml",
+"views/ecommerce_prestashop_views.xml",
+"views/ecommerce_bigcommerce_views.xml",
+"views/product_views.xml",
         "views/product_pricelist_views.xml",
         "views/stock_warehouse_views.xml",
         "views/res_partner_views.xml",

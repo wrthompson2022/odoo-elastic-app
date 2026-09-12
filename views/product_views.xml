@@ -8,6 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
                 <page string="Elastic" name="elastic">
+<button name="%(action_template_elastic_inventory_explanation)d" type="action" string="How was inventory calculated?" groups="odoo-elastic-app.group_elastic_user" class="btn-secondary"/>
+
                     <group>
                         <group string="Sync Settings">
                             <field name="elastic_sync_enabled"/>
@@ -31,10 +33,9 @@
                             <field name="elastic_size_attribute_id"
                                    domain="[('id', 'in', elastic_template_attribute_ids)]"/>
                         </group>
-                        <group string="Shopify">
-                            <field name="shopify_product_id"/>
-                            <field name="shopify_handle"/>
-                        </group>
+                        <group string="Ecommerce Product Links"><field name="elastic_ecommerce_link_ids" nolabel="1">
+<list><field name="connection_id"/><field name="external_id"/><field name="handle"/></list>
+</field></group>
                     </group>
                     <group>
                         <group string="Catalog Assignment">
@@ -54,6 +55,8 @@
         <field name="arch" type="xml">
             <xpath expr="//page[@name='elastic']" position="replace">
                 <page string="Elastic" name="elastic">
+<button name="%(action_product_elastic_inventory_explanation)d" type="action" string="How was inventory calculated?" groups="odoo-elastic-app.group_elastic_user" class="btn-secondary"/>
+
                     <group>
                         <group string="Sync Settings">
                             <field name="elastic_sync_enabled"/>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_elastic_ecommerce_connection_form_bigcommerce" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.connection.form.bigcommerce</field>
+        <field name="model">elastic.ecommerce.connection</field>
+        <field name="inherit_id" ref="odoo-elastic-app.view_elastic_ecommerce_connection_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='platform_credentials']" position="inside">
+                <field name="bigcommerce_store_hash" placeholder="abc123"
+                       invisible="platform != 'bigcommerce'" required="platform == 'bigcommerce'"/>
+                <field name="bigcommerce_access_token" password="True"
+                       invisible="platform != 'bigcommerce'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

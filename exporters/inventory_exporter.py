@@ -156,70 +156,15 @@ class InventoryExporter(BaseExporter):
         return (max(dates) if incoming else min(dates)) if dates else today
 
     def _get_stock_move_events(self, product, warehouse, today):
-        """
-        Return dated ATP deltas from open stock moves.
-
-        Incoming moves add supply; outgoing moves consume supply. Internal moves
-        within the same warehouse net to zero, while inter-warehouse transfers
-        reduce ATP in the source warehouse and increase it in the destination.
-        """
-        location_ids = self._get_internal_location_ids(warehouse)
-        if not location_ids:
-            return {}
-
-        moves = self.env['stock.move'].search([
-            ('product_id', '=', product.id),
-            ('state', 'in', self.OPEN_MOVE_STATES),
-            '|',
-            ('location_id', 'in', location_ids),
-            ('location_dest_id', 'in', location_ids),
-        ])
-
         events = defaultdict(float)
-        for move in moves:
-            qty = self._get_quantity_in_product_uom(move, product)
-            source_internal = move.location_id.id in location_ids
-            dest_internal = move.location_dest_id.id in location_ids
-
-            if source_internal and not dest_internal:
-                delta = -qty
-            elif dest_internal and not source_internal:
-                delta = qty
-            else:
-                continue
-
-            move_date = self._get_stock_move_event_date(move, today, incoming=delta > 0)
-            events[move_date] += delta
-
+        for _move, event_date, delta in self._iter_stock_move_events(product, warehouse, today):
+            events[event_date] += delta
         return events
 
     def _get_quotation_events(self, product, warehouse, today):
-        """Return optional ATP demand from draft/sent sales quotations."""
-        if not getattr(self.config, 'inventory_include_quotation_demand', False):
-            return {}
-
-        domain = [
-            ('product_id', '=', product.id),
-            ('order_id.state', 'in', self.QUOTATION_STATES),
-        ]
-        if warehouse:
-            domain.append(('order_id.warehouse_id', '=', warehouse.id))
-
-        lines = self.env['sale.order.line'].search(domain)
         events = defaultdict(float)
-        for line in lines:
-            if getattr(line, 'display_type', False):
-                continue
-
-            qty = self._get_quantity_in_product_uom(line, product)
-            order = line.order_id
-            demand_date = (
-                getattr(order, 'commitment_date', False)
-                or getattr(order, 'expected_date', False)
-                or today
-            )
-            events[self._normalize_event_date(demand_date, today)] -= qty
-
+        for _line, event_date, delta in self._iter_quotation_events(product, warehouse, today):
+            events[event_date] += delta
         return events
 
     def _get_atp_events(self, product, warehouse, today):
@@ -294,36 +239,7 @@ class InventoryExporter(BaseExporter):
 
     def _get_bom_buildable_qty(self, bom, warehouse, product=None, today=None):
         today = today or fields.Date.context_today(self.config)
-        bom_qty = bom.product_qty or 1.0
-        # BOM output and component usage must both be in product base units.
-        if product and bom.product_uom_id != product.uom_id:
-            bom_qty = bom.product_uom_id._compute_quantity(bom_qty, product.uom_id, round=False)
-        requirements = defaultdict(float)
-        components = {}
-
-        for bom_line in bom.bom_line_ids:
-            # Template-level BoMs may contain component lines for many variants.
-            # Let Odoo apply its native "Apply on Variants" rules so an
-            # unavailable component belonging to another variant cannot force
-            # this product's buildable quantity to zero.
-            if product and bom_line._skip_bom_line(product):
-                continue
-
-            component = bom_line.product_id
-            if not component or not getattr(component, 'is_storable', False):
-                continue
-            if not self._is_bom_inventory_component(component):
-                continue
-
-            component_qty = self._get_bom_line_component_qty(bom_line)
-            required_per_finished = component_qty / bom_qty if bom_qty else component_qty
-            if required_per_finished <= 0:
-                continue
-
-            # Repeated lines consume the same stock pool; combine their usage.
-            requirements[component.id] += required_per_finished
-            components[component.id] = component
-
+        requirements, components = self._get_bom_requirements(bom, product)
         if not requirements:
             return 0
         return min(
@@ -533,3 +449,97 @@ class InventoryExporter(BaseExporter):
             return None
 
         return record
+
+    @staticmethod
+    def _is_storable(product):
+        storable = getattr(product, 'is_storable', None)
+        if storable is None:
+            return getattr(product, 'type', None) == 'product'
+        return bool(storable)
+
+    def _iter_stock_move_events(self, product, warehouse, today):
+        """
+        Return dated ATP deltas from open stock moves.
+
+        Incoming moves add supply; outgoing moves consume supply. Internal moves
+        within the same warehouse net to zero, while inter-warehouse transfers
+        reduce ATP in the source warehouse and increase it in the destination.
+        """
+        location_ids = self._get_internal_location_ids(warehouse)
+        if not location_ids:
+            return
+
+        moves = self.env['stock.move'].search([
+            ('product_id', '=', product.id),
+            ('state', 'in', self.OPEN_MOVE_STATES),
+            '|',
+            ('location_id', 'in', location_ids),
+            ('location_dest_id', 'in', location_ids),
+        ])
+
+        for move in moves:
+            qty = self._get_quantity_in_product_uom(move, product)
+            source_internal = move.location_id.id in location_ids
+            dest_internal = move.location_dest_id.id in location_ids
+
+            if source_internal and not dest_internal:
+                delta = -qty
+            elif dest_internal and not source_internal:
+                delta = qty
+            else:
+                continue
+
+            yield move, self._get_stock_move_event_date(move, today, incoming=delta > 0), delta
+
+    def _iter_quotation_events(self, product, warehouse, today):
+        """Return optional ATP demand from draft/sent sales quotations."""
+        if not getattr(self.config, 'inventory_include_quotation_demand', False):
+            return
+
+        domain = [
+            ('product_id', '=', product.id),
+            ('order_id.state', 'in', self.QUOTATION_STATES),
+        ]
+        if warehouse:
+            domain.append(('order_id.warehouse_id', '=', warehouse.id))
+
+        lines = self.env['sale.order.line'].search(domain)
+        for line in lines:
+            if getattr(line, 'display_type', False):
+                continue
+
+            qty = self._get_quantity_in_product_uom(line, product)
+            order = line.order_id
+            demand_date = (
+                getattr(order, 'commitment_date', False)
+                or getattr(order, 'expected_date', False)
+                or today
+            )
+            yield line, self._normalize_event_date(demand_date, today), -qty
+
+    def _get_bom_requirements(self, bom, product=None):
+        """Combined, variant-aware component requirements in product units."""
+        bom_qty = bom.product_qty or 1.0
+        if product and bom.product_uom_id != product.uom_id:
+            bom_qty = bom.product_uom_id._compute_quantity(bom_qty, product.uom_id, round=False)
+        requirements = defaultdict(float)
+        components = {}
+
+        for bom_line in bom.bom_line_ids:
+            # Template BOMs carry lines for other variants; honour "Apply on Variants".
+            if product and bom_line._skip_bom_line(product):
+                continue
+            component = bom_line.product_id
+            if not component or not self._is_storable(component):
+                continue
+            if not self._is_bom_inventory_component(component):
+                continue
+            component_qty = self._get_bom_line_component_qty(bom_line)
+            required_per_finished = component_qty / bom_qty if bom_qty else component_qty
+            if required_per_finished <= 0:
+                continue
+            # Repeated lines draw on the same stock pool.
+            requirements[component.id] += required_per_finished
+            components[component.id] = component
+
+        return requirements, components

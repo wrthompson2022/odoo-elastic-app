@@ -239,3 +239,11 @@ class TestFeatureExporter(TransactionCase):
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][1], 'FEATSTYLE')
+
+    def test_description_is_single_per_region(self):
+        self.feature.name = 'Description'
+        self.assignment.region = 'GLOBAL'
+        self.assignment.copy({'region': 'EU', 'value_text': 'European description', 'source_key': False})
+        rows = self._build_exporter()._build_data_rows(self.env['elastic.product.feature.assignment'].search([('feature_id', '=', self.feature.id)]))
+        self.assertEqual({row[0] for row in rows}, {'GLOBAL', 'EU'})
+        self.assertEqual(len(rows), 2)

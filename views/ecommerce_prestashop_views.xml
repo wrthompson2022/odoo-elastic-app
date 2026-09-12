@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_elastic_ecommerce_connection_form_prestashop" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.connection.form.prestashop</field>
+        <field name="model">elastic.ecommerce.connection</field>
+        <field name="inherit_id" ref="odoo-elastic-app.view_elastic_ecommerce_connection_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='platform_credentials']" position="inside">
+                <field name="prestashop_shop_url" placeholder="https://shop.example.com"
+                       invisible="platform != 'prestashop'" required="platform == 'prestashop'"/>
+                <field name="prestashop_webservice_key" password="True"
+                       invisible="platform != 'prestashop'"/>
+                <field name="prestashop_shop_id"
+                       invisible="platform != 'prestashop'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

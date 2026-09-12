@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Explicit ownership: recent Odoo 18 versions apply ordinary ACLs/rules
+         to transient models rather than implicitly limiting them to creators. -->
+    <record id="rule_inventory_explanation_owner" model="ir.rule">
+        <field name="name">Inventory explanations: own reports</field>
+        <field name="model_id" ref="model_elastic_inventory_explanation"/>
+        <field name="domain_force">[('create_uid', '=', user.id)]</field>
+    </record>
+    <record id="rule_inventory_explanation_line_owner" model="ir.rule">
+        <field name="name">Inventory explanations: own timeline</field>
+        <field name="model_id" ref="model_elastic_inventory_explanation_line"/>
+        <field name="domain_force">[('create_uid', '=', user.id), ('report_id.create_uid', '=', user.id)]</field>
+    </record>
+    <record id="rule_inventory_explanation_output_owner" model="ir.rule">
+        <field name="name">Inventory explanations: own output</field>
+        <field name="model_id" ref="model_elastic_inventory_explanation_output"/>
+        <field name="domain_force">[('create_uid', '=', user.id), ('report_id.create_uid', '=', user.id)]</field>
+    </record>
+    <record id="rule_inventory_explanation_component_owner" model="ir.rule">
+        <field name="name">Inventory explanations: own components</field>
+        <field name="model_id" ref="model_elastic_inventory_explanation_component"/>
+        <field name="domain_force">[('create_uid', '=', user.id), ('report_id.create_uid', '=', user.id)]</field>
+    </record>
+</odoo>

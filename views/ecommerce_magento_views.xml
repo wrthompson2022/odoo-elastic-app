@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_elastic_ecommerce_connection_form_magento" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.connection.form.magento</field>
+        <field name="model">elastic.ecommerce.connection</field>
+        <field name="inherit_id" ref="odoo-elastic-app.view_elastic_ecommerce_connection_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='platform_credentials']" position="inside">
+                <field name="magento_base_url" placeholder="https://shop.example.com"
+                       invisible="platform != 'magento'" required="platform == 'magento'"/>
+                <field name="magento_access_token" password="True"
+                       invisible="platform != 'magento'"/>
+                <field name="magento_barcode_attribute" placeholder="gtin"
+                       invisible="platform != 'magento'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

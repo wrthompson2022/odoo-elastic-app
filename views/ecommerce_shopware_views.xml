@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_elastic_ecommerce_connection_form_shopware" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.connection.form.shopware</field>
+        <field name="model">elastic.ecommerce.connection</field>
+        <field name="inherit_id" ref="odoo-elastic-app.view_elastic_ecommerce_connection_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='platform_credentials']" position="inside">
+                <field name="shopware_base_url" placeholder="https://shop.example.com"
+                       invisible="platform != 'shopware'" required="platform == 'shopware'"/>
+                <field name="shopware_access_key_id" password="True"
+                       invisible="platform != 'shopware'"/>
+                <field name="shopware_secret_access_key" password="True"
+                       invisible="platform != 'shopware'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

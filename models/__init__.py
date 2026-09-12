@@ -2,6 +2,8 @@ from . import elastic_connection
 from . import elastic_config
 from . import elastic_catalog
 from . import elastic_product_metadata
+from . import elastic_ecommerce
+from . import elastic_inventory_explanation
 from . import elastic_export_log
 from . import elastic_import_log
 from . import product_template
@@ -12,3 +14,9 @@ from . import res_partner
 from . import sale_order
 from . import elastic_customer_xref
 from . import elastic_order_staging
+from . import ecommerce_shopify
+from . import ecommerce_woocommerce
+from . import ecommerce_magento
+from . import ecommerce_shopware
+from . import ecommerce_prestashop
+from . import ecommerce_bigcommerce

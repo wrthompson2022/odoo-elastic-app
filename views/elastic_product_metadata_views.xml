@@ -350,7 +350,7 @@
                 <field name="feature_id"/>
                 <field name="value_text"/>
                 <field name="sequence"/>
-                <field name="source"/>
+                <field name="source"/><field name="connection_id"/><field name="region"/>
                 <field name="active"/>
             </list>
         </field>
@@ -371,7 +371,7 @@
                         </group>
                         <group>
                             <field name="sequence"/>
-                            <field name="source"/>
+                            <field name="source"/><field name="connection_id"/><field name="region"/>
                             <field name="source_key"/>
                             <field name="active"/>
                         </group>

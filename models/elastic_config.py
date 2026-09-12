@@ -1196,3 +1196,39 @@ class ElasticConfig(models.Model):
                 'sticky': False,
             }
         }
+
+    enable_ecommerce_feature_import = fields.Boolean(
+        string='Pull Product Features from an Ecommerce Platform',
+        default=False,
+        help='Import product content (descriptions, features, attributes) from an '
+             'ecommerce platform or from Odoo product data into Elastic feature assignments.'
+    )
+
+    ecommerce_connection_ids = fields.Many2many(
+        'elastic.ecommerce.connection',
+        compute='_compute_ecommerce_connections',
+        string='Ecommerce Feature Sources',
+    )
+
+    ecommerce_connector_summary = fields.Text(
+        compute='_compute_ecommerce_connector_summary',
+        string='Available Platforms',
+    )
+
+    def _compute_ecommerce_connections(self):
+        connections = self.env['elastic.ecommerce.connection'].search([])
+        for record in self:
+            record.ecommerce_connection_ids = connections
+
+    def action_open_ecommerce_connections(self):
+        self.ensure_one()
+        action = self.env['ir.actions.act_window']._for_xml_id(
+            'odoo-elastic-app.action_elastic_ecommerce_connection'
+        )
+        action['context'] = {}
+        return action
+
+    def _compute_ecommerce_connector_summary(self):
+        labels = self.env['elastic.ecommerce.connection']._get_platform_labels()
+        for record in self:
+            record.ecommerce_connector_summary = ', '.join(labels.values())

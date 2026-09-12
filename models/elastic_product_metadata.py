@@ -280,11 +280,26 @@ class ElasticProductFeatureAssignment(models.Model):
         [
             ('manual', 'Manual'),
             ('odoo', 'Odoo'),
-            ('shopify', 'Shopify'),
+            ('shopify', 'Shopify (Legacy)'),
+            ('ecommerce', 'Ecommerce Import'),
         ],
         default='manual',
         required=True,
     )
+    connection_id = fields.Many2one(
+        'elastic.ecommerce.connection',
+        string='Imported From',
+        ondelete='cascade',
+        index=True,
+        help='Ecommerce feature source that imported this assignment.',
+    )
+
+    region = fields.Char(
+        default='GLOBAL',
+        required=True,
+        help='Elastic Region written on the exported feature row. GLOBAL applies everywhere.',
+    )
+
     source_key = fields.Char(
         string='Source Key',
         index=True,
@@ -294,7 +309,7 @@ class ElasticProductFeatureAssignment(models.Model):
     _sql_constraints = [
         (
             'source_key_unique',
-            'UNIQUE(source_key)',
+            'UNIQUE(connection_id, source_key)',
             'This feature assignment already exists for the product and source.',
         ),
     ]
@@ -346,7 +361,7 @@ class ElasticShopifyConnection(models.Model):
 
     def action_import_features(self):
         self.ensure_one()
-        from ..importers.shopify_feature_importer import ShopifyFeatureImporter
+        from ..importers.legacy_shopify_feature_importer import ShopifyFeatureImporter
         result = ShopifyFeatureImporter(self.env, self).import_features()
         notification_type = 'success' if result.get('success') else 'warning'
         return {

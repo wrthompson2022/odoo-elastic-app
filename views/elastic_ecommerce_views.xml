@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_elastic_ecommerce_connection_list" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.connection.list</field>
+        <field name="model">elastic.ecommerce.connection</field>
+        <field name="arch" type="xml">
+            <list string="Ecommerce Feature Sources">
+                <field name="name"/>
+                <field name="platform"/>
+                <field name="language_code"/>
+                <field name="region"/>
+                <field name="match_strategy"/>
+                <field name="last_import_date"/>
+                <field name="last_import_state" widget="badge"
+                       decoration-success="last_import_state == 'success'"
+                       decoration-warning="last_import_state == 'warning'"
+                       decoration-danger="last_import_state == 'error'"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_elastic_ecommerce_connection_form" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.connection.form</field>
+        <field name="model">elastic.ecommerce.connection</field>
+        <field name="arch" type="xml">
+            <form string="Ecommerce Feature Source">
+                <header>
+                    <button name="action_test_connection" type="object" string="Test Connection" class="btn-secondary" icon="fa-plug"/>
+                    <button name="action_discover_source_fields" type="object" string="Discover Fields" class="btn-secondary" icon="fa-search"/>
+                    <button name="action_import_features" type="object" string="Import Features" class="oe_highlight" icon="fa-download"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_mappings" type="object" class="oe_stat_button" icon="fa-exchange">
+                            <field name="mapping_count" widget="statinfo" string="Mappings"/>
+                        </button>
+                        <button name="action_view_product_links" type="object" class="oe_stat_button" icon="fa-link">
+                            <field name="product_link_count" widget="statinfo" string="Product Links"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Brand store (EU)"/></h1>
+                    </div>
+                    <group>
+                        <group name="platform_settings" string="Platform">
+                            <field name="platform"/>
+                            <field name="active"/>
+                            <field name="language_code"/>
+                            <field name="region"/>
+                        </group>
+                        <group name="matching" string="Product Matching">
+                            <field name="match_strategy" invisible="platform == 'odoo'"/>
+                            <field name="import_only_elastic_products"/>
+                        </group>
+                    </group>
+                    <group name="platform_credentials" string="Credentials" invisible="platform == 'odoo'">
+                        <!-- Connector modules insert their credential fields here. -->
+                    </group>
+                    <group name="last_import" string="Last Import" invisible="not last_import_date">
+                        <field name="last_import_date"/>
+                        <field name="last_import_state"/>
+                        <field name="last_import_message"/>
+                    </group>
+                    <notebook>
+                        <page string="Feature Mappings" name="mappings">
+                            <field name="mapping_ids" context="{'default_connection_id': id}">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="connection_id" column_invisible="1"/>
+                                    <field name="name"/>
+                                    <field name="source_field_id" options="{'no_create': True}"/>
+                                    <field name="source_type"/>
+                                    <field name="source_path"/>
+                                    <field name="parser"/>
+                                    <field name="feature_id"/>
+                                    <field name="active"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Discovered Fields" name="source_fields">
+                            <p class="text-muted">
+                                Use <strong>Discover Fields</strong> to read the fields, custom fields, and
+                                attributes the platform exposes. Mappings can then pick from this list.
+                            </p>
+                            <field name="source_field_ids" readonly="1">
+                                <list>
+                                    <field name="source_type"/>
+                                    <field name="name"/>
+                                    <field name="code"/>
+                                    <field name="value_type"/>
+                                    <field name="suggested_parser"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_elastic_ecommerce_connection" model="ir.actions.act_window">
+        <field name="name">Ecommerce Feature Sources</field>
+        <field name="res_model">elastic.ecommerce.connection</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Connect an ecommerce platform
+            </p>
+            <p>
+                Pull product descriptions, features, and attributes from Shopify, WooCommerce, Magento 2,
+                Shopware 6, PrestaShop, BigCommerce, or Odoo product data into Elastic feature assignments.
+                Install the connector module for your platform first.
+            </p>
+        </field>
+    </record>
+
+    <record id="view_elastic_ecommerce_feature_mapping_list" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.feature.mapping.list</field>
+        <field name="model">elastic.ecommerce.feature.mapping</field>
+        <field name="arch" type="xml">
+            <list string="Feature Mappings">
+                <field name="sequence" widget="handle"/>
+                <field name="connection_id"/>
+                <field name="name"/>
+                <field name="source_type"/>
+                <field name="source_path"/>
+                <field name="parser"/>
+                <field name="feature_id"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_elastic_ecommerce_feature_mapping_form" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.feature.mapping.form</field>
+        <field name="model">elastic.ecommerce.feature.mapping</field>
+        <field name="arch" type="xml">
+            <form string="Feature Mapping">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="connection_id"/>
+                            <field name="feature_id"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="source_field_id" options="{'no_create': True}"/>
+                            <field name="source_type"/>
+                            <field name="source_path"/>
+                            <field name="parser"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_elastic_ecommerce_product_link_list" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.product.link.list</field>
+        <field name="model">elastic.ecommerce.product.link</field>
+        <field name="arch" type="xml">
+            <list string="Product Links" editable="bottom">
+                <field name="connection_id"/>
+                <field name="product_tmpl_id"/>
+                <field name="external_id"/>
+                <field name="handle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_elastic_ecommerce_product_link_form" model="ir.ui.view">
+        <field name="name">elastic.ecommerce.product.link.form</field>
+        <field name="model">elastic.ecommerce.product.link</field>
+        <field name="arch" type="xml">
+            <form string="Product Link">
+                <sheet>
+                    <group>
+                        <field name="connection_id"/>
+                        <field name="product_tmpl_id"/>
+                        <field name="external_id"/>
+                        <field name="handle"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>

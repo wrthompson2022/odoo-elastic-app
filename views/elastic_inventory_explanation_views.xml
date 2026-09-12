@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_elastic_inventory_explanation_form" model="ir.ui.view">
+        <field name="name">elastic.inventory.explanation.form</field>
+        <field name="model">elastic.inventory.explanation</field>
+        <field name="arch" type="xml">
+            <form string="Inventory Explanation" duplicate="0">
+                <header>
+                    <button name="action_calculate" type="object" string="How is inventory calculated?"
+                            class="oe_highlight" invisible="calculated_at"/>
+                    <button name="action_calculate" type="object" string="Recalculate"
+                            class="oe_highlight" invisible="not calculated_at"/>
+                </header>
+                <sheet>
+                    <field name="expired" invisible="1"/>
+                    <div class="alert alert-info" role="alert">
+                        This report calculates current Odoo data for one SKU and warehouse. It does not
+                        send a file or reconstruct a previous export. Reports expire after 15 minutes.
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="not expired">
+                        This calculation has expired. Recalculate to see current availability.
+                    </div>
+                    <group>
+                        <group>
+                            <field name="company_id" invisible="1"/>
+                            <field name="product_tmpl_id" invisible="1"/>
+                            <field name="product_id" options="{'no_create': True}"
+                                   domain="[('is_storable', '=', True)] + ([('product_tmpl_id', '=', product_tmpl_id)] if product_tmpl_id else [])" readonly="calculated_at"/>
+                            <field name="warehouse_id" options="{'no_create': True}"
+                                   domain="[('company_id', '=', company_id)]" readonly="calculated_at"/>
+                        </group>
+                        <group invisible="not calculated_at">
+                            <field name="calculated_at"/>
+                            <field name="expires_at"/>
+                        </group>
+                    </group>
+                    <div invisible="not calculated_at or expired">
+                        <group>
+                            <group>
+                                <field name="stock_item_key"/>
+                                <field name="warehouse_code"/>
+                                <field name="on_hand"/>
+                                <field name="uom_id"/>
+                            </group>
+                            <group>
+                                <field name="include_quotations"/>
+                                <field name="bom_enabled"/>
+                                <field name="fallback_qty" invisible="not bom_enabled"/>
+                            </group>
+                        </group>
+                        <div class="alert alert-warning" role="alert" invisible="not publication_note">
+                            <field name="publication_note" nolabel="1"/>
+                        </div>
+                        <separator string="How inventory is calculated"/>
+                        <p>The stock balance carries shortages forward. Elastic available-to-sell (ATS)
+                            looks ahead and protects future commitments. ATS is shown at the end of each date, after all groups
+                            for that date; it can differ from the running stock balance.</p>
+                        <field name="line_ids" nolabel="1">
+                            <list create="0" edit="0" delete="0" open_form_view="0" limit="200">
+                                <field name="day"/>
+                                <field name="source" width="210px"/>
+                                <field name="change_qty"/>
+                                <field name="projected_qty" width="100px"/>
+                                <field name="ats_qty"/>
+                                <field name="source_ids" column_invisible="1"/>
+                                <field name="move_ids" column_invisible="1"/>
+                                <button name="action_sources" type="object" string="View records"
+                                        icon="fa-external-link" invisible="not source_ids"/>
+                                <button name="action_movements" type="object" string="Movements"
+                                        icon="fa-exchange" invisible="not move_ids"/>
+                                <field name="original_date_from" optional="hide"/>
+                                <field name="original_date_to" optional="hide"/>
+                                <field name="date_note" optional="hide"/>
+                            </list>
+                        </field>
+                        <p>Source lists contain the contributing documents captured at calculation time.
+                            Totals here cover only this SKU and warehouse; linked orders can contain other
+                            products. Documents show their current values; use the breadcrumb to return here.
+                            Original dates and the date policy are available in the optional columns.
+                            Overdue movements count today. Movement date buckets use stored UTC dates;
+                            source documents display times in your timezone.</p>
+                        <separator string="Inventory values that would be sent to Elastic"/>
+                        <p>These are the AvailableDate and Quantity values for the warehouse and stock item
+                            key above. A blank date means available now. Only changes in available-to-sell
+                            quantity produce another row. Quantities are cumulative and should not be
+                            added together. Published quantities round down to two decimals.</p>
+                        <field name="output_ids" nolabel="1">
+                            <list create="0" edit="0" delete="0">
+                                <field name="availability"/>
+                                <field name="quantity"/>
+                                <field name="available_date" optional="hide"/>
+                            </list>
+                        </field>
+                        <group invisible="not bom_enabled">
+                            <separator string="BOM component calculation"/>
+                            <p>Fallback is evaluated only when finished-goods ATS is zero at every date.
+                                Only configured component categories and applicable variant lines count;
+                                repeated lines are combined and quantities use each product's unit.
+                                Usable components are capped by on-hand, unreserved stock, and
+                                demand-protected ATS. The best buildable quantity across BOMs is used
+                                once; tied BOM quantities are not added together.</p>
+                            <field name="component_ids" nolabel="1" colspan="2">
+                                <list create="0" edit="0" delete="0">
+                                    <field name="bom_name"/>
+                                    <field name="selected"/>
+                                    <field name="product_id"/>
+                                    <field name="required_qty"/>
+                                    <field name="on_hand"/>
+                                    <field name="unreserved"/>
+                                    <field name="protected_qty"/>
+                                    <field name="usable_qty"/>
+                                    <field name="buildable_qty"/>
+                                    <field name="limiting"/>
+                                </list>
+                            </field>
+                            <p>Component quantities are estimates of buildable stock, not production
+                                capacity or lead-time promises. Existing finished-goods demand still applies.</p>
+                        </group>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_elastic_inventory_explanation" model="ir.actions.server">
+        <field name="name">Inventory Explanation</field>
+        <field name="model_id" ref="model_elastic_inventory_explanation"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open()</field>
+        <field name="groups_id" eval="[(4, ref('group_elastic_user'))]"/>
+    </record>
+    <record id="action_product_elastic_inventory_explanation" model="ir.actions.server">
+        <field name="name">Explain Elastic Inventory</field>
+        <field name="model_id" ref="product.model_product_product"/>
+        <field name="binding_model_id" ref="product.model_product_product"/>
+        <field name="binding_view_types">form</field>
+        <field name="groups_id" eval="[(4, ref('group_elastic_user'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = env['elastic.inventory.explanation'].action_open(record.id)</field>
+    </record>
+    <record id="action_template_elastic_inventory_explanation" model="ir.actions.server">
+        <field name="name">Explain Elastic Inventory</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="binding_model_id" ref="product.model_product_template"/>
+        <field name="binding_view_types">form</field>
+        <field name="groups_id" eval="[(4, ref('group_elastic_user'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = env['elastic.inventory.explanation'].action_open(record.product_variant_id.id if record.product_variant_count == 1 else False)
+action['context']['default_product_tmpl_id'] = record.id</field>
+    </record>
+</odoo>

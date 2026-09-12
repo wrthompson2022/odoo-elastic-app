@@ -8,74 +8,24 @@
         <field name="sequence">60</field>
         <field name="body"><![CDATA[
 <h1>Elastic Integration SOP</h1>
-
-<h2>Purpose</h2>
-<p>This Knowledge section explains the end-to-end operating procedure for the Elastic Integration app. It covers SFTP connection setup, configuration, product and customer data preparation, feature import, flat-file generation, manual exports, order imports, scheduling, logging, and troubleshooting.</p>
-
-<h2>Process Map</h2>
-<ol>
-    <li>Configure Beta and Production SFTP connections.</li>
-    <li>Select the active environment and file format settings.</li>
-    <li>Prepare Odoo products, variants, customers, catalogs, reps, pricelists, and cross-references.</li>
-    <li>Generate product metadata and optionally import product feature assignments from Shopify.</li>
-    <li>Run manual exports and confirm generated files in the active connection outbound directory.</li>
-    <li>Import Elastic order files from the active connection inbound directory.</li>
-    <li>Activate and schedule imports and exports through Odoo scheduled actions.</li>
-    <li>Monitor Export Logs, Import Logs, and Staged Orders after each run.</li>
-</ol>
-
-<h2>Child Pages</h2>
-<ul>
-    <li><strong>01 - Connection Setup</strong>: SFTP profiles, authentication, host keys, directories, and environment switching.</li>
-    <li><strong>02 - Core Configuration and Data Prep</strong>: settings, toggles, product/customer fields, catalogs, pricelists, reps, and cross-references.</li>
-    <li><strong>03 - Product Metadata and Feature Import</strong>: color/size metadata, product tag mappings, Shopify feature imports, and feature assignments.</li>
-    <li><strong>04 - End File Generation and Manual Exports</strong>: generated CSV files, file names, data sources, filters, and export sequence.</li>
-    <li><strong>05 - Order Import and Staged Orders</strong>: inbound order polling, staging, duplicate handling, sale order creation, and retries.</li>
-    <li><strong>06 - Scheduling Imports and Exports</strong>: scheduled action activation, cadence, and operational controls.</li>
-    <li><strong>07 - Monitoring and Troubleshooting</strong>: logs, common failures, and recovery steps.</li>
-</ul>
-
-<h2>Roles</h2>
-<table class="table table-sm table-bordered">
-    <thead>
-        <tr>
-            <th>Role</th>
-            <th>Responsibility</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td><strong>Elastic Manager</strong></td>
-            <td>Owns SFTP credentials, host-key verification, active environment selection, export/import settings, scheduled actions, metadata setup, and troubleshooting.</td>
-        </tr>
-        <tr>
-            <td><strong>Elastic User</strong></td>
-            <td>Reviews configuration, runs permitted exports/imports, reviews logs, and manages staged orders as assigned.</td>
-        </tr>
-        <tr>
-            <td><strong>Sales / Customer Operations</strong></td>
-            <td>Maintains customer SoldToID data, ship-to locations, sales reps, catalogs, price groups, order exceptions, and customer cross-references.</td>
-        </tr>
-        <tr>
-            <td><strong>Product / Merchandising</strong></td>
-            <td>Maintains product identifiers, color/size metadata, catalogs, product tags, features, and Shopify feature mappings.</td>
-        </tr>
-        <tr>
-            <td><strong>IT / Administrator</strong></td>
-            <td>Installs or upgrades the module, activates cron jobs, monitors technical errors, and coordinates access to Odoo and Elastic SFTP.</td>
-        </tr>
-    </tbody>
-</table>
-
-<h2>Navigation</h2>
-<p>The app adds an <strong>Elastic</strong> top-level menu in Odoo. Use:</p>
-<ul>
-    <li><strong>Elastic &gt; Configuration &gt; Settings</strong> for active environment, export toggles, import settings, product metadata generation, and manual actions.</li>
-    <li><strong>Elastic &gt; Configuration &gt; SFTP Connections</strong> for Beta and Production connection profiles.</li>
-    <li><strong>Elastic &gt; Configuration</strong> for catalogs, colors, sizes, features, product tag mappings, Shopify feature imports, customer cross-references, and Elastic pricelists.</li>
-    <li><strong>Elastic &gt; Orders &gt; Staged Orders</strong> for imported Elastic orders that are pending, processed, duplicate, or in error.</li>
-    <li><strong>Elastic &gt; Logs</strong> for import and export logs.</li>
-</ul>
+<p>Operating guide for people implementing and maintaining Elastic. Updated for bundled app 18.0.1.7.0, incorporating the distributable connector's 18.0.1.3.1 functionality.</p>
+<h2>End-to-end workflow</h2>
+<ol><li>Configure and test separate Beta and Production SFTP connections.</li>
+<li>Prepare product identifiers, catalog membership, customers, warehouses, prices and sales representatives.</li>
+<li>Optionally import descriptions and governed features from Shopify or another ecommerce source.</li>
+<li>Validate one SKU using Inventory Explanation, then generate the required outbound feeds.</li>
+<li>Import Elastic orders, inspect staged outcomes and follow the linked Odoo sales order.</li>
+<li>Configure independent schedules and monitor logs and source import results.</li></ol>
+<h2>Guide pages</h2>
+<ul><li>01 — Connection Setup</li><li>02 — Core Configuration and Data Prep</li>
+<li>03 — Product Metadata and Feature Import</li><li>04 — End File Generation and Manual Exports</li>
+<li>05 — Order Import and Staged Orders</li><li>06 — Scheduling Imports and Exports</li>
+<li>07 — Monitoring and Troubleshooting</li><li>08 — Explain Inventory for a SKU</li></ul>
+<h2>Roles and scope</h2>
+<p>Elastic users can inspect operational records and generate their own inventory explanations, subject to their Odoo access. Elastic managers maintain configuration, source credentials and mappings. Scheduler users need access to the companies and business records their jobs process.</p>
+<p>Shopify, WooCommerce, Magento 2, Shopware 6, PrestaShop, BigCommerce and Odoo product data supply product content. These are feature import sources; they do not replace the Elastic SFTP inventory, customer or order workflows. This bundled app includes all seven sources. The separate p2_elastic_integration distribution installs ecommerce platforms as companion modules; do not install both core applications in one database.</p>
+<h2>Implementation demo</h2>
+<p>Use an existing connected client in its approved demo or Beta environment. Show settings and connection health, Shopify field discovery and mappings, one SKU's calculation with sales-order and receipt drill-downs, manual export logs, staged order handling, and schedules. Review customer-specific data before presenting it externally.</p>
         ]]></field>
     </record>
 
@@ -177,10 +127,10 @@
 </ul>
 
 <h2>Export Filters</h2>
-<p>Use <strong>Export Only Synced Products</strong> to limit product, price, inventory, feature, and tag exports to products with Elastic sync enabled. Product exports also require the template and variant to be enabled.</p>
+<p><strong>Product publication is always gated:</strong> a variant must belong to an active catalog through either its template or its own membership, both template and variant must have Push to Elastic enabled, and the product must be an active sellable good with an ItemNumber and StockItemKey. These shared rules govern products, prices, features, tags, inventory and catalog mappings. Inventory additionally requires inventory tracking.</p>
 <p>Use <strong>Include Quotations in ATP Demand</strong> when draft/sent sales quotations should reduce exported inventory availability. Leave it disabled when only confirmed sales demand should reduce ATP.</p>
 <p>Enable <strong>Send Inventory to Elastic</strong> on every warehouse that should contribute inventory. Use <strong>Use BOM Component Fallback for ATP</strong> when made-to-order finished goods should be sellable based on raw-material stock, and select the BOM Component Categories that should constrain buildable inventory. Components in unselected categories, such as packaging, are ignored. Finished-goods ATP is used first; BOM component availability is only used when the finished good has no positive ATP.</p>
-<p>Use <strong>Export Only Synced Customers</strong> to limit customer, location, custom-field, and rep-mapping exports to customers with Elastic sync enabled.</p>
+<p>Customer Push to Elastic is always authoritative for customer, location, custom-field and rep-mapping exports.</p>
 
 <h2>Customer Setup</h2>
 <ol>
@@ -280,18 +230,19 @@
     <li>Use <strong>Product Feature Assignments</strong> for manual or reviewed assignments.</li>
 </ol>
 
-<h2>Shopify Feature Import</h2>
-<ol>
-    <li>Go to <strong>Elastic &gt; Configuration &gt; Shopify Feature Imports</strong>.</li>
-    <li>Create a Shopify connection with shop domain, API version, access token, and match strategy.</li>
-    <li>Choose match strategy: Variant SKU, Variant Barcode, Shopify Product ID, or Shopify Handle.</li>
-    <li>Enable <strong>Only Import Elastic Products</strong> when imports should skip products not enabled for Elastic.</li>
-    <li>Add feature mappings from Shopify product fields or metafields to target Elastic features.</li>
-    <li>Choose the parser: HTML list, HTML text, rich text, multiline, or plain text.</li>
-    <li>Click <strong>Import Features</strong>.</li>
-    <li>Review <strong>Product Feature Assignments</strong>.</li>
-</ol>
-
+<h2>Ecommerce Feature Sources</h2>
+<ol><li>In Settings → Ecommerce Features, enable Pull Product Features from an Ecommerce Platform.</li>
+<li>Open Configure Feature Sources, or Configuration → Ecommerce Feature Sources. Create a source for each store and language. Choose Shopify for the demo.</li>
+<li>For Shopify enter the shop domain, Admin API version and custom-app access token. The GraphQL client defaults to 2026-01. Product reading needs read_products; requesting translations also needs read_translations. Test Connection.</li>
+<li>Choose product matching by SKU, barcode, external product ID or handle. Existing imported identifiers are visible in Ecommerce Product Links on the product.</li>
+<li>Set the optional language/locale and the Elastic Region. Region defaults to GLOBAL and is exported on feature rows; a locale selects source content and does not itself select an Elastic region.</li>
+<li>Run Discover Fields. Review product fields, custom fields/metafields or attributes exposed by that platform. Create mappings to governed Elastic features and choose the appropriate parser.</li>
+<li>Shopify supports plain text, multiline text, HTML text, HTML lists, JSON lists and Shopify rich text. A discovered rich-text metafield can be mapped using its suggested parser.</li>
+<li>Run Import Features. Inspect the source's last import result, product links and feature assignments before exporting Features to Elastic.</li></ol>
+<p>Mappings govern what is imported; discovery does not publish content. Imports match existing Odoo products, upsert assignments and remove stale values within the source and mapping scope. Manual assignments remain separate. Description is a single-value feature per item and region. The shared catalog and identifier gates still determine whether an imported assignment is exported.</p>
+<p>Available sources also include WooCommerce, Magento 2, Shopware 6, PrestaShop, BigCommerce and Odoo product data. Each has its own credentials and available fields. Configure sources explicitly; adding support does not connect a store automatically.</p>
+<h2>Upgrade from legacy Shopify imports</h2>
+<p>Upgrading carries existing Shopify connections, credentials and mappings into Ecommerce Feature Sources and archives the old connections. Original legacy records remain available for compatibility. With one legacy store, existing product identifiers and imported assignments are linked to the new source. With multiple stores the old schema cannot establish ownership: review product links and old assignments before importing to avoid associating content with the wrong store. Existing business schedules are retained; the new feature-import schedule starts disabled.</p>
 <h2>Feature Export Rule</h2>
 <p>The features.csv export reads active Product Feature Assignments where the related feature is active and marked Export to Elastic. Template-level assignments are expanded to active variants. If Export Only Synced Products is enabled, unsynced templates or variants are skipped.</p>
         ]]></field>
@@ -356,7 +307,7 @@
         <tr>
             <td>Export Features</td>
             <td>features.csv</td>
-            <td>Active governed product feature assignments</td>
+            <td>Active governed assignments, with their source region, for eligible catalog products</td>
         </tr>
         <tr>
             <td>Export Prices</td>
@@ -388,9 +339,12 @@
             <td>rep_mappings.csv</td>
             <td>Customers mapped through their employee Sales Rep assignment</td>
         </tr>
-    </tbody>
+            <tr><td>Export Order History</td><td>order_headers.csv and order_lines.csv</td><td>Confirmed and cancelled sales orders, including historical product references</td></tr>
+</tbody>
 </table>
 
+<h2>Order history</h2>
+<p>The history export prepares an 83-column header file and a 56-column line file. It uses confirmed and cancelled orders for eligible company customers in the active company, retaining historical references to archived products. Sections, notes, down payments and shipping lines are excluded; Odoo line IDs provide stable line references. Both payloads are validated before upload. Each file has its own result; SFTP cannot make the two uploads atomic, so investigate a partial failure before rerunning. There is no invoice export feed.</p>
 <h2>Inventory ATP Logic</h2>
 <p>The inventory export sends available-to-promise quantities by product and warehouse. It starts with current finished-goods on-hand stock, applies open incoming and outgoing stock moves in date order, optionally subtracts draft/sent quotations, and sends negative quantities as 0. The internal running balance can go negative so later receipts first cover earlier shortages. A backward check then protects future commitments before offering stock at an earlier date. Incoming supply uses the later scheduled date or receipt deadline; demand uses the earlier. The CSV contains cumulative availability, not additive receipt quantities.</p>
 <p>If <strong>Use BOM Component Fallback for ATP</strong> is enabled and a finished product has no positive finished-goods ATP, Odoo evaluates every active BOM for that product/template. Only component lines whose product category is one of the selected <strong>BOM Component Categories</strong> (or a child category) constrain buildable inventory; unselected categories such as packaging are ignored. For each BOM, the buildable quantity uses the limiting eligible component after reservations and future demand are protected across internal locations in the enabled warehouse. Repeated usage of the same component is combined, and both component and finished output units are converted. Only current physical component stock supports buildable units. If multiple active BOMs exist, Odoo uses the BOM that can build the highest number of finished units. Buildable units supplement physical finished stock without erasing a negative balance. Current and future finished-good demand still reduce availability before export. Shared-component allocation and production lead times are separate policies.</p>
@@ -402,6 +356,7 @@
     <li><strong>BOM fallback for MTO goods:</strong> a finished good has no finished stock or open manufacturing supply. Frames and lenses are selected as BOM Component Categories while packaging is not. Active BOM A can build 40 units from its frame and lens stock, and active BOM B can build 60; a packaging shortage does not constrain either result. Odoo uses 60 as fallback supply, then subtracts any existing finished-good demand before writing inventory.csv.</li>
 </ul>
 
+<p>Inventory Explanation previews the current calculation for a single SKU and warehouse without generating or uploading a file. It is not a stored historical copy of a previous export. See page 08.</p>
 <h2>Recommended Manual Export Sequence</h2>
 <ol>
     <li>Test the active SFTP connection.</li>
@@ -501,7 +456,7 @@
 
 <h2>Matching Notes</h2>
 <ul>
-    <li>Sold-To and Ship-To matching uses customer cross-references first when available.</li>
+    <li>Sold-To resolution uses connection-aware cross-references, then the supported Odoo ID and legacy account identifiers. Ship-To resolution checks delivery contacts belonging to the Sold-To before accepting a cross-reference; a delivery address from another customer must not be reused.</li>
     <li>The customer legacy account number can be used as SoldToID when enabled in Settings.</li>
     <li>Product matching follows the configured Stock Item Key Field.</li>
     <li>Duplicate checks use the Elastic Order Number and Shipment Number stored on sale orders.</li>
@@ -518,89 +473,22 @@
         <field name="sequence">66</field>
         <field name="body"><![CDATA[
 <h1>06 - Scheduling Imports and Exports</h1>
-
-<h2>Goal</h2>
-<p>Configure automated imports and exports from the active Elastic configuration without using Odoo developer mode.</p>
-
-<h2>Scheduled Actions Created by the Module</h2>
-<table class="table table-sm table-bordered">
-    <thead>
-        <tr>
-            <th>Scheduled Action</th>
-            <th>Default Active</th>
-            <th>Default Cadence</th>
-            <th>Runs</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>Elastic: Import Orders</td>
-            <td>No</td>
-            <td>Every 1 hour</td>
-            <td>Order import for active configurations where Enable Order Import is checked.</td>
-        </tr>
-        <tr>
-            <td>Elastic: Export All Enabled</td>
-            <td>No</td>
-            <td>Every 1 day</td>
-            <td>All export types enabled on each active Elastic configuration.</td>
-        </tr>
-        <tr>
-            <td>Elastic: Export Products</td>
-            <td>No</td>
-            <td>Every 1 day</td>
-            <td>Products feed.</td>
-        </tr>
-        <tr>
-            <td>Elastic: Export Customers</td>
-            <td>No</td>
-            <td>Every 1 day</td>
-            <td>Customers feed.</td>
-        </tr>
-        <tr>
-            <td>Elastic: Export Inventory</td>
-            <td>No</td>
-            <td>Every 1 hour</td>
-            <td>Inventory feed.</td>
-        </tr>
-        <tr>
-            <td>Elastic: Export Order History</td>
-            <td>No</td>
-            <td>Every 1 day</td>
-            <td>Order headers and lines for confirmed and cancelled orders: order_headers.csv and order_lines.csv. Use Download Order History in Settings to obtain both files as a ZIP without SFTP.</td>
-        </tr>
-    </tbody>
-</table>
-
-<h2>Configure Schedulers</h2>
-<ol>
-    <li>Go to <strong>Elastic &gt; Configuration &gt; Settings</strong>.</li>
-    <li>Confirm the active environment and test its SFTP connection.</li>
-    <li>Click <strong>Configure Schedulers</strong>.</li>
-    <li>Enable each required product, customer, inventory, order-history, or order-import operation.</li>
-    <li>Set its interval number, interval unit, next execution, and execution user.</li>
-    <li>Click <strong>Save Schedulers</strong>.</li>
-    <li>Use <strong>Active Schedulers</strong> to review the enabled Odoo jobs.</li>
-</ol>
-
-<h2>Order Import Safety</h2>
-<p>Enabling the order-import schedule also enables Order Import on the configuration. Disabling Order Import on the configuration pauses its schedule. Turning off only the schedule leaves manual order import available.</p>
-
-<h2>Scheduling Controls</h2>
-<ul>
-    <li>Dedicated export schedules run independently; the Export All selections only control Export All Enabled.</li>
-    <li>Scheduled order imports run only for active configurations where order import is enabled.</li>
-    <li>All scheduled actions use the active environment selected on the configuration.</li>
-    <li>Keep Beta scheduled actions disabled unless testing automation intentionally.</li>
-    <li>Do not activate Production schedules until manual Beta and Production test runs have been validated.</li>
-</ul>
-
-<h2>Recommended Production Cadence</h2>
-<ul>
-    <li>Order import: every 15 to 60 minutes depending on order volume and service expectations.</li>
-    <li>Inventory export: at least daily, more often if Elastic needs near-current availability.</li>
-    <li>Products, customers, and order history: daily or after relevant master-data changes.</li>
-</ul>
+<p>Open Settings → Configure Schedulers to control six independent business jobs. Each has an enable switch, interval, next execution and Odoo execution user. Intervals support minutes, hours, days, weeks and months.</p>
+<table><thead><tr><th>Job</th><th>Purpose</th></tr></thead><tbody>
+<tr><td>Product export</td><td>Product-related feeds selected in Settings</td></tr>
+<tr><td>Customer export</td><td>Customer-related feeds selected in Settings</td></tr>
+<tr><td>Inventory export</td><td>Current and dated availability for eligible products and enabled warehouses</td></tr>
+<tr><td>Order history export</td><td>Order header and line files</td></tr>
+<tr><td>Order import</td><td>Incoming Elastic files and staged orders</td></tr>
+<tr><td>Ecommerce feature import</td><td>Configured mappings from each active source</td></tr>
+</tbody></table>
+<p>Start with a manual run and inspect its result before enabling a schedule. Enabling an import schedule also enables that import in Settings. Turning its schedule off leaves manual imports available until the corresponding Settings switch is disabled.</p>
+<p>Existing schedules survive upgrades. New business schedules start disabled. The source import job processes active sources independently; a failed source is recorded without preventing the others from running. Source result fields show the last attempt and error message.</p>
+<p>Choose cadence based on customer needs, data volume and store API limits. Run feature imports before feature exports if the exported content should include the newest source values. Confirm that each selected execution user has the necessary Elastic, Sales, Inventory and company access.</p>
+<h2>Temporary report cleanup</h2>
+<p>Elastic: Clean Up Inventory Explanations runs every five minutes. A report becomes unusable after 15 minutes; cleanup removes it and its detail records on the next run. Physical deletion can therefore occur about 15–20 minutes after calculation under normal scheduling, or later if cron is delayed. This maintenance job is active by default and is separate from the six business schedules.</p>
+<h2>Inspect execution</h2>
+<p>Settings → Active Schedulers opens active Elastic scheduled actions for administrators. Compare next execution, execution user and job result with Export Logs, Import Logs and each ecommerce source's last-import result. Avoid overlapping duplicate schedules for the same feed.</p>
         ]]></field>
     </record>
 
@@ -614,6 +502,9 @@
         <field name="body"><![CDATA[
 <h1>07 - Monitoring and Troubleshooting</h1>
 
+<h2>Current diagnostic workflow</h2>
+<p>For a disputed inventory quantity, use Inventory Explanation for the exact SKU and warehouse. Follow grouped Sales Orders and receipt links, then return using breadcrumbs. Check excluded-product and disabled-warehouse notices before comparing the Elastic preview. The result reflects live Odoo records at calculation time; historical file investigations also require the original exported file and its log.</p>
+<p>For ecommerce content, inspect the source's Test Connection, discovered fields, enabled mappings, locale/region, product matching and last import result. Check product links and assignments before rerunning Features export. A successful content import does not mean a file was uploaded.</p>
 <h2>Daily Monitoring</h2>
 <ol>
     <li>Open <strong>Elastic &gt; Logs &gt; Export Logs</strong> and review the most recent export run.</li>
@@ -704,4 +595,36 @@
 </ul>
         ]]></field>
     </record>
+<record id="knowledge_article_elastic_sop_inventory_explanation" model="knowledge.article">
+<field name="name">08 - Explain Inventory for a SKU</field>
+<field name="parent_id" ref="knowledge_article_elastic_sop_root"/>
+<field name="category">workspace</field><field name="internal_permission">write</field>
+<field name="is_article_visible_by_everyone" eval="True"/><field name="sequence">68</field>
+<field name="body"><![CDATA[
+<h1>08 - Explain Inventory for a SKU</h1>
+<h2>Open a spot check</h2>
+<ol><li>Open Elastic → Inventory Explanation, or open a product's Elastic tab and choose How was inventory calculated?</li>
+<li>Select the exact product/SKU and warehouse in your active company. For a template with several variants, select the variant to investigate.</li>
+<li>Calculate. Read the calculation time, expiry and any publication notices.</li></ol>
+<p>This creates a temporary explanation on demand. It sends nothing to Elastic, needs no SFTP connection and adds no report-writing overhead to normal inventory exports. Reports expire after 15 minutes, are private to their creator, and have no history/list view. Recalculate for a fresh result.</p>
+<h2>Read the calculation</h2>
+<ul><li><strong>On-hand Inventory:</strong> physical internal stock in the chosen warehouse at calculation time.</li>
+<li><strong>Sales Orders:</strong> one grouped line per effective date with the total demand and order count. The link opens the exact orders that contributed; it does not expand every order inline.</li>
+<li><strong>Incoming Receipts:</strong> receipt movements contributing supply. Open the filtered receipts, then their purchase orders through the receipt's source document. Quantities come from outstanding stock movements, not the full original PO quantity.</li>
+<li><strong>Quotations:</strong> draft/sent demand appears only when Include Quotations in ATP Demand is enabled.</li>
+<li><strong>Other movements:</strong> outgoing deliveries, warehouse transfers and moves without a picking remain traceable through their appropriate lists.</li>
+<li><strong>Running total:</strong> balance after that group. <strong>Available to Sell:</strong> protected daily closing availability after considering later commitments; several groups on one day share the same closing ATS.</li></ul>
+<p>Use source and movement links in the current window, then breadcrumbs to return to the calculation. Linked records retain your normal Odoo access restrictions. The lists show current source records; they are not historical snapshots.</p>
+<h2>Past and future availability</h2>
+<p>Dates on or before today are folded into today's bucket. Incoming supply uses the later of a movement's scheduled date and deadline; demand uses the earlier. Internal moves wholly within the selected warehouse do not add supply or demand. Cross-warehouse movements affect each warehouse separately.</p>
+<p>Starting with on hand, receipts add and demand subtracts to produce dated balances. Deficits carry forward. A backward check reserves today's stock for future demand until replenishment arrives. The exported quantity is the nonnegative minimum balance from that date onward. A current row is always emitted for an eligible SKU/warehouse, even at zero; later rows appear only when the rounded-down quantity changes.</p>
+<p>Example: 20 on hand, sales demand of 30 in three days, a receipt of 40 in seven days, and demand of 12 in ten days give running balances 20, −10, 30 and 18. Elastic receives 0 available now and 18 available from day seven. The receipt first covers the carried shortage and the later order.</p>
+<h2>BOM fallback</h2>
+<p>Fallback is considered only if finished-goods ATS is zero at every date and the option is enabled. Only configured component categories and their descendants participate. Applicable variant BOM lines are combined by component and converted into product units.</p>
+<p>Usable component stock is capped by physical on hand, unreserved stock and demand-protected ATS. Future component receipts cannot be built today. The component table shows required units, available quantities, buildable units and the limiting component. The best buildable quantity from one active BOM is added once; tied BOMs are not summed. Finished-goods deficits and demand still consume that supply. This is a stock estimate, not production capacity or a promised lead time.</p>
+<h2>What goes to Elastic</h2>
+<p>The Elastic output preview states Available now or Available from a date and the quantity. The optional raw AvailableDate value uses YYYYMMDD, with blank for today; quantities are rounded down to two decimal places. There is no ambiguous Export row column.</p>
+<p>Catalog membership, template and variant Push to Elastic, sellable/storable status, identifiers and the warehouse's Send Inventory to Elastic switch determine publication. An excluded product or warehouse can still be investigated, but has no output preview rows. A disabled Inventory Export setting is called out separately.</p>
+<p>The preview uses the same calculation as the exporter at the time you press Calculate. It cannot prove the contents of an earlier file after stock or orders have changed. Compare the original file and export log when investigating a past export.</p>
+]]></field></record>
 </odoo>

@@ -16,6 +16,10 @@ INTERVAL_TYPES = [
 ]
 
 SCHEDULES = {
+    'ecommerce_feature_import': {
+        'cron_xmlid': 'odoo-elastic-app.ir_cron_elastic_ecommerce_feature_import',
+        'default_number': 1, 'default_type': 'days',
+    },
     'product_export': {
         'cron_xmlid': 'odoo-elastic-app.ir_cron_elastic_product_export',
         'default_number': 1,
@@ -88,6 +92,12 @@ class ElasticSchedulerConfiguration(models.TransientModel):
         'res.users', string='Order History Export User', default=lambda self: self.env.user
     )
 
+    ecommerce_feature_import_enabled = fields.Boolean(string='Import Ecommerce Features')
+    ecommerce_feature_import_interval_number = fields.Integer(default=1)
+    ecommerce_feature_import_interval_type = fields.Selection(INTERVAL_TYPES, default='days')
+    ecommerce_feature_import_nextcall = fields.Datetime(string='Next Feature Import')
+    ecommerce_feature_import_user_id = fields.Many2one('res.users', default=lambda self: self.env.user)
+
     order_import_enabled = fields.Boolean(string='Import Orders')
     order_import_interval_number = fields.Integer(default=1)
     order_import_interval_type = fields.Selection(INTERVAL_TYPES, default='hours')
@@ -139,6 +149,7 @@ class ElasticSchedulerConfiguration(models.TransientModel):
         'inventory_export_interval_number',
         'order_history_export_interval_number',
         'order_import_interval_number',
+        'ecommerce_feature_import_interval_number',
     )
     def _check_interval_numbers(self):
         for wizard in self:
@@ -183,5 +194,8 @@ class ElasticSchedulerConfiguration(models.TransientModel):
         # separately disables Order Import on the configuration.
         if self.order_import_enabled and not self.config_id.enable_order_import:
             self.config_id.enable_order_import = True
+
+        if self.ecommerce_feature_import_enabled:
+            self.config_id.enable_ecommerce_feature_import = True
 
         return {'type': 'ir.actions.client', 'tag': 'reload'}

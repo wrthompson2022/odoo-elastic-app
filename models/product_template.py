@@ -137,3 +137,10 @@ class ProductTemplate(models.Model):
             (self.elastic_product_id or '').strip()
             or (self.default_code or '').strip()
         )
+
+    elastic_ecommerce_link_ids = fields.One2many(
+        'elastic.ecommerce.product.link',
+        'product_tmpl_id',
+        string='Ecommerce Product Links',
+        help='Platform product identifiers recorded by ecommerce feature imports.'
+    )

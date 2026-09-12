@@ -102,7 +102,7 @@ class FeatureExporter(BaseExporter):
                 if not item_number:
                     continue
                 row = [
-                    'GLOBAL',
+                    assignment.region or 'GLOBAL',
                     item_number,
                     assignment.feature_id.name,
                     assignment.sequence,
@@ -110,7 +110,7 @@ class FeatureExporter(BaseExporter):
                     assignment.feature_value_id.display_order or assignment.sequence,
                 ]
                 if (assignment.feature_id.name or '').strip().casefold() in self.SINGLE_VALUE_ATTRIBUTES:
-                    singleton_key = (item_number, (assignment.feature_id.name or '').strip().casefold())
+                    singleton_key = (item_number, row[0], (assignment.feature_id.name or '').strip().casefold())
                     existing = singleton_rows.get(singleton_key)
                     if existing is None or self._singleton_priority(row) < self._singleton_priority(existing):
                         singleton_rows[singleton_key] = row

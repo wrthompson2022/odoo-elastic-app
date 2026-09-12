@@ -253,10 +253,56 @@
                                 </group>
                             </group>
                             <div class="alert alert-info" role="alert" style="margin-top: 10px;">
-                                Creates missing Elastic colors from Frame Color, Product Color, Color, and Colour attributes, and size values from Size attributes. Features are imported from Shopify; product tags are configured separately from Product Tag Mappings.
+                                Creates missing Elastic colors from Frame Color, Product Color, Color, and Colour attributes, and size values from Size attributes. Features are imported from Ecommerce Feature Sources; product tags are configured separately from Product Tag Mappings.
                             </div>
                         </page>
-                    </notebook>
+                    <page string="Ecommerce Features" name="ecommerce_features">
+                            <group>
+                                <group string="Product Content Source">
+                                    <field name="enable_ecommerce_feature_import" />
+                                </group>
+                                <group />
+                            </group>
+                            <div class="alert alert-info" role="alert" invisible="enable_ecommerce_feature_import">
+                                <strong>Product features from your ecommerce platform:</strong> enable this option to
+                                import descriptions, feature lists, and attributes from Shopify, WooCommerce, Magento 2,
+                                Shopware 6, PrestaShop, BigCommerce, or Odoo product data into Elastic feature assignments. These sources are bundled with this app.
+                            </div>
+                            <div invisible="not enable_ecommerce_feature_import">
+                                <group>
+                                    <group string="Platforms">
+                                        <field name="ecommerce_connector_summary" nolabel="1" colspan="2" readonly="1" />
+                                        <div colspan="2">
+                                            </div>
+                                    </group>
+                                    <group string="Feature Sources">
+                                        <field name="ecommerce_connection_ids" nolabel="1" colspan="2" readonly="1">
+                                            <list>
+                                                <field name="name" />
+                                                <field name="platform" />
+                                                <field name="language_code" />
+                                                <field name="region" />
+                                                <field name="last_import_date" />
+                                                <field name="last_import_state" />
+                                            </list>
+                                        </field>
+                                        <div colspan="2">
+                                            <button name="action_open_ecommerce_connections" type="object" string="Configure Feature Sources" class="btn-primary" icon="fa-plug" />
+                                        </div>
+                                    </group>
+                                </group>
+                                <div class="alert alert-info" role="alert">
+                                    <strong>How it works:</strong> create one feature source per platform store and
+                                    language, run <em>Discover Fields</em> to list what the platform exposes, map those
+                                    fields to Elastic features, then run <em>Import Features</em> or enable the
+                                    "Elastic: Import Ecommerce Features" scheduled action. Imported values are exported
+                                    by the Features feed with the region set on each source.
+                                </div>
+                            </div>
+                        </page>
+
+
+</notebook>
                 </sheet>
             </form>
         </field>

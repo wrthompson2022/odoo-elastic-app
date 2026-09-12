@@ -3,7 +3,7 @@ import hashlib
 
 from odoo.tests.common import TransactionCase
 
-from ..importers.shopify_feature_importer import ShopifyFeatureImporter
+from ..importers.legacy_shopify_feature_importer import ShopifyFeatureImporter
 
 
 class TestShopifyFeatureImporter(TransactionCase):

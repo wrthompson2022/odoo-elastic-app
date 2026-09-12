@@ -80,9 +80,9 @@
               sequence="11"/>
 
     <menuitem id="menu_elastic_shopify_connections"
-              name="Shopify Feature Imports"
+              name="Ecommerce Feature Sources"
               parent="menu_elastic_configuration"
-              action="action_elastic_shopify_connection"
+              action="action_elastic_ecommerce_connection"
               sequence="12"/>
 
     <!-- Orders Menu -->
@@ -126,4 +126,6 @@
               parent="menu_elastic_logs"
               action="action_elastic_import_log"
               sequence="2"/>
+
+<menuitem id="menu_elastic_inventory_explanation" name="Inventory Explanation" parent="menu_elastic_root" action="action_elastic_inventory_explanation" sequence="12"/>
 </odoo>
