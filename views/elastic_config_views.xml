@@ -173,10 +173,16 @@
                                 </group>
                             </group>
                             <group string="Order History">
+                                <group>
+                                    <field name="order_history_start_date"/>
+                                    <field name="order_history_lookback_days"/>
+                                    <field name="order_history_include_updates" invisible="order_history_lookback_days == 0"/>
+                                </group>
                                 <div>
                                     <button name="action_export_order_history" type="object" string="Export Order History" class="btn-secondary me-1" icon="fa-history"/>
                                     <button name="action_download_order_history" type="object" string="Download Order History" class="btn-secondary" icon="fa-download"/>
-                                    <p class="text-muted mt-2">Generate order_headers.csv and order_lines.csv. Download saves both files as a ZIP; Export sends them to the active SFTP connection.</p>
+                                    <p class="text-muted mt-2">Generate order and invoice headers and lines. Download saves all four CSV files as a ZIP; Export sends them to the active SFTP connection.</p>
+                                    <p class="text-muted">The start date is a fixed cutoff. Lookback days includes today; use 0 for an initial history backfill. These filters also apply to scheduled exports.</p>
                                 </div>
                             </group>
                             <separator string="Export Filters"/>

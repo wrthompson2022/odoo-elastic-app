@@ -152,8 +152,31 @@ class ElasticConfig(models.Model):
     enable_price_export = fields.Boolean(string='Enable Price Export', default=False)
     enable_order_history_export = fields.Boolean(
         string='Enable Order History Export', default=False,
-        help='Export order_headers.csv and order_lines.csv for confirmed and cancelled orders.',
+        help='Export order and invoice headers and lines as four linked history files.',
     )
+    order_history_start_date = fields.Date(
+        string='History Start Date',
+        help='Never export orders placed or invoices dated before this date, even if '
+             'recently updated. Leave blank for no fixed starting date.',
+    )
+    order_history_lookback_days = fields.Integer(
+        string='History Lookback Days', default=3,
+        help='Calendar days to include, counting today in the exporting user\'s timezone. '
+             '3 means today and the previous two dates. Set to 0 to export all history '
+             'from History Start Date, useful for an initial backfill.',
+    )
+    order_history_include_updates = fields.Boolean(
+        string='Include Recent Updates', default=True,
+        help='Also include older orders or invoices changed within the lookback window. '
+             'Order changes include lines, stock moves and transfers; invoice changes '
+             'include invoice lines. History Start Date always applies. Turn off to '
+             'filter strictly by order date and invoice date.',
+    )
+
+    @api.constrains('order_history_lookback_days')
+    def _check_order_history_lookback_days(self):
+        if any(config.order_history_lookback_days < 0 for config in self):
+            raise ValidationError(_('Order history lookback days must be zero or greater.'))
 
     # ============================================
     # Import Settings

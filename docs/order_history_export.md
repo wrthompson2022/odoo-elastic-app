@@ -1,11 +1,50 @@
 # Order history export
 
-The contract is **Order History Import Files.pdf**, pages 2–11. All 83 header
-columns and 56 line columns are emitted in the specified order and case,
-including `TrackingURL` on headers and `TrackingUrl` on lines. The full typed
+The contract is **Order History Spec - 4 files.pdf**, pages 2–20. All four
+schemas are emitted in the specified order and case: order headers (83 columns),
+order lines (56), invoice headers (87), and invoice lines (58). `TrackingURL`
+is used only on order headers; the other files use `TrackingUrl`. The full typed
 schemas are maintained in `services/order_history_format.py`.
 
-## Mapping choices
+The order schemas are unchanged from the earlier supplied PDF. The updated
+invoice-header table's “Fields Required” column contains internal attribute
+names rather than Yes/No flags. The exporter requires InvoiceNumber, the
+specified upsert key, and fills other columns when their source is known.
+
+## History selection
+
+Settings provide an optional **History Start Date**, **History Lookback Days**
+(default 3), and **Include Recent Updates** (default enabled). These settings
+apply equally to ZIP download, SFTP export, Export All and scheduled history jobs.
+
+The start date is an inclusive document-date floor: sale orders use date_order;
+invoices and credit notes use invoice_date. Recent changes never override it.
+The rolling window includes today and the preceding N−1 local dates. For example,
+on September 14 a three-day window begins September 12 at midnight. Odoo datetime
+bounds are converted from the exporting user's timezone to UTC; invoice date
+bounds remain dates. Each generation uses a single clock reading for all files.
+
+With recent updates enabled, eligible older documents also qualify through:
+
+- Order creation/write time, order-line writes, stock-move writes or transfer writes.
+- Invoice creation/write time or invoice-line writes.
+
+This captures later deliveries, cancellations, backdated document creation and
+line corrections. Customer/product metadata changes alone do not select all old
+orders; use a backfill when those changes need to be reflected across history.
+Turning recent updates off applies the rolling window strictly to order/invoice
+dates. Set lookback to 0 to disable the rolling filter for a backfill from the
+fixed start date. Blank start date plus zero days selects all eligible history.
+Negative lookback values are rejected.
+
+Invoice links can reference eligible historical order lines outside the rolling
+window, since Elastic retains previously imported records. Only linked orders
+are looked up, and the fixed start date, customer eligibility, company access,
+and ordinary record rules still apply. Such orders are not added to the current
+order files. Perform a backfill first if Elastic does not yet hold that history.
+These filters select exported data; they do not delete records already in Elastic.
+
+## Order mapping choices
 
 | File / fields | Odoo source |
 | --- | --- |
@@ -54,8 +93,51 @@ is represented; this contract provides one tracking set per order/line. If an
 Odoo carrier supplies multiple package links as JSON, the first package's number
 and URL are exported together.
 
-The optional invoice pair is deferred because the provided PDF jumps from
-Order_lines to Invoice_lines and does not contain the Invoice_headers schema.
+## Invoice mapping choices
+
+| File / fields | Odoo source |
+| --- | --- |
+| Both: InvoiceNumber | Posted customer invoice or credit-note name; duplicate or unassigned numbers fail validation |
+| Lines: LineNumber | Account move line ID; stable across display sequence changes |
+| Both: OrderNumber | Linked sale order when unambiguous and all linked sale lines belong to eligible history (including outside the rolling window) |
+| Lines: OrderLineNumber | Sale line ID only when exactly one eligible historical sale line is linked; never choose an arbitrary link from a consolidated invoice line |
+| Headers: PONumber, ElasticOrderNumber, DateOrdered, DateRequested, DateExpectedShip | Sole linked order, using the order mappings above; blank for standalone invoices or ambiguous links |
+| Headers: DateInvoiced / DateDue | Invoice date / invoice due date |
+| Headers: SoldTo, ShipTo, BillTo fields | Commercial partner, invoice shipping partner (or invoice partner), and invoice partner; identifiers match the order-feed helpers |
+| Headers: CreatedBy / Buyer / Terms / CurrencyCode | Invoice creator, invoice partner, invoice payment term ID/name, and invoice currency |
+| Both: Source / OrderType | Linked order metadata when unambiguous; otherwise Source is Odoo and OrderType is blank |
+| Lines: Product fields | Same product identifiers and names as the order and product feeds; blank for free-text commercial lines without a product |
+| Lines: Description / UOM | Invoice line description / invoice line unit of measure |
+| Both: UnitsOrdered | Invoice line quantity, summed for headers; credit notes negate quantities |
+| Lines: UnitPriceWholesale / UnitPriceNet | Invoice tax-exclusive unit prices before/after discount |
+| Lines: ExtendedPriceWholesale / ExtendedPriceNet | Invoice tax-exclusive pre-discount amount / invoice line subtotal; credit notes negate extended amounts |
+| Headers: WholesaleSubtotal / NetSubtotal / NetTotal / TaxesTotal | Sum of invoice wholesale line amounts / invoice untaxed amount / invoice total / invoice tax; signed for credit notes |
+| Headers: FreightTotal | Invoice line subtotals whose linked sale lines are all delivery fees; signed for credit notes |
+| Lines: Status | INVOICED for customer invoices, CREDIT for credit notes |
+
+Invoice headers use Decimal (19,2) for unit totals, but invoice lines still
+require Integer (11), exactly as the updated spec states. Fractional invoice
+line quantities fail validation; they are not rounded away. Posted credit notes
+are represented as signed reversals, with unit prices unchanged.
+
+Invoice fulfillment fields (UnitsShipped, UnitsPicked, UnitsOpen,
+UnitsCancelled, ShipmentNumber, tracking fields, and DateShipped) remain blank.
+Odoo's sale-line fulfillment covers the whole order and is not reliably
+attributable to an individual partial invoice. Order history retains that
+fulfillment data. DateDueDiscount, DateCancelAfter, ShipVia fields, Brand, Group,
+Address3, and custom fields also remain blank without an explicit mapping.
+
+Commercial invoice lines include services, delivery charges and down payments,
+even when excluded from the order-line feed. Free-text invoice lines are retained
+without product references. References to missing or excluded sale lines are
+blank; consolidated invoice headers do not pretend to belong to one order.
+Draft/cancelled invoices, vendor bills and vendor credits are excluded. Ordinary
+accounting access rights and company record rules are respected.
+
+If either order or invoice records exist, downloads and uploads include all
+four files. Empty populations receive files with no data rows. All files are
+validated and encoding-checked before the first upload, and retry after any
+partial upload regenerates and resends the whole set.
 
 ## Verification
 
@@ -67,13 +149,15 @@ python3 -m unittest discover -s tests/standalone -v
 ```
 
 The Odoo transaction tests additionally exercise real sale orders, taxes,
-customer eligibility, archived products, attachment downloads, and export logs.
+customer eligibility, archived products, posted invoices and credits, attachment
+downloads, and export logs.
 Run against a disposable Odoo 18 test database with the addon and its dependencies:
 
 ```bash
 odoo-bin -d TEST_DATABASE -u odoo-elastic-app --test-enable --test-tags elastic_order_history --stop-after-init
 ```
 
-Upgrading to 18.0.1.6.0 updates the Settings view and adds the explicit sale_stock
-dependency. No new business fields or data migration are needed. Existing
-order-history scheduler settings remain in place.
+Upgrading to 18.0.1.8.1 adds the three history filter settings with a default
+three-day window and recent updates enabled, and refreshes the packaged Knowledge
+guide. Existing scheduler cadence remains in place; the new filters apply on its
+next run. The scheduler user needs accounting read access for invoice exports.

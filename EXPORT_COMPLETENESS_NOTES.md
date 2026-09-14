@@ -14,9 +14,11 @@ The module includes working exporter classes for the major flat-file areas:
 - `reps.csv` and `rep_mappings.csv` via `exporters/rep_exporter.py`
 - `product_tags.csv` via `exporters/product_tags_exporter.py`
 - `features.csv` via `exporters/feature_exporter.py`
-- `order_headers.csv` and `order_lines.csv` via `exporters/order_history_exporter.py`,
-  with SFTP export and ZIP download. The optional invoice pair still needs the
-  missing invoice-header specification from the supplied order-history PDF.
+- `order_headers.csv`, `order_lines.csv`, `invoice_headers.csv`, and
+  `invoice_lines.csv` via `exporters/order_history_exporter.py`, with SFTP export
+  and ZIP download. All four files follow Order History Spec - 4 files.pdf.
+  History settings support a fixed start date and a configurable rolling window
+  (default 3 days), including recent updates to older documents.
 
 Order import is also present, with SFTP polling, staging, retry, duplicate
 detection, customer cross-reference lookup, sale-order creation, and configurable

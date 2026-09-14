@@ -4,6 +4,7 @@ Uses the real exporter/formatter with record and transport doubles. Database,
 computed-field and attachment behavior is covered by the Odoo transaction suite.
 """
 import csv
+from collections import defaultdict
 import importlib
 from datetime import datetime
 from io import StringIO
@@ -36,7 +37,14 @@ class Records(list):
     def sorted(self, key):
         return Records(sorted(self, key=(lambda record: getattr(record, key)) if isinstance(key, str) else key))
 
+    @property
+    def ids(self):
+        return [record.id for record in self]
+
     def mapped(self, field):
+        if '.' in field:
+            first, remaining = field.split('.', 1)
+            return self.mapped(first).mapped(remaining)
         result = Records()
         for record in self:
             value = getattr(record, field)
@@ -48,6 +56,9 @@ class Records(list):
     def __getitem__(self, key):
         value = super().__getitem__(key)
         return Records(value) if isinstance(key, slice) else value
+
+    def browse(self):
+        return Records()
 
     def __getattr__(self, name):
         if len(self) == 1:
@@ -118,9 +129,16 @@ class TestExporter(unittest.TestCase):
     def setUp(self):
         self.enterContext(patch(PACKAGE + '.exporters.order_history_exporter._logger'))
         self.config = NS(export_encoding='utf-8', sftp_export_path='/out',
+                         order_history_start_date=False, order_history_lookback_days=0,
+                         order_history_include_updates=True,
                          get_file_generator=lambda: Generator())
         self.env = MagicMock()
+        self.models = defaultdict(MagicMock)
+        self.env.__getitem__.side_effect = self.models.__getitem__
+        self.env.context = {}
+        self.env.user.tz = 'UTC'
         self.env.companies.ids = [1]
+        self.env['account.move'].search.return_value = Records()
         self.env['elastic.size.value'].browse.return_value = Records()
         self.exporter = Exporter(self.env, self.config, prepare_upload=False)
         self.exporter.sftp_service = MagicMock()
@@ -158,7 +176,7 @@ class TestExporter(unittest.TestCase):
         self.line_values = Records([self.line])
 
     def rows(self):
-        return [list(csv.DictReader(StringIO(f['content']))) for f in self.exporter.generate_files()]
+        return [list(csv.DictReader(StringIO(f['content']))) for f in self.exporter.generate_files()[:2]]
 
     def test_generates_linked_pair_with_real_mapping(self):
         headers, lines = self.rows()
@@ -275,7 +293,164 @@ class TestExporter(unittest.TestCase):
         self.assertTrue(self.exporter.export()['success'])
         self.assertEqual([call.kwargs['remote_filename'] for call in
                           self.exporter.sftp_service.upload_file.call_args_list],
-                         ['order_headers.csv', 'order_lines.csv'])
+                         ['order_headers.csv', 'order_lines.csv', 'invoice_headers.csv', 'invoice_lines.csv'])
+
+
+    def _invoice(self, number='INV10', quantity=1, move_type='out_invoice', linked=None):
+        invoice = NS(
+            id=500, name=number, move_type=move_type, state='posted',
+            partner_id=self.partner, partner_shipping_id=self.partner,
+            invoice_date=datetime(2026, 8, 6), invoice_date_due=datetime(2026, 9, 6),
+            invoice_payment_term_id=self.order.payment_term_id,
+            currency_id=self.order.currency_id, create_uid=NS(name='Accountant'),
+            amount_untaxed=quantity * 20, amount_total=quantity * 22, amount_tax=quantity * 2,
+        )
+        line = NS(
+            id=501, move_id=invoice, product_id=self.product, product_uom_id=NS(name='Units'),
+            name='Invoiced frame', display_type='product', quantity=quantity,
+            price_unit=25, discount=20, price_subtotal=quantity * 20,
+            currency_id=invoice.currency_id, tax_ids=self.line.tax_id,
+            sale_line_ids=Records([self.line]) if linked is None else linked,
+        )
+        line.mapped = lambda field: getattr(line, field)
+        invoice.invoice_line_ids = Records([line])
+        self.env['account.move'].search.return_value = Records([invoice])
+        return invoice, line
+
+    def invoice_rows(self):
+        files = self.exporter.generate_files()
+        return [list(csv.DictReader(StringIO(file['content']))) for file in files[2:]]
+
+    def test_invoice_schemas_match_new_column_counts_and_precision(self):
+        self.assertEqual(len(fmt.INVOICE_HEADER_SCHEMA), 87)
+        self.assertEqual(len(fmt.INVOICE_LINE_SCHEMA), 58)
+        self.assertEqual(fmt.INVOICE_HEADER_SCHEMA[6][0], 'TrackingUrl')
+        self.assertEqual(fmt.INVOICE_HEADER_SCHEMA[52], ('UnitsOrdered', 'decimal', 19, False))
+        self.assertEqual(fmt.INVOICE_LINE_SCHEMA[20], ('UnitsOrdered', 'integer', 11, False))
+
+    def test_invoice_uses_own_quantities_amounts_and_stable_links(self):
+        self._invoice(quantity=1)
+        headers, lines = self.invoice_rows()
+        self.assertEqual(headers[0]['InvoiceNumber'], lines[0]['InvoiceNumber'])
+        self.assertEqual(headers[0]['OrderNumber'], 'SO10')
+        self.assertEqual(headers[0]['ElasticOrderNumber'], 'EL10')
+        self.assertEqual(headers[0]['PONumber'], 'PO10')
+        self.assertEqual(headers[0]['DateInvoiced'], '20260806')
+        self.assertEqual(headers[0]['DateDue'], '20260906')
+        self.assertEqual(headers[0]['UnitsOrdered'], '1.00')
+        self.assertEqual(lines[0]['UnitsOrdered'], '1')
+        self.assertEqual(lines[0]['OrderLineNumber'], '101')
+        self.assertEqual(lines[0]['LineNumber'], '501')
+        self.assertEqual(lines[0]['ExtendedPriceNet'], '20.00')
+        self.assertEqual(headers[0]['NetTotal'], '22.00')
+        self.assertEqual(headers[0]['WholesaleSubtotal'], '25.00')
+        self.assertEqual(lines[0]['UnitsShipped'], '')
+        self.assertEqual(lines[0]['TrackingNumber'], '')
+
+    def test_credit_notes_reverse_quantities_and_extended_amounts(self):
+        self._invoice(move_type='out_refund')
+        headers, lines = self.invoice_rows()
+        self.assertEqual(lines[0]['UnitsOrdered'], '-1')
+        self.assertEqual(lines[0]['UnitPriceNet'], '20.00')
+        self.assertEqual(lines[0]['ExtendedPriceNet'], '-20.00')
+        self.assertEqual(lines[0]['Status'], 'CREDIT')
+        self.assertEqual(headers[0]['UnitsOrdered'], '-1.00')
+        self.assertEqual(headers[0]['NetTotal'], '-22.00')
+        self.assertEqual(headers[0]['TaxesTotal'], '-2.00')
+
+    def test_invoice_only_export_keeps_all_four_files(self):
+        self.env['sale.order'].search.return_value = Records()
+        self._invoice(linked=Records())
+        files = self.exporter.generate_files()
+        self.assertEqual([file['record_count'] for file in files], [0, 0, 1, 1])
+        headers, lines = self.invoice_rows()
+        self.assertEqual(headers[0]['OrderNumber'], '')
+        self.assertEqual(lines[0]['OrderLineNumber'], '')
+        self.assertEqual(headers[0]['SoldToNumber'], 'C1')
+
+    def test_multiple_orders_have_blank_header_but_keep_line_links(self):
+        import copy
+        order2 = copy.copy(self.order)
+        order2.id, order2.name = 11, 'SO11'
+        sale2 = copy.copy(self.line)
+        sale2.id, sale2.order_id = 102, order2
+        sale2.mapped = lambda field: getattr(sale2, field)
+        order2.order_line = Records([sale2])
+        self.env['sale.order'].search.return_value = Records([self.order, order2])
+        invoice, line = self._invoice()
+        line2 = copy.copy(line)
+        line2.id, line2.sale_line_ids = 502, Records([sale2])
+        line2.mapped = lambda field: getattr(line2, field)
+        invoice.invoice_line_ids.append(line2)
+        headers, lines = self.invoice_rows()
+        self.assertEqual(headers[0]['OrderNumber'], '')
+        self.assertEqual(headers[0]['PONumber'], '')
+        self.assertEqual([row['OrderNumber'] for row in lines], ['SO10', 'SO11'])
+        self.assertEqual([row['OrderLineNumber'] for row in lines], ['101', '102'])
+        # Consolidating both order lines into one invoice line must not pick one.
+        line.sale_line_ids = Records([self.line, sale2])
+        self.assertEqual(self.invoice_rows()[1][0]['OrderLineNumber'], '')
+        self.assertEqual(self.invoice_rows()[1][0]['OrderNumber'], '')
+
+    def test_unexported_order_line_reference_is_omitted(self):
+        self._invoice()
+        self.env['sale.order'].search.return_value = Records()
+        headers, lines = self.invoice_rows()
+        self.assertEqual(headers[0]['OrderNumber'], '')
+        self.assertEqual(lines[0]['OrderLineNumber'], '')
+
+    def test_manual_invoice_line_without_product_is_retained(self):
+        invoice, line = self._invoice(linked=Records())
+        line.product_id = False
+        self.assertEqual(self.invoice_rows()[1][0]['ProductNumber'], '')
+        self.assertEqual(self.invoice_rows()[1][0]['ExtendedPriceNet'], '20.00')
+        invoice.invoice_line_ids.append(NS(display_type='line_note', sale_line_ids=Records()))
+        self.assertEqual(len(self.invoice_rows()[1]), 1)
+
+    def test_duplicate_invoice_numbers_prevent_every_upload(self):
+        invoice, _ = self._invoice()
+        self.env['account.move'].search.return_value = Records([invoice, invoice])
+        result = self.exporter.export()
+        self.assertFalse(result['success'])
+        self.assertIn('Duplicate InvoiceNumber', result['message'])
+        self.exporter.sftp_service.upload_file.assert_not_called()
+
+    def test_invalid_invoice_line_prevents_order_uploads_too(self):
+        self._invoice(quantity=0.5)
+        result = self.exporter.export()
+        self.assertFalse(result['success'])
+        self.assertIn('Invoice INV10, line 501: UnitsOrdered', result['message'])
+        self.exporter.sftp_service.upload_file.assert_not_called()
+
+    def test_invoice_header_failure_stops_invoice_lines_and_retries_all(self):
+        self._invoice()
+        self.exporter.sftp_service.upload_file.side_effect = [(True, 'ok'), (True, 'ok'), (False, 'offline')]
+        result = self.exporter.export()
+        self.assertFalse(result['success'])
+        self.assertEqual(result['filenames'], ['order_headers.csv', 'order_lines.csv'])
+        self.assertIn('Retry to resend all four files', result['message'])
+        self.assertEqual(self.exporter.sftp_service.upload_file.call_count, 3)
+        self.exporter.sftp_service.upload_file.reset_mock(side_effect=True)
+        self.exporter.sftp_service.upload_file.return_value = (True, 'ok')
+        result = self.exporter.export()
+        self.assertTrue(result['success'])
+        self.assertEqual(result['record_count'], 4)
+        self.assertEqual(len(result['filenames']), 4)
+
+    def test_recent_invoice_keeps_old_order_links_without_resending_order(self):
+        self._invoice()
+        self.config.order_history_lookback_days = 3
+        # First search applies the rolling window; second resolves eligible
+        # historical references with only the fixed date/customer/company bounds.
+        self.env['sale.order'].search.side_effect = [Records(), Records([self.order])]
+        files = self.exporter.generate_files()
+        self.assertEqual(files[0]['record_count'], 0)
+        self.assertEqual(files[1]['record_count'], 0)
+        header = list(csv.DictReader(StringIO(files[2]['content'])))[0]
+        line = list(csv.DictReader(StringIO(files[3]['content'])))[0]
+        self.assertEqual(header['OrderNumber'], 'SO10')
+        self.assertEqual(line['OrderLineNumber'], '101')
+
 
     def test_empty_feed_does_not_upload(self):
         self.env['sale.order'].search.return_value = Records()

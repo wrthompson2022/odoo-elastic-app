@@ -1,25 +1,23 @@
 # -*- coding: utf-8 -*-
-"""Elastic's linked order_headers.csv and order_lines.csv history feeds."""
+"""Elastic's four linked order and invoice history feeds."""
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .base_exporter import BaseExporter
 from .product_exporter import ProductExporter
+from .invoice_history_mixin import InvoiceHistoryMixin
+from ..services.history_window import history_date_domain
 from ..services.order_history_format import (
-    ORDER_HEADER_SCHEMA, ORDER_LINE_SCHEMA, format_row,
+    ORDER_HEADER_SCHEMA, ORDER_LINE_SCHEMA,
+    INVOICE_HEADER_SCHEMA, INVOICE_LINE_SCHEMA, format_row,
 )
 
 _logger = logging.getLogger(__name__)
 
 
-class OrderHistoryExporter(BaseExporter):
-    """Build both files before uploading; replay stable keys on every run.
-
-    Elastic imports these as upserts. Replaying the eligible history includes
-    changes to deliveries, addresses and cancellations without a write-date
-    watermark that could miss related-record changes.
-    """
+class OrderHistoryExporter(InvoiceHistoryMixin, BaseExporter):
+    """Build all four files before uploading with stable keys and shared date bounds."""
 
     def __init__(self, env, config=None, *, prepare_upload=True):
         self.env = env
@@ -33,7 +31,19 @@ class OrderHistoryExporter(BaseExporter):
     def get_model_name(self):
         return 'sale.order'
 
-    def get_export_domain(self):
+    def _history_date_domain(self, date_field, *, is_datetime=False,
+                             update_fields=(), apply_lookback=True):
+        return history_date_domain(
+            date_field, is_datetime=is_datetime,
+            start_date=self.config.order_history_start_date,
+            lookback_days=self.config.order_history_lookback_days if apply_lookback else 0,
+            include_updates=self.config.order_history_include_updates,
+            update_fields=update_fields,
+            now=getattr(self, '_history_now', None),
+            tz=self.env.context.get('tz') or self.env.user.tz or 'UTC',
+        )
+
+    def _order_eligibility_domain(self):
         return [
             ('state', 'in', ('sale', 'done', 'cancel')),
             ('company_id', 'in', self.env.companies.ids),
@@ -41,6 +51,28 @@ class OrderHistoryExporter(BaseExporter):
             ('partner_id.commercial_partner_id.customer_rank', '>', 0),
             ('partner_id.commercial_partner_id.elastic_sync_enabled', '=', True),
         ]
+
+    def get_export_domain(self):
+        return self._order_eligibility_domain() + self._history_date_domain(
+            'date_order', is_datetime=True,
+            update_fields=('create_date', 'write_date', 'order_line.write_date',
+                           'order_line.move_ids.write_date',
+                           'order_line.move_ids.picking_id.write_date'),
+        )
+
+    def _invoice_reference_line_ids(self, invoices, exported_line_ids):
+        # Elastic upserts retain older orders. Keep invoice links to eligible
+        # historical orders without resending those orders outside the window.
+        linked = invoices.mapped('invoice_line_ids.sale_line_ids')
+        if not linked:
+            return exported_line_ids
+        domain = self._order_eligibility_domain() + self._history_date_domain(
+            'date_order', is_datetime=True, apply_lookback=False,
+        ) + [('order_line', 'in', linked.ids)]
+        reference_ids = set(exported_line_ids)
+        for order in self.env['sale.order'].search(domain):
+            reference_ids.update(line.id for line in self._order_lines(order))
+        return reference_ids
 
     @staticmethod
     def _order_lines(order):
@@ -206,14 +238,7 @@ class OrderHistoryExporter(BaseExporter):
             'OrderNumber': order.name,
             # Sequence/position can change. The database ID remains stable.
             'LineNumber': str(line.id),
-            'ProductNumber': product._get_elastic_item_number(),
-            'ProductName': product._get_elastic_product_name(),
-            'VariationCode': product._get_elastic_color_code(),
-            'VariationName': products._get_color_name(product),
-            'StockItemKey': product._get_elastic_stock_item_key(),
-            'SKU': product._get_elastic_sku(),
-            'UPC': product.barcode,
-            'SizeName': products._get_size_name(product),
+            **self._product_values(product, products),
             'Description': line.name,
             'UOM': line.product_uom.name,
             'ShipmentNumber': shipment.name if shipment else order.elastic_shipment_number,
@@ -233,12 +258,27 @@ class OrderHistoryExporter(BaseExporter):
         values.update(self._tracking(shipment, 'TrackingUrl'))
         return values
 
+    @staticmethod
+    def _product_values(product, products):
+        return {
+            'ProductNumber': product._get_elastic_item_number(),
+            'ProductName': product._get_elastic_product_name(),
+            'VariationCode': product._get_elastic_color_code(),
+            'VariationName': products._get_color_name(product),
+            'StockItemKey': product._get_elastic_stock_item_key(),
+            'SKU': product._get_elastic_sku(),
+            'UPC': product.barcode,
+            'SizeName': products._get_size_name(product),
+        }
+
     def generate_files(self):
-        """Generate and validate the complete pair without SFTP side effects.
+        """Generate and validate all four files without SFTP side effects.
 
         Return a list of filename/content/record_count/model_name dictionaries.
         Unknown optional fields stay blank, preserving all specified columns.
         """
+        # Freeze the clock for the entire batch, including invoice references.
+        self._history_now = datetime.now(timezone.utc)
         orders = self.env['sale.order'].search(self.get_export_domain(), order='id')
         # Reuse product feed metadata mapping without opening another connection.
         products = ProductExporter.__new__(ProductExporter)
@@ -246,6 +286,7 @@ class OrderHistoryExporter(BaseExporter):
         products.config = self.config
         header_rows, line_rows = [], []
         order_numbers = set()
+        exported_line_ids = set()
         for order in orders:
             lines = self._order_lines(order)
             if not lines:
@@ -254,6 +295,7 @@ class OrderHistoryExporter(BaseExporter):
             if number in order_numbers:
                 raise ValueError(f'Duplicate OrderNumber {number!r}; Elastic requires unique order numbers')
             order_numbers.add(number)
+            exported_line_ids.update(line.id for line in lines)
             values = [self._line_values(line, products) for line in lines]
             for line, value in zip(lines, values):
                 line_rows.append(format_row(
@@ -263,16 +305,21 @@ class OrderHistoryExporter(BaseExporter):
                 ORDER_HEADER_SCHEMA, self._header_values(order, lines, values),
                 f'Order {number}',
             ))
-        if not header_rows:
+        invoices = self.env['account.move'].search(self.get_invoice_domain(), order='id')
+        reference_line_ids = self._invoice_reference_line_ids(invoices, exported_line_ids)
+        invoice_headers, invoice_lines = self._invoice_rows(products, reference_line_ids, invoices)
+        if not header_rows and not invoice_headers:
             return []
         result = []
         for filename, schema, rows, model in (
             ('order_headers.csv', ORDER_HEADER_SCHEMA, header_rows, 'sale.order'),
             ('order_lines.csv', ORDER_LINE_SCHEMA, line_rows, 'sale.order.line'),
+            ('invoice_headers.csv', INVOICE_HEADER_SCHEMA, invoice_headers, 'account.move'),
+            ('invoice_lines.csv', INVOICE_LINE_SCHEMA, invoice_lines, 'account.move.line'),
         ):
             content = self.file_generator.generate_csv([column[0] for column in schema], rows)
-            # Fail before uploading either file if the selected encoding cannot
-            # represent a value in either file.
+            # Fail before any upload if the selected encoding cannot represent
+            # a value in any file.
             content.encode(self.config.export_encoding or 'utf-8')
             result.append({
                 'filename': filename, 'content': content,
@@ -308,14 +355,16 @@ class OrderHistoryExporter(BaseExporter):
             return {
                 'success': True,
                 'message': f"Exported {files[0]['record_count']} orders and "
-                           f"{files[1]['record_count']} lines to {', '.join(uploaded)}",
+                           f"{files[1]['record_count']} order lines, "
+                           f"{files[2]['record_count']} invoices and "
+                           f"{files[3]['record_count']} invoice lines to {', '.join(uploaded)}",
                 'record_count': sum(file['record_count'] for file in files),
                 'filenames': uploaded,
             }
         except Exception as exc:
             message = f'Order history export failed: {exc}'
             if uploaded:
-                message += f". Already uploaded: {', '.join(uploaded)}. Retry to resend both files."
+                message += f". Already uploaded: {', '.join(uploaded)}. Retry to resend all four files."
             _logger.exception(message)
             self.env['elastic.export.log'].create({
                 'export_type': self.get_export_type(),

@@ -50,6 +50,7 @@ areas:
 | Sales reps | `reps.csv` | Employee sales reps from `sales_rep_commission` |
 | Rep mappings | `rep_mappings.csv` | Customer-to-rep relationships |
 | Order history | `order_headers.csv`, `order_lines.csv` | Confirmed and cancelled Odoo orders, lines, amounts, and fulfillment |
+| Invoice history | `invoice_headers.csv`, `invoice_lines.csv` | Posted customer invoices and credit notes; included in order history export |
 
 The product-related feeds (products, prices, product tags, features, and
 inventory) share one population rule: a variant is exported only when it
@@ -75,43 +76,65 @@ ecommerce feature imports with minute, hour, day, week or month intervals.
 
 ### Order History Files
 
-Version **18.0.1.6.0** replaces the legacy `order_history.csv` export with the
-two required files from **Order History Import Files.pdf**: `order_headers.csv`
-(83 columns) and `order_lines.csv` (56 columns). Upgrade the addon to install
-the new download button. The existing **Export Order History**, **Export All
-Enabled**, and order-history scheduler now send this pair.
+Version **18.0.1.8.0** implements all four files from **Order History Spec - 4
+files.pdf**: `order_headers.csv` (83 columns), `order_lines.csv` (56 columns),
+`invoice_headers.csv` (87 columns), and `invoice_lines.csv` (58 columns). The
+existing **Export Order History**, **Export All Enabled**, order-history
+scheduler, and **Download Order History** now generate all four files.
 
 Use **Elastic > Configuration > Settings > Download Order History** to generate
-a ZIP containing both files without configuring or contacting SFTP. Use
-**Export Order History** to upload the same files to the active connection.
-The configured delimiter, encoding, and header-row setting apply to both
-download and upload; the defaults produce UTF-8, comma-separated CSV with headers.
+a ZIP without configuring or contacting SFTP. **Export Order History** uploads
+the same files to the active connection. The configured delimiter, encoding,
+and header setting apply to all files. A nonempty export always contains all
+four files, including empty files for a population with no records (column
+headers are included when enabled). No files are uploaded if both populations
+are empty.
 
-The export includes confirmed and cancelled orders for company customers with
-**Push to Elastic** enabled and customer rank greater than zero, subject to the
-current user's company access and record rules. It includes historical products
-even when archived or removed from catalogs. Sections, notes, down payments,
-and delivery-fee lines are excluded from order line rows and unit totals.
+Version **18.0.1.8.1** adds history filters in Settings, shared by manual downloads,
+manual exports, Export All and the order-history scheduler:
 
-Each run resends all eligible history. Elastic upserts headers by `OrderNumber`
-and lines by `OrderNumber` + `LineNumber`. Line numbers use stable Odoo sale-line
-IDs, so rearranging lines does not create duplicate history. Duplicate order
-numbers across the exported population stop generation. Renaming orders or
-deleting previously exported lines requires reconciliation in Elastic: the
-supplied specification does not define deletion records.
+- **History Start Date** is an optional inclusive lower bound on order date and
+  invoice date. Documents before this date are excluded even when updated recently.
+- **History Lookback Days** defaults to **3**, meaning today and the previous two
+  calendar dates in the exporting user's timezone. Set it to **0** to backfill
+  all eligible history from History Start Date (or all dates when blank).
+- **Include Recent Updates** defaults to enabled. It adds older documents changed
+  within the window, including order/invoice creation and edits, line edits, and
+  order stock-move or transfer changes. Disable it for document-date-only filtering.
 
-Both files are fully generated and validated before the first upload. Required
-fields, string lengths, integer units, decimal precision, dates, and encoding
-are checked. Invalid values produce an error identifying the order and field;
-identifiers are never silently truncated and fractional units are never rounded
-to integers. Headers upload first, then lines. Each upload is logged; a failure
-after the first file is reported as partial success and retry resends both files.
-SFTP publication of the two files is not atomic.
+For an initial load, set the desired start date and lookback to 0, then export.
+Afterward restore the lookback to 3 (or another interval) and leave recent updates
+enabled. Recent invoices retain links to eligible orders outside the rolling
+window without resending those orders; the fixed start date and access rules
+still govern those references. The window is recalculated on every run.
+
+Orders include confirmed and cancelled orders for company customers with
+**Push to Elastic** enabled and customer rank greater than zero. Historical
+products remain included when archived or removed from catalogs. Order lines
+exclude sections, notes, down payments and delivery fees. Invoices include
+posted customer invoices and credit notes for the same eligible customer
+population, including invoices entered without a sale order. Invoice lines
+retain all commercial lines, including charges, and exclude sections and notes.
+The exporting user or scheduler user needs read access to sales and accounting
+records; normal company access and record rules apply, without sudo.
+
+Each run resends the selected records. Elastic upserts orders by OrderNumber,
+invoices by InvoiceNumber, and lines by their parent number plus LineNumber.
+Both line files use stable Odoo line IDs. Invoice quantities and amounts are
+specific to each invoice; credit-note quantities and extended totals are
+negative. Ambiguous consolidated order references remain blank. Renamed,
+deleted, or unposted previously exported records require reconciliation in
+Elastic because the supplied spec defines no deletion records.
+
+All four files are generated and validated before the first upload. Required
+keys, string lengths, integer line quantities, decimal precision, dates and
+encoding are checked. Order headers upload first, then order lines, invoice
+headers and invoice lines. Each upload is logged. A failure after any successful
+upload is reported as partial success, and retry resends all four files. SFTP
+publication of the four files is not atomic.
 
 See [order history mappings](docs/order_history_export.md) for field sources,
-optional fields, and validation commands. Invoice exports are not included:
-the supplied PDF lists `invoice_headers.csv` but omits its column specification,
-so a complete linked invoice feed cannot yet be generated from it.
+optional fields, specification ambiguities, and validation commands.
 
 ### Inbound Order Import
 

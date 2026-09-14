@@ -1,26 +1,35 @@
 # -*- coding: utf-8 -*-
 import base64
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO, StringIO
 from unittest.mock import MagicMock, patch
 from zipfile import ZipFile
 
 from odoo.tests import tagged
-from odoo.tests.common import TransactionCase
+from odoo.exceptions import ValidationError
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 from ..exporters.order_history_exporter import OrderHistoryExporter
-from ..services.order_history_format import ORDER_HEADER_SCHEMA, ORDER_LINE_SCHEMA
+from ..services.order_history_format import ORDER_HEADER_SCHEMA, ORDER_LINE_SCHEMA, INVOICE_HEADER_SCHEMA, INVOICE_LINE_SCHEMA
 
 
 @tagged('elastic_scheduler', 'elastic_order_history')
-class TestOrderHistoryExporter(TransactionCase):
+class TestOrderHistoryExporter(AccountTestInvoicingCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env.user.groups_id |= cls.env.ref('odoo-elastic-app.group_elastic_manager')
+        cls.env.user.groups_id |= cls.env.ref('sales_team.group_sale_manager')
+
     def setUp(self):
         super().setUp()
         self.config = self.env['elastic.config'].get_config()
         self.config.write({
             'export_delimiter': ',', 'export_include_header': True,
             'export_encoding': 'utf-8', 'use_legacy_account_number': True,
+            'order_history_start_date': False, 'order_history_lookback_days': 0,
+            'order_history_include_updates': True,
         })
         self.partner = self.env['res.partner'].create({
             'name': 'Elastic Buyer', 'is_company': True, 'customer_rank': 1,
@@ -47,6 +56,8 @@ class TestOrderHistoryExporter(TransactionCase):
         # Keep these tests independent of any pre-existing company orders.
         self.domain = self.exporter.get_export_domain() + [('id', '=', self.order.id)]
         self.exporter.get_export_domain = lambda: self.domain
+        self.invoice_domain = self.exporter.get_invoice_domain() + [('partner_id', '=', self.partner.id)]
+        self.exporter.get_invoice_domain = lambda: self.invoice_domain
 
     def _rows(self):
         return {
@@ -56,8 +67,8 @@ class TestOrderHistoryExporter(TransactionCase):
 
     def test_pair_matches_spec_and_links_rows(self):
         files = self.exporter.generate_files()
-        self.assertEqual([f['filename'] for f in files], ['order_headers.csv', 'order_lines.csv'])
-        for file, schema in zip(files, (ORDER_HEADER_SCHEMA, ORDER_LINE_SCHEMA)):
+        self.assertEqual([f['filename'] for f in files], ['order_headers.csv', 'order_lines.csv', 'invoice_headers.csv', 'invoice_lines.csv'])
+        for file, schema in zip(files, (ORDER_HEADER_SCHEMA, ORDER_LINE_SCHEMA, INVOICE_HEADER_SCHEMA, INVOICE_LINE_SCHEMA)):
             self.assertEqual(next(csv.reader(StringIO(file['content']))), [c[0] for c in schema])
         rows = self._rows()
         header, line = rows['order_headers.csv'][0], rows['order_lines.csv'][0]
@@ -140,7 +151,7 @@ class TestOrderHistoryExporter(TransactionCase):
         self.exporter.sftp_service.upload_file.return_value = (True, 'uploaded')
         result = self.exporter.export()
         self.assertTrue(result['success'])
-        self.assertEqual(result['filenames'], ['order_headers.csv', 'order_lines.csv'])
+        self.assertEqual(result['filenames'], ['order_headers.csv', 'order_lines.csv', 'invoice_headers.csv', 'invoice_lines.csv'])
         calls = self.exporter.sftp_service.upload_file.call_args_list
         self.assertEqual([call.kwargs['remote_filename'] for call in calls], result['filenames'])
         self.assertEqual(result['record_count'], 2)
@@ -173,7 +184,7 @@ class TestOrderHistoryExporter(TransactionCase):
         result = self.exporter.export()
         self.assertFalse(result['success'])
         self.assertEqual(result['filenames'], ['order_headers.csv'])
-        self.assertIn('Retry to resend both files', result['message'])
+        self.assertIn('Retry to resend all four files', result['message'])
         log = self.env['elastic.export.log'].search([
             ('export_type', '=', 'order_history'), ('state', '=', 'partial'),
         ], order='id desc', limit=1)
@@ -185,6 +196,7 @@ class TestOrderHistoryExporter(TransactionCase):
     def test_download_zip_does_not_require_sftp(self):
         expected_files = self.exporter.generate_files()
         with patch.object(OrderHistoryExporter, 'get_export_domain', return_value=self.domain), \
+                patch.object(OrderHistoryExporter, 'get_invoice_domain', return_value=self.invoice_domain), \
                 patch.object(type(self.config), 'get_sftp_service') as sftp:
             action = self.config.action_download_order_history()
         sftp.assert_not_called()
@@ -193,6 +205,129 @@ class TestOrderHistoryExporter(TransactionCase):
         self.assertEqual(attachment.res_id, self.config.id)
         self.assertEqual(attachment.res_model, 'elastic.config')
         with ZipFile(BytesIO(base64.b64decode(attachment.datas))) as archive:
-            self.assertEqual(archive.namelist(), ['order_headers.csv', 'order_lines.csv'])
+            self.assertEqual(archive.namelist(), ['order_headers.csv', 'order_lines.csv', 'invoice_headers.csv', 'invoice_lines.csv'])
             for file in expected_files:
                 self.assertEqual(archive.read(file['filename']).decode(), file['content'])
+
+
+    def _create_history_invoice(self, move_type='out_invoice', post=True):
+        invoice = self.env['account.move'].create({
+            'move_type': move_type,
+            'partner_id': self.partner.id,
+            'invoice_date': '2026-09-14',
+            'journal_id': self.company_data[
+                'default_journal_purchase' if move_type == 'in_invoice' else 'default_journal_sale'
+            ].id,
+            'invoice_line_ids': [(0, 0, {
+                'product_id': self.product.id,
+                'name': 'History frame', 'quantity': 1, 'price_unit': 25, 'discount': 20,
+                'account_id': self.company_data['default_account_revenue'].id,
+                'tax_ids': [(5, 0, 0)], 'sale_line_ids': [(6, 0, self.line.ids)],
+            })],
+        })
+        if post:
+            invoice.action_post()
+        return invoice
+
+    def test_posted_invoice_links_to_exported_order_and_uses_invoice_amounts(self):
+        invoice = self._create_history_invoice()
+        rows = self._rows()
+        header, line = rows['invoice_headers.csv'][0], rows['invoice_lines.csv'][0]
+        self.assertEqual(header['InvoiceNumber'], invoice.name)
+        self.assertEqual(header['OrderNumber'], self.order.name)
+        self.assertEqual(header['DateInvoiced'], '20260914')
+        self.assertEqual(header['SoldToNumber'], 'C100')
+        self.assertEqual(line['InvoiceNumber'], invoice.name)
+        self.assertEqual(line['LineNumber'], str(invoice.invoice_line_ids.id))
+        self.assertEqual(line['OrderLineNumber'], str(self.line.id))
+        self.assertEqual(line['UnitsOrdered'], '1')
+        self.assertEqual(header['UnitsOrdered'], '1.00')
+        self.assertEqual(line['ExtendedPriceNet'], '20.00')
+        self.assertEqual(header['NetTotal'], '20.00')
+        self.assertEqual(line['TrackingNumber'], '')
+
+    def test_draft_invoices_vendor_bills_and_disabled_customers_are_excluded(self):
+        self._create_history_invoice(post=False)
+        self._create_history_invoice(move_type='in_invoice')
+        self.assertEqual(self._rows()['invoice_headers.csv'], [])
+        self._create_history_invoice()
+        self.partner.elastic_sync_enabled = False
+        self.assertEqual(self.exporter.generate_files(), [])
+
+    def test_credit_note_has_negative_quantity_and_total(self):
+        self._create_history_invoice(move_type='out_refund')
+        rows = self._rows()
+        self.assertEqual(rows['invoice_headers.csv'][0]['NetTotal'], '-20.00')
+        self.assertEqual(rows['invoice_lines.csv'][0]['UnitsOrdered'], '-1')
+        self.assertEqual(rows['invoice_lines.csv'][0]['Status'], 'CREDIT')
+
+    def test_invoice_download_contains_invoice_rows_without_sftp(self):
+        invoice = self._create_history_invoice()
+        with patch.object(OrderHistoryExporter, 'get_export_domain', return_value=self.domain), \
+                patch.object(OrderHistoryExporter, 'get_invoice_domain', return_value=self.invoice_domain), \
+                patch.object(type(self.config), 'get_sftp_service') as sftp:
+            action = self.config.action_download_order_history()
+        sftp.assert_not_called()
+        attachment_id = int(action['url'].split('/')[3].split('?')[0])
+        attachment = self.env['ir.attachment'].browse(attachment_id)
+        with ZipFile(BytesIO(base64.b64decode(attachment.datas))) as archive:
+            rows = list(csv.DictReader(StringIO(archive.read('invoice_headers.csv').decode())))
+        self.assertEqual(rows[0]['InvoiceNumber'], invoice.name)
+
+
+    def _history_window_orders(self):
+        self.exporter._history_now = datetime(2026, 9, 14, 12, tzinfo=timezone.utc)
+        self.exporter.env = self.env(context=dict(self.env.context, tz='UTC'))
+        return self.env['sale.order'].search(
+            OrderHistoryExporter.get_export_domain(self.exporter) + [('id', '=', self.order.id)]
+        )
+
+    def _age_order_audit_dates(self):
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE sale_order SET create_date = %s, write_date = %s WHERE id = %s",
+            ('2000-01-01', '2000-01-01', self.order.id),
+        )
+        self.env.cr.execute(
+            "UPDATE sale_order_line SET create_date = %s, write_date = %s WHERE order_id = %s",
+            ('2000-01-01', '2000-01-01', self.order.id),
+        )
+        self.env.invalidate_all()
+
+    def test_history_window_includes_old_order_with_recent_line_change(self):
+        self.config.order_history_lookback_days = 3
+        self._age_order_audit_dates()
+        self.assertNotIn(self.order, self._history_window_orders())
+        self.env.cr.execute(
+            "UPDATE sale_order_line SET write_date = %s WHERE id = %s",
+            ('2026-09-14 10:00:00', self.line.id),
+        )
+        self.env.invalidate_all()
+        self.assertIn(self.order, self._history_window_orders())
+        self.config.order_history_include_updates = False
+        self.assertNotIn(self.order, self._history_window_orders())
+
+    def test_history_start_is_hard_floor_and_zero_days_backfills(self):
+        self._age_order_audit_dates()
+        self.config.write({'order_history_start_date': '2026-08-05',
+                           'order_history_lookback_days': 0})
+        self.assertIn(self.order, self._history_window_orders())
+        self.config.order_history_start_date = '2026-08-06'
+        self.assertNotIn(self.order, self._history_window_orders())
+
+    def test_invoice_history_window_applies_invoice_date_and_fixed_floor(self):
+        invoice = self._create_history_invoice()
+        self.config.write({'order_history_lookback_days': 3,
+                           'order_history_include_updates': False})
+        self.exporter._history_now = datetime(2026, 9, 14, 12, tzinfo=timezone.utc)
+        self.exporter.env = self.env(context=dict(self.env.context, tz='UTC'))
+        domain = OrderHistoryExporter.get_invoice_domain(self.exporter)
+        self.assertIn(invoice, self.env['account.move'].search(domain))
+        self.config.write({'order_history_start_date': '2026-09-15',
+                           'order_history_include_updates': True})
+        domain = OrderHistoryExporter.get_invoice_domain(self.exporter)
+        self.assertNotIn(invoice, self.env['account.move'].search(domain))
+
+    def test_negative_history_lookback_is_rejected(self):
+        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+            self.config.order_history_lookback_days = -1
