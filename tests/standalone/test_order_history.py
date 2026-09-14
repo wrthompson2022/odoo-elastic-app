@@ -227,13 +227,36 @@ class TestExporter(unittest.TestCase):
         self.assertFalse(self.exporter._latest_shipment(self.line_values))
 
     def test_multi_package_tracking_exports_a_matching_number_and_url(self):
-        shipment = NS(carrier_id=NS(name='UPS'), carrier_tracking_ref='ONE,TWO',
+        shipment = NS(carrier_id=NS(name='UPS Ground', delivery_type='ups'), carrier_tracking_ref='ONE,TWO',
                       carrier_tracking_url='[["ONE", "https://example.com/one"], '
                                            '["TWO", "https://example.com/two"]]')
         self.assertEqual(self.exporter._tracking(shipment, 'TrackingUrl'), {
-            'TrackingNumber': 'ONE', 'TrackingCarrier': 'UPS',
+            'TrackingNumber': 'ONE', 'TrackingCarrier': 'ups',
             'TrackingUrl': 'https://example.com/one',
         })
+
+    def test_tracking_carrier_uses_provider_in_both_files(self):
+        shipment = NS(
+            id=5, name='OUT/5', state='done', date_done=datetime(2026, 8, 6),
+            carrier_id=NS(name='UPS Ground - Customer Account',
+                          scac_code='UPSN', delivery_type='ups'),
+            carrier_tracking_ref='1Z123', carrier_tracking_url='https://example.com/1Z123',
+        )
+        self.line.move_ids = Records([NS(
+            state='done', scrapped=False, location_dest_id=NS(usage='customer'),
+            location_id=NS(usage='internal'), picking_id=shipment,
+        )])
+        headers, lines = self.rows()
+        for row in (headers[0], lines[0]):
+            self.assertEqual(row['TrackingCarrier'], 'ups')
+            self.assertEqual(row['TrackingNumber'], '1Z123')
+
+    def test_missing_tracking_provider_stays_blank(self):
+        for carrier in (False, NS(name='Long custom delivery method'),
+                        NS(name='UPS Ground', delivery_type=False)):
+            with self.subTest(carrier=carrier):
+                shipment = NS(carrier_id=carrier)
+                self.assertEqual(self.exporter._tracking(shipment, 'TrackingUrl')['TrackingCarrier'], '')
 
     def test_cancelled_line_does_not_use_todays_expected_date(self):
         self.order.state = 'cancel'

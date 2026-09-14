@@ -136,7 +136,8 @@ class OrderHistoryExporter(InvoiceHistoryMixin, BaseExporter):
                 number, url = packages[0]
         return {
             'TrackingNumber': number,
-            'TrackingCarrier': self._carrier_code(carrier),
+            # Provider code, not the delivery method's service name or SCAC.
+            'TrackingCarrier': (getattr(carrier, 'delivery_type', '') or '') if carrier else '',
             url_field: url,
         }
 

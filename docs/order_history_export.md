@@ -67,7 +67,7 @@ These filters select exported data; they do not delete records already in Elasti
 | Lines: ProductName, VariationName, SizeName | Same names and metadata precedence used by products.csv |
 | Lines: Description / UOM | Sale line description / sale line unit of measure |
 | Lines: ShipmentNumber | Most recent completed outbound picking name, falling back to imported Elastic shipment number |
-| Both: Tracking fields | Most recent completed shipment associated with those lines; internal transfers, returns and scrap are excluded. A line with no shipment retains blank tracking |
+| Both: Tracking fields | Most recent completed shipment associated with those lines; internal transfers, returns and scrap are excluded. A line with no shipment retains blank tracking. TrackingCarrier uses the delivery method's Provider code (delivery_type, e.g. ups or fedex); it stays blank when no provider is available |
 | Both: UnitsOrdered / UnitsShipped | Ordered quantity / Odoo delivered quantity (net of returns); headers sum the exported lines |
 | Both: UnitsOpen | Maximum of ordered minus delivered, or zero for cancelled orders |
 | Both: UnitsCancelled | Remaining undelivered quantity on cancelled orders, otherwise zero |
