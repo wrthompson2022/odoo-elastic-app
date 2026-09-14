@@ -2,6 +2,7 @@
 """Elastic's four linked order and invoice history feeds."""
 import json
 import logging
+import re
 from datetime import datetime, timezone
 
 from .base_exporter import BaseExporter
@@ -109,7 +110,8 @@ class OrderHistoryExporter(InvoiceHistoryMixin, BaseExporter):
         # A line with no delivery must not inherit another line's tracking.
         # Exclude internal pick/pack moves, returns, and scrapped moves.
         moves = lines.mapped('move_ids').filtered(
-            lambda move: move.state == 'done' and not move.scrapped
+            lambda move: move.state == 'done'
+            and not (getattr(move, 'scrapped', False) or getattr(move, 'scrap_id', False))
             and move.location_dest_id.usage == 'customer'
             and move.location_id.usage != 'customer'
         )
@@ -120,22 +122,81 @@ class OrderHistoryExporter(InvoiceHistoryMixin, BaseExporter):
     def _carrier_code(carrier):
         return (getattr(carrier, 'scac_code', False) or carrier.name) if carrier else ''
 
-    def _tracking(self, shipment, url_field):
+    @staticmethod
+    def _tracking_tokens(value):
+        return [number.strip() for number in re.split(r'[,;\r\n]+', value or '')
+                if number.strip()]
+
+    @staticmethod
+    def _bounded_tracking_list(numbers):
+        """Keep an ordered prefix of complete, unique numbers within 50 chars."""
+        selected = []
+        for number in dict.fromkeys(numbers):
+            if len(number) > 50:
+                _logger.warning('Skipping a tracking number longer than 50 characters (%s)', len(number))
+                continue
+            if len(','.join(selected + [number])) > 50:
+                break
+            selected.append(number)
+        return selected
+
+    def _package_tracking_numbers(self, shipment, lines):
+        """Match actual delivered cartons to these sale lines, never by position."""
+        if not shipment or not lines:
+            return []
+        packages = {}
+        for move in lines.mapped('move_ids'):
+            if (move.state != 'done'
+                    or getattr(move, 'scrapped', False) or getattr(move, 'scrap_id', False)
+                    or move.location_dest_id.usage != 'customer'
+                    or move.location_id.usage == 'customer'
+                    or move.picking_id.id != shipment.id):
+                continue
+            for detail in getattr(move, 'move_line_ids', ()):
+                package = detail.result_package_id
+                if package:
+                    packages[package.id] = package
+        # Optional EDI assignments are shipment-specific and take precedence
+        # over the package's Additional Reference field (common_connector_library).
+        assigned = {
+            row.package_id.id: row.tracking_number
+            for row in (getattr(shipment, 'edi_package_tracking_ids', ()) or ())
+            if row.package_id.id in packages and row.tracking_number
+        }
+        numbers = []
+        for package_id, package in sorted(packages.items()):
+            numbers.extend(self._tracking_tokens(
+                assigned.get(package_id) or getattr(package, 'tracking_no', '')
+            ))
+        return numbers
+
+    def _tracking(self, shipment, url_field, lines=None):
         carrier = getattr(shipment, 'carrier_id', False) if shipment else False
         number = getattr(shipment, 'carrier_tracking_ref', '') if shipment else ''
         url = getattr(shipment, 'carrier_tracking_url', '') if shipment else ''
-        # Odoo carriers may return a JSON list of (tracking number, URL) pairs
-        # for multi-package shipments. This feed accepts one tracking set.
+        links = {}
         if url:
             try:
-                packages = json.loads(url)
+                pairs = json.loads(url)
             except (ValueError, TypeError):
-                packages = None
-            if (isinstance(packages, list) and packages
-                    and isinstance(packages[0], list) and len(packages[0]) == 2):
-                number, url = packages[0]
+                pairs = None
+            if isinstance(pairs, list):
+                links = {pair[0].strip(): pair[1] for pair in pairs
+                         if isinstance(pair, list) and len(pair) == 2
+                         and isinstance(pair[0], str) and isinstance(pair[1], str)}
+                url = ''
+        shipment_numbers = list(dict.fromkeys(self._tracking_tokens(number) or links))
+        selected = self._bounded_tracking_list(self._package_tracking_numbers(shipment, lines))
+        if not selected:
+            selected = self._bounded_tracking_list(shipment_numbers)
+        if links:
+            url = links.get(selected[0], '') if selected else ''
+        elif not selected or selected != shipment_numbers:
+            # A shipment URL may embed the entire original tracking list. Do
+            # not attach it to a different package or shortened list.
+            url = ''
         return {
-            'TrackingNumber': number,
+            'TrackingNumber': ','.join(selected),
             # Provider code, not the delivery method's service name or SCAC.
             'TrackingCarrier': (getattr(carrier, 'delivery_type', '') or '') if carrier else '',
             url_field: url,
@@ -210,7 +271,7 @@ class OrderHistoryExporter(InvoiceHistoryMixin, BaseExporter):
             ),
         }
         values.update(self._order_attributes(order))
-        values.update(self._tracking(shipment, 'TrackingURL'))
+        values.update(self._tracking(shipment, 'TrackingURL', lines))
         values.update(self._address('SoldTo', sold_to, sold_to._get_sold_to_id()))
         values.update(self._address('ShipTo', ship_to, self._ship_to_number(sold_to, ship_to)))
         values.update(self._address(
@@ -256,7 +317,7 @@ class OrderHistoryExporter(InvoiceHistoryMixin, BaseExporter):
         }
         values.update(self._order_attributes(order))
         values.update(self._quantities(line))
-        values.update(self._tracking(shipment, 'TrackingUrl'))
+        values.update(self._tracking(shipment, 'TrackingUrl', line))
         return values
 
     @staticmethod

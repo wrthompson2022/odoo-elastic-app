@@ -87,11 +87,31 @@ order cancellation; UnitsOpen reflects ordered minus delivered.
 
 Whole units are required by the supplied Integer (11) contract, including for
 service lines that remain in the feed. Decimal amounts have two places. Dates
-are YYYYMMDD. Values exceeding the declared lengths or precision fail generation
-with the order/field identified. If multiple shipments exist, one latest shipment
-is represented; this contract provides one tracking set per order/line. If an
-Odoo carrier supplies multiple package links as JSON, the first package's number
-and URL are exported together.
+are YYYYMMDD. Values exceeding declared lengths or precision fail generation
+with the order/field identified, except tracking numbers handled as follows.
+
+Tracking uses the latest completed outbound shipment. Each order line looks up
+its delivered packages through stock move details; the header uses packages
+across the exported order lines on that shipment. Explicit shipment/package EDI
+assignments (`edi_package_tracking_ids`) take precedence over the package's
+Additional Reference (`tracking_no`), when those optional fields are installed.
+Package IDs determine stable ordering; tracking numbers are never assigned to
+packages by their position in a shipment list.
+
+If no usable package tracking exists for the row, use the shipment tracking
+reference (or the carrier's structured tracking list when that reference is
+empty). Commas, semicolons and line breaks separate complete numbers. Remove
+blanks and duplicates, then retain the first consecutive list that fits within
+50 characters, including commas. Never cut a number in half. A single number
+over 50 characters is skipped with a server warning; if none fit, TrackingNumber
+stays blank and the export continues. For example, seven 12-character numbers
+become the first three numbers (38 characters including separators).
+
+For structured number/URL pairs, the URL belongs to the first retained number.
+A plain shipment URL is retained only when the selected numbers match the full
+shipment list; otherwise it stays blank to avoid linking different packages.
+This preserves the spec's single tracking field per row and its 50-character
+limit without blocking a batch because a shipment has many packages.
 
 ## Invoice mapping choices
 

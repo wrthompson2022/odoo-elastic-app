@@ -24,7 +24,7 @@ Features
 * Field discovery, governed mappings, locale/region support and import scheduling.
 * Packaged Knowledge operating guide with upgrade-safe content refresh.
 """,
-    "version": "18.0.1.8.2",
+    "version": "18.0.1.8.3",
     "category": "Sales/Sales",
     "author": "P2 Business Solutions",
     "website": "https://www.p2bsi.com",

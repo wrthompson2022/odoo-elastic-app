@@ -21,6 +21,7 @@ class TestOrderHistoryExporter(AccountTestInvoicingCommon):
         super().setUpClass()
         cls.env.user.groups_id |= cls.env.ref('odoo-elastic-app.group_elastic_manager')
         cls.env.user.groups_id |= cls.env.ref('sales_team.group_sale_manager')
+        cls.env.user.groups_id |= cls.env.ref('stock.group_stock_manager')
 
     def setUp(self):
         super().setUp()
@@ -209,6 +210,45 @@ class TestOrderHistoryExporter(AccountTestInvoicingCommon):
             for file in expected_files:
                 self.assertEqual(archive.read(file['filename']).decode(), file['content'])
 
+
+    def test_tracking_follows_delivered_packages_per_order_line(self):
+        second_line = self.line.copy({'order_id': self.order.id})
+        package_model = self.env['stock.move.line']._fields['result_package_id'].comodel_name
+        packages = self.env[package_model].create([{'name': 'HISTORY-A'}, {'name': 'HISTORY-B'}])
+        warehouse = self.env['stock.warehouse'].search([('company_id', '=', self.env.company.id)], limit=1)
+        destination = self.env.ref('stock.stock_location_customers')
+        picking = self.env['stock.picking'].create({
+            'picking_type_id': warehouse.out_type_id.id,
+            'location_id': warehouse.lot_stock_id.id, 'location_dest_id': destination.id,
+        })
+        for sale_line, package in zip(self.line | second_line, packages):
+            move_values = {
+                'product_id': self.product.id, 'product_uom_qty': 2,
+                'product_uom': self.product.uom_id.id, 'sale_line_id': sale_line.id,
+                'picking_id': picking.id, 'location_id': warehouse.lot_stock_id.id,
+                'location_dest_id': destination.id,
+            }
+            if 'name' in self.env['stock.move']._fields:
+                move_values['name'] = 'History package move'
+            move = self.env['stock.move'].create(move_values)
+            self.env['stock.move.line'].create({
+                'move_id': move.id, 'picking_id': picking.id,
+                'product_id': self.product.id, 'product_uom_id': self.product.uom_id.id,
+                'quantity': 2, 'location_id': warehouse.lot_stock_id.id,
+                'location_dest_id': destination.id, 'result_package_id': package.id,
+            })
+            move.state = 'done'
+        picking.date_done = datetime(2026, 8, 6)
+        # The optional package tracking addon is not a dependency. Supply just
+        # its field accessor while exercising real moves, packages and sale lines.
+        numbers = dict(zip(packages.ids, ('TRACK-A', 'TRACK-B')))
+        with patch.object(type(packages), 'tracking_no',
+                          property(lambda record: numbers[record.id]), create=True):
+            rows = self._rows()
+        self.assertEqual(rows['order_headers.csv'][0]['TrackingNumber'], 'TRACK-A,TRACK-B')
+        lines = {row['LineNumber']: row for row in rows['order_lines.csv']}
+        self.assertEqual(lines[str(self.line.id)]['TrackingNumber'], 'TRACK-A')
+        self.assertEqual(lines[str(second_line.id)]['TrackingNumber'], 'TRACK-B')
 
     def _create_history_invoice(self, move_type='out_invoice', post=True):
         invoice = self.env['account.move'].create({

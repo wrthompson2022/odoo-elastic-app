@@ -222,6 +222,11 @@ class TestExporter(unittest.TestCase):
                       location_id=NS(usage=origin), picking_id=picking)
         self.line.move_ids = Records([move(1), move(3), move(4, 'internal', 'customer'),
                                      move(5, 'internal'), move(6, scrapped=True), move(7, state='assigned')])
+        # Odoo 19 identifies scrapped moves through scrap_id instead.
+        scrapped_move = move(8)
+        del scrapped_move.scrapped
+        scrapped_move.scrap_id = NS(id=1)
+        self.line.move_ids.append(scrapped_move)
         self.assertEqual(self.exporter._latest_shipment(self.line_values).id, 3)
         self.line.move_ids = Records()
         self.assertFalse(self.exporter._latest_shipment(self.line_values))
@@ -231,7 +236,7 @@ class TestExporter(unittest.TestCase):
                       carrier_tracking_url='[["ONE", "https://example.com/one"], '
                                            '["TWO", "https://example.com/two"]]')
         self.assertEqual(self.exporter._tracking(shipment, 'TrackingUrl'), {
-            'TrackingNumber': 'ONE', 'TrackingCarrier': 'ups',
+            'TrackingNumber': 'ONE,TWO', 'TrackingCarrier': 'ups',
             'TrackingUrl': 'https://example.com/one',
         })
 
@@ -257,6 +262,102 @@ class TestExporter(unittest.TestCase):
             with self.subTest(carrier=carrier):
                 shipment = NS(carrier_id=carrier)
                 self.assertEqual(self.exporter._tracking(shipment, 'TrackingUrl')['TrackingCarrier'], '')
+
+    def _shipment_with_tracking(self, reference, package_numbers=()):
+        shipment = NS(
+            id=5, name='OUT/5', state='done', date_done=datetime(2026, 8, 6),
+            carrier_id=NS(name='FedEx Ground', delivery_type='fedex_rest'),
+            carrier_tracking_ref=reference, carrier_tracking_url='',
+            edi_package_tracking_ids=Records(),
+        )
+        details = Records([NS(result_package_id=NS(id=i + 1, tracking_no=number))
+                           for i, number in enumerate(package_numbers)])
+        move = NS(state='done', scrapped=False, location_dest_id=NS(usage='customer'),
+                  location_id=NS(usage='internal'), picking_id=shipment, move_line_ids=details)
+        self.line.move_ids = Records([move])
+        return shipment, move
+
+    def test_tracking_list_fits_complete_numbers_without_blocking_export(self):
+        numbers = [str(876327182360 + i) for i in range(7)]
+        self._shipment_with_tracking(','.join(numbers))
+        headers, lines = self.rows()
+        for row in (headers[0], lines[0]):
+            self.assertEqual(row['TrackingNumber'], ','.join(numbers[:3]))
+        self.exporter.sftp_service.upload_file.return_value = (True, 'uploaded')
+        self.assertTrue(self.exporter.export()['success'])
+        self.assertEqual(self.exporter.sftp_service.upload_file.call_count, 4)
+
+    def test_tracking_length_boundary_and_unusable_single_number(self):
+        for length, expected in ((49, 'X' * 49), (50, 'X' * 50), (51, '')):
+            with self.subTest(length=length):
+                self._shipment_with_tracking('X' * length)
+                headers, lines = self.rows()
+                self.assertEqual(headers[0]['TrackingNumber'], expected)
+                self.assertEqual(lines[0]['TrackingNumber'], expected)
+
+    def test_tracking_list_deduplicates_and_stops_at_first_nonfitting_number(self):
+        first, second = 'A' * 30, 'B' * 20
+        shipment, _ = self._shipment_with_tracking(f' {first};{first}\n{second},LAST')
+        self.assertEqual(self.exporter._tracking(shipment, 'TrackingUrl')['TrackingNumber'], first)
+        shipment.carrier_tracking_ref = ' ONE; TWO\nONE\r\nTHREE, '
+        self.assertEqual(self.exporter._tracking(shipment, 'TrackingUrl')['TrackingNumber'], 'ONE,TWO,THREE')
+
+    def test_package_tracking_is_specific_to_each_sale_line(self):
+        shipment, move = self._shipment_with_tracking('SHIPMENT-LIST', ('PACKAGE-A',))
+        line_b = NS(**vars(self.line))
+        line_b.id = 102
+        package_b = NS(id=2, tracking_no='PACKAGE-B')
+        move_b = NS(**vars(move))
+        move_b.move_line_ids = Records([NS(result_package_id=package_b)])
+        line_b.move_ids = Records([move_b])
+        line_b.mapped = lambda field: getattr(line_b, field)
+        self.order.order_line.append(line_b)
+        headers, lines = self.rows()
+        self.assertEqual(headers[0]['TrackingNumber'], 'PACKAGE-A,PACKAGE-B')
+        self.assertEqual(lines[0]['TrackingNumber'], 'PACKAGE-A')
+        self.assertEqual(lines[1]['TrackingNumber'], 'PACKAGE-B')
+
+    def test_edi_assignment_overrides_package_reference_and_matches_url(self):
+        shipment, move = self._shipment_with_tracking('OTHER,EDI-A', ('STALE',))
+        shipment.edi_package_tracking_ids = Records([
+            NS(package_id=move.move_line_ids[0].result_package_id, tracking_number='EDI-A'),
+            NS(package_id=NS(id=999), tracking_number='UNRELATED'),
+        ])
+        shipment.carrier_tracking_url = '[["OTHER", "https://example.com/other"], ["EDI-A", "https://example.com/a"]]'
+        headers, lines = self.rows()
+        self.assertEqual(headers[0]['TrackingNumber'], 'EDI-A')
+        self.assertEqual(lines[0]['TrackingNumber'], 'EDI-A')
+        self.assertEqual(lines[0]['TrackingUrl'], 'https://example.com/a')
+
+    def test_package_tracking_ignores_other_shipments_and_returns(self):
+        shipment, move = self._shipment_with_tracking('FALLBACK', ('VALID',))
+        unrelated = NS(**vars(move))
+        unrelated.picking_id = NS(id=99, state='done', date_done=datetime(2026, 8, 1))
+        unrelated.move_line_ids = Records([NS(result_package_id=NS(id=9, tracking_no='OLD'))])
+        returned = NS(**vars(move))
+        returned.location_id = NS(usage='customer')
+        returned.move_line_ids = Records([NS(result_package_id=NS(id=10, tracking_no='RETURN'))])
+        self.line.move_ids.extend([unrelated, returned])
+        self.assertEqual(self.rows()[1][0]['TrackingNumber'], 'VALID')
+
+    def test_blank_or_oversized_package_tracking_uses_shipment_fallback(self):
+        for package_number in ('', False, 'X' * 51):
+            with self.subTest(package_number=package_number):
+                self._shipment_with_tracking('FIRST,SECOND', (package_number,))
+                self.assertEqual(self.rows()[1][0]['TrackingNumber'], 'FIRST,SECOND')
+
+    def test_package_tracking_list_obeys_same_length_limit(self):
+        numbers = [str(876327182360 + i) for i in range(7)]
+        self._shipment_with_tracking('FALLBACK', numbers)
+        self.assertEqual(self.rows()[1][0]['TrackingNumber'], ','.join(numbers[:3]))
+
+    def test_mismatched_shipment_url_is_not_attached_to_package_tracking(self):
+        shipment, _ = self._shipment_with_tracking('A,B', ('B',))
+        shipment.carrier_tracking_url = 'https://example.com/A,B'
+        self.assertEqual(self.rows()[1][0]['TrackingUrl'], '')
+        shipment.carrier_tracking_ref = 'B'
+        shipment.carrier_tracking_url = 'https://example.com/B'
+        self.assertEqual(self.rows()[1][0]['TrackingUrl'], 'https://example.com/B')
 
     def test_cancelled_line_does_not_use_todays_expected_date(self):
         self.order.state = 'cancel'
