@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import json
+from unittest.mock import patch
+
 from odoo.tests.common import TransactionCase
 
 from ..importers.order_importer import OrderImporter
@@ -26,6 +29,91 @@ class TestOrderImporter(TransactionCase):
         importer.env = self.env
         importer.config = self.config
         return importer
+
+    def _stage_order_with_notes(self, **notes):
+        self.config.order_import_auto_confirm = False
+        product = self.env['product.product'].create({
+            'name': 'Elastic notes test product',
+            'default_code': 'ELASTIC-NOTES-TEST',
+        })
+        row = {
+            'Sold To ID': 'ACME-1',
+            'Ship To ID': 'SAME',
+            'SKU': product.default_code,
+            'Quantity': '1',
+            'Price': '10',
+            **notes,
+        }
+        return self.env['elastic.order.staging'].create({
+            'elastic_order_number': 'ELASTIC-NOTES-ORDER',
+            'shipment_number': '1',
+            'source_filename': 'orders.csv',
+            'raw_data': json.dumps([row, row]),
+            'config_id': self.config.id,
+        })
+
+    def _elastic_notes(self, sale_order):
+        return sale_order.message_ids.filtered(
+            lambda message: 'Elastic order notes' in (message.body or '')
+        )
+
+    def test_order_notes_post_once_as_internal_chatter_note(self):
+        importer = self._build_importer()
+        staging = self._stage_order_with_notes(**{
+            'Order Notes': 'Handle with care',
+            'Notes': 'Call before delivery\nAsk for Renée & <Dock A>',
+            'Shipment Notes': 'Use rear entrance',
+        })
+
+        self.assertEqual(importer.process_staged_order(staging), 'processed')
+        order = staging.sale_order_id
+        messages = self._elastic_notes(order)
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages.subtype_id, self.env.ref('mail.mt_note'))
+        self.assertEqual(messages.message_type, 'comment')
+        self.assertIn('Handle with care', messages.body)
+        self.assertIn('Call before delivery<br', messages.body)
+        self.assertIn('Renée &amp; &lt;Dock A&gt;', messages.body)
+        self.assertIn('Use rear entrance', messages.body)
+        self.assertEqual(len(order.order_line), 2)
+        self.assertIn('Handle with care', order.note)
+
+        self.assertEqual(importer.process_staged_order(staging), 'duplicate')
+        self.assertEqual(self._elastic_notes(order), messages)
+
+    def test_blank_order_notes_do_not_post_chatter_note(self):
+        importer = self._build_importer()
+        staging = self._stage_order_with_notes(Notes=' \n\t ')
+
+        self.assertEqual(importer.process_staged_order(staging), 'processed')
+        self.assertFalse(self._elastic_notes(staging.sale_order_id))
+
+    def test_missing_order_notes_do_not_post_chatter_note(self):
+        importer = self._build_importer()
+        staging = self._stage_order_with_notes()
+
+        self.assertEqual(importer.process_staged_order(staging), 'processed')
+        self.assertFalse(self._elastic_notes(staging.sale_order_id))
+
+    def test_failed_confirmation_rolls_back_order_and_chatter_note(self):
+        importer = self._build_importer()
+        staging = self._stage_order_with_notes(Notes='ELASTIC-NOTES-ORDER retry note')
+        self.config.order_import_auto_confirm = True
+        with patch.object(type(self.env['sale.order']), 'action_confirm',
+                          side_effect=ValueError('Confirmation failed')):
+            self.assertEqual(importer.process_staged_order(staging), 'error')
+
+        self.assertFalse(self.env['sale.order']._find_by_elastic_keys(
+            staging.elastic_order_number, staging.shipment_number,
+        ))
+        self.assertFalse(self.env['mail.message'].search([
+            ('model', '=', 'sale.order'),
+            ('body', 'ilike', 'Elastic order notes'),
+            ('body', 'ilike', 'ELASTIC-NOTES-ORDER retry note'),
+        ]))
+        self.config.order_import_auto_confirm = False
+        self.assertEqual(importer.process_staged_order(staging), 'processed')
+        self.assertEqual(len(self._elastic_notes(staging.sale_order_id)), 1)
 
     def test_ship_to_id_matches_delivery_legacy_account_number(self):
         importer = self._build_importer()

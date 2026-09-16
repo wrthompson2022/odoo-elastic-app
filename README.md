@@ -143,6 +143,11 @@ optional fields, specification ambiguities, and validation commands.
 - Stages each grouped order in `elastic.order.staging` before creating an Odoo
   sale order.
 - Detects duplicate orders using Elastic order and shipment keys.
+- Adds nonblank `Order Notes`, `Notes`, and `Shipment Notes` to one internal
+  **Elastic order notes** chatter entry when creating each order, preserving
+  line breaks and treating the source as plain text. The order notes field is
+  still populated. Duplicate imports do not repost notes; already imported
+  orders are not backfilled.
 - Supports manual retry for failed staged orders.
 - Resolves Sold-To and Ship-To customers through scoped cross-reference rows,
   global cross-reference rows, and legacy account-number fallback.

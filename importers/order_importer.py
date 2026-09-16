@@ -12,6 +12,8 @@ from collections import OrderedDict
 from datetime import datetime
 from io import StringIO
 
+from markupsafe import Markup
+
 from odoo import fields as odoo_fields
 
 from .base_importer import BaseImporter
@@ -327,11 +329,22 @@ class OrderImporter(BaseImporter):
             so_vals['commitment_date'] = commitment_date
 
         notes_parts = [header.get('Order Notes'), header.get('Notes'), header.get('Shipment Notes')]
-        note_text = '\n'.join(n for n in notes_parts if n)
+        note_text = '\n'.join(n.strip() for n in notes_parts if n and n.strip())
         if note_text:
             so_vals['note'] = note_text
 
         sale_order = self.env['sale.order'].create(so_vals)
+
+        if note_text:
+            # Markup.join escapes Elastic's plain text while preserving newlines.
+            # This runs only on creation, inside the staging savepoint, so failed
+            # imports roll back the note and duplicate imports do not repost it.
+            sale_order.message_post(
+                body=Markup('<p><strong>Elastic order notes</strong></p><p>%s</p>')
+                % Markup('<br/>').join(note_text.splitlines()),
+                message_type='comment',
+                subtype_xmlid='mail.mt_note',
+            )
 
         if self.config.order_import_auto_confirm:
             sale_order.action_confirm()
