@@ -46,9 +46,10 @@
                 <em>D</em>, <em>PL</em>); otherwise a stable code is generated automatically.
             </p>
             <p>
-                Pricelists assigned to exported customers are included automatically, even when
-                Send to Elastic is not checked. If none are assigned or enabled, the export falls
-                back to the product list price.
+                Only active pricelists with Send to Elastic checked are published, even when
+                assigned to exported customers. Customers with a disabled or inactive pricelist
+                use the LP price group. If no pricelists are enabled, prices fall back to the
+                product list price.
             </p>
         </field>
     </record>

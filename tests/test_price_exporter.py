@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from odoo.tests.common import TransactionCase
 
 from ..exporters.price_exporter import PriceExporter
+from ..exporters.customer_exporter import CustomerExporter
 
 
 class TestPriceExporter(TransactionCase):
@@ -80,6 +81,7 @@ class TestPriceExporter(TransactionCase):
         })
 
         exporter = self._build_exporter()
+        self.assertEqual(exporter._get_enabled_pricelists(), wholesale | retail)
         rows = exporter._build_rows_from_pricelists(self.product, wholesale | retail)
         self.assertEqual(len(rows), 2)
         groups = sorted(r[2] for r in rows)
@@ -88,7 +90,7 @@ class TestPriceExporter(TransactionCase):
             self.assertEqual(row[0], 'ALL')
             self.assertEqual(row[1], 'ET-001')
 
-    def test_customer_assigned_pricelist_is_exported_without_toggle_or_code(self):
+    def test_customer_assignment_does_not_publish_disabled_pricelist(self):
         pricelist = self.env['product.pricelist'].create({
             'name': 'Assigned Contract Level',
             'elastic_sync_enabled': False,
@@ -102,6 +104,14 @@ class TestPriceExporter(TransactionCase):
         })
         exporter = self._build_exporter()
 
+        self.assertNotIn(pricelist, exporter._get_enabled_pricelists())
+        rows = exporter._build_export_rows(
+            self.product, exporter._get_enabled_pricelists()
+        )
+        self.assertEqual([(row[2], row[4]) for row in rows], [('LP', 100.0)])
+        self.assertEqual(CustomerExporter._get_price_group(exporter, customer), 'LP')
+
+        pricelist.elastic_sync_enabled = True
         self.assertIn(pricelist, exporter._get_enabled_pricelists())
         price_group = pricelist._get_elastic_price_group_code()
         self.assertEqual(price_group, f'ODOO{pricelist.id}')
@@ -118,10 +128,48 @@ class TestPriceExporter(TransactionCase):
             for row in exporter._build_export_rows(self.product, pricelist)
         ]
         self.assertEqual(groups, [price_group, 'LP'])
+        self.assertEqual(
+            CustomerExporter._get_price_group(exporter, customer), price_group
+        )
+
+        pricelist.elastic_sync_enabled = False
+        self.assertNotIn(pricelist, exporter._get_enabled_pricelists())
+        self.assertEqual(CustomerExporter._get_price_group(exporter, customer), 'LP')
+
+    def test_archived_pricelist_is_not_exported_even_with_active_test_disabled(self):
+        pricelist = self.env['product.pricelist'].create({
+            'name': 'Archived Pricing',
+            'active': False,
+            'elastic_sync_enabled': True,
+        })
+        exporter = self._build_exporter()
+        exporter.env = self.env(context=dict(self.env.context, active_test=False))
+
+        self.assertNotIn(pricelist, exporter._get_enabled_pricelists())
+
+    def test_disabled_lp_pricelist_does_not_replace_list_price_fallback(self):
+        self.env['product.pricelist'].create({
+            'name': 'Unpublished List Price',
+            'elastic_sync_enabled': False,
+            'elastic_price_group_code': 'LP',
+            'item_ids': [(0, 0, {
+                'applied_on': '3_global',
+                'compute_price': 'fixed',
+                'fixed_price': 25.0,
+            })],
+        })
+        exporter = self._build_exporter()
+
+        rows = exporter._build_export_rows(
+            self.product, exporter._get_enabled_pricelists()
+        )
+
+        self.assertEqual([(row[2], row[4]) for row in rows], [('LP', 100.0)])
 
     def test_explicit_lp_pricelist_does_not_duplicate_list_price_group(self):
         pricelist = self.env['product.pricelist'].create({
             'name': 'Published List Price',
+            'elastic_sync_enabled': True,
             'elastic_price_group_code': 'LP',
         })
         exporter = self._build_exporter()

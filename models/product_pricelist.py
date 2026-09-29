@@ -11,8 +11,9 @@ class ProductPricelist(models.Model):
         default=False,
         help=(
             'When enabled, this pricelist is exported to Elastic as a price '
-            'group even when no exported customer currently uses it. Pricelists '
-            'assigned to exported customers are included automatically.'
+            'group. Only active, enabled pricelists are exported, including '
+            'those assigned to customers. Customers with a disabled pricelist '
+            'use the LP price group.'
         ),
     )
     elastic_price_group_code = fields.Char(
@@ -27,7 +28,7 @@ class ProductPricelist(models.Model):
     elastic_effective_price_group_code = fields.Char(
         string='Effective Elastic Price Group',
         compute='_compute_elastic_effective_price_group_code',
-        help='The actual PriceGroup sent to customers.csv and prices.csv.',
+        help='The PriceGroup sent to customers.csv and prices.csv when this pricelist is active and enabled.',
     )
 
     @api.depends('elastic_price_group_code')

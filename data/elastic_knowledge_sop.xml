@@ -139,7 +139,7 @@
     <li>Enter <strong>Elastic Legacy Account #</strong> when Elastic SoldToID should use the legacy account number.</li>
     <li>Assign <strong>Customer Catalogs</strong> when catalog permission should be customer-specific.</li>
     <li>Assign <strong>Sales Rep</strong> from the employee sales-rep records when rep mapping is required. The employee must have a Sales Rep Code.</li>
-    <li>Assign the customer's <strong>Pricelist</strong>. The customer export derives its PriceGroup from that pricelist's Elastic Price Group Code.</li>
+    <li>Assign the customer's <strong>Pricelist</strong> and enable <strong>Send to Elastic</strong> on that pricelist. The customer export uses its price group only when the pricelist is active and enabled; otherwise it uses LP.</li>
     <li>Set <strong>Drop Ship Approved</strong> when the custom fields export should send drop_ship = Y.</li>
 </ol>
 
@@ -167,7 +167,7 @@
 </ol>
 
 <h2>Pricing Setup</h2>
-<p>Assign the appropriate Odoo pricelist to each customer. Customer-assigned pricelists are included in prices.csv automatically, and customers.csv uses the same price group. An explicit Elastic Price Group Code is optional; blank codes receive a stable automatic code. Use <strong>Send to Elastic</strong> only for additional price levels that are not assigned to an exported customer. The product list-price group LP is always included unless an included pricelist already supplies LP.</p>
+<p>Assign the appropriate Odoo pricelist to each customer and enable <strong>Send to Elastic</strong> on each pricelist you want to publish. Only active, enabled pricelists are included in prices.csv, whether or not a customer uses them. Customers assigned to a disabled or inactive pricelist use LP in customers.csv. An explicit Elastic Price Group Code is optional; blank codes receive a stable automatic code. The product list-price group LP is always included unless an included pricelist already supplies LP.</p>
 
 <h2>Customer Cross-References</h2>
 <p>Use <strong>Elastic &gt; Configuration &gt; Customer Cross-References</strong> to maintain external Sold-To and Ship-To IDs when order files need explicit mapping to Odoo partners. During order import, mappings are also recorded automatically after a match is found.</p>
@@ -312,7 +312,7 @@
         <tr>
             <td>Export Prices</td>
             <td>prices.csv</td>
-            <td>Sellable active product variants and customer-assigned or Elastic-enabled pricelists</td>
+            <td>Sellable active product variants and active Elastic-enabled pricelists</td>
         </tr>
         <tr>
             <td>Export Inventory</td>
@@ -380,7 +380,7 @@
 <ul>
     <li>Products have ItemNumber and StockItemKey values.</li>
     <li>Customers have SoldToID values that match Elastic expectations.</li>
-    <li>Every customer-assigned pricelist is active; explicit price group codes, when used, are unique.</li>
+    <li>Every pricelist intended for Elastic is active and has Send to Elastic enabled; explicit price group codes, when used, are unique.</li>
     <li>Catalogs have unique codes and mapping lines.</li>
     <li>Product tag mappings point to fields that still exist.</li>
     <li>Feature assignments have values and active/exportable features.</li>
@@ -542,8 +542,8 @@
         </tr>
         <tr>
             <td>Unexpected price rows</td>
-            <td>Customer-assigned or explicitly enabled pricelists drive price groups; otherwise list price is used.</td>
-            <td>Review customer pricelist assignments and optional Elastic price group codes.</td>
+            <td>Only active pricelists with Send to Elastic enabled drive price groups; other customers use LP.</td>
+            <td>Review Send to Elastic flags, customer pricelist assignments and optional Elastic price group codes.</td>
         </tr>
     </tbody>
 </table>

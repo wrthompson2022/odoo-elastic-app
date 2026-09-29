@@ -115,9 +115,13 @@ class CustomerExporter(BaseExporter):
         return 'USD'
 
     def _get_price_group(self, record):
-        """Get the Elastic price group from the customer's Odoo pricelist."""
+        """Default to the customer's main Odoo pricelist when enabled.
+
+        Other published price groups do not change the customer's default.
+        A missing, inactive or disabled main pricelist uses the shared LP group.
+        """
         pricelist = record.property_product_pricelist
-        if pricelist and pricelist.active:
+        if pricelist and pricelist.active and pricelist.elastic_sync_enabled:
             return pricelist._get_elastic_price_group_code()
         return 'LP'
 

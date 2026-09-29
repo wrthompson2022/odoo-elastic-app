@@ -6,8 +6,7 @@ Exports product pricing data to the Elastic platform via SFTP.
 File format: prices.csv
 
 Behavior:
-* Active pricelists assigned to exported customers are included automatically;
-  "Send to Elastic" additionally includes unassigned price levels. One row per
+* Only active pricelists with "Send to Elastic" enabled are included. One row per
   product per included pricelist is exported using its variant-aware price.
 * When no pricelists qualify, one row per product is exported using the product
   list price under the default 'LP' price group.
@@ -121,26 +120,11 @@ class PriceExporter(BaseExporter):
     # Pricelist resolution
     # ------------------------------------------------------------------
     def _get_enabled_pricelists(self):
-        """Pricelists explicitly enabled or assigned to exported customers.
-
-        A customer assignment is sufficient to publish its price level; users
-        do not need to duplicate that decision with Send to Elastic.
-        """
-        enabled = self.env['product.pricelist'].search([
+        """Return only active pricelists explicitly enabled for Elastic."""
+        return self.env['product.pricelist'].search([
             ('active', '=', True),
             ('elastic_sync_enabled', '=', True),
-        ])
-        customers = self.env['res.partner'].search([
-            ('is_company', '=', True),
-            ('customer_rank', '>', 0),
-            ('elastic_sync_enabled', '=', True),
-        ])
-        assigned = customers.mapped('property_product_pricelist').filtered('active')
-        pricelist_ids = (enabled | assigned).ids
-        return self.env['product.pricelist'].search(
-            [('id', 'in', pricelist_ids)],
-            order='id',
-        )
+        ], order='id')
 
     def _get_company_currency_code(self):
         company = self.env.company
@@ -266,14 +250,13 @@ class PriceExporter(BaseExporter):
             pricelists = self._get_enabled_pricelists()
             if pricelists:
                 _logger.info(
-                    'Exporting %d customer-assigned or explicitly enabled '
-                    'pricelist(s): %s',
+                    'Exporting %d Elastic-enabled pricelist(s): %s',
                     len(pricelists), ', '.join(pricelists.mapped('name')),
                 )
                 data_rows = self._build_export_rows(products, pricelists)
             else:
                 _logger.info(
-                    'No enabled or customer-assigned pricelists found; falling '
+                    'No Elastic-enabled pricelists found; falling '
                     'back to product list price.'
                 )
                 data_rows = self._build_export_rows(products, pricelists)

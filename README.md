@@ -189,7 +189,9 @@ optional fields, specification ambiguities, and validation commands.
 - Legacy account number support for SoldToID exports.
 - Elastic customer ID, catalog assignments, employee sales-rep assignment, payment terms,
   credit limit, notes, and drop-ship approval. Each customer's Elastic price group
-  is derived from their assigned Odoo pricelist.
+  defaults to their main Odoo pricelist (`property_product_pricelist`) when it
+  is active and has **Send to Elastic** enabled; otherwise it falls back to `LP`.
+  Other published price groups do not override the customer's main pricelist.
 - Customer warehouse assignment: `customers.csv` sends the customer's Elastic
   Warehouse code when that warehouse has **Send Inventory to Elastic** enabled,
   falling back to the first enabled warehouse so the code always matches
@@ -204,12 +206,12 @@ optional fields, specification ambiguities, and validation commands.
   immediately regenerates that catalog's mapping lines. Manual sort edits on
   mapping lines survive regeneration, so the mapping-lines view doubles as
   the catalog sort editor.
-- Customer-assigned pricelists are exported automatically. The optional
-  **Send to Elastic** toggle also publishes unassigned price levels. Blank
+- Only active pricelists with **Send to Elastic** enabled are exported,
+  whether or not they are assigned to a customer. Blank
   Elastic price-group codes receive stable automatic codes shared by
   `customers.csv` and `prices.csv`.
 - Variant-aware pricing export, with list-price fallback when no pricelists are
-  assigned or explicitly enabled. The `LP` list-price group is always included
+  enabled. The `LP` list-price group is always included
   unless an included pricelist already supplies it.
 
 ### Inventory ATP
