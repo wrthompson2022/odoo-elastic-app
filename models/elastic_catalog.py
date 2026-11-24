@@ -215,13 +215,14 @@ class ElasticCatalog(models.Model):
         rows.sort(key=lambda row: row['sort_key'])
         return rows
 
-    def action_generate_mapping_lines(self):
+    def action_apply_mapping_sort(self):
+        return self.action_generate_mapping_lines(apply_sort=True)
+
+    def action_generate_mapping_lines(self, apply_sort=False):
         """Regenerate mapping lines from catalog membership.
 
-        Membership drives which lines exist; manually edited sequence and
-        catalog position on surviving lines are preserved so users can sort
-        the catalog from the mapping-lines view without losing their work
-        on the next regeneration.
+        Append new lines after the saved order unless the user explicitly
+        applies the generated sort. Keep catalog positions on surviving lines.
         """
         catalogs = self.with_context(_elastic_color_cache={})
         for catalog in catalogs:
@@ -230,27 +231,30 @@ class ElasticCatalog(models.Model):
                 (line.item_number, line.color_code or ''): line
                 for line in catalog.mapping_line_ids
             }
+            next_sequence = max((line.sequence for line in existing.values()), default=0)
             commands = []
             seen_keys = set()
             for index, row in enumerate(rows, start=1):
                 key = (row['item_number'], row['color_code'] or '')
                 seen_keys.add(key)
                 line = existing.get(key)
+                values = {
+                    'product_id': row['product_id'],
+                    'product_class': row['product_class'],
+                }
                 if line:
-                    # Keep manual sequence/position; refresh derived fields.
-                    commands.append((1, line.id, {
-                        'product_id': row['product_id'],
-                        'product_class': row['product_class'],
-                    }))
+                    if apply_sort:
+                        values['sequence'] = index
+                    commands.append((1, line.id, values))
                 else:
-                    commands.append((0, 0, {
-                        'sequence': index,
+                    next_sequence += 1
+                    values.update({
+                        'sequence': index if apply_sort else next_sequence,
                         'catalog_position': catalog.catalog_mapping_position or 1,
-                        'product_id': row['product_id'],
                         'item_number': row['item_number'],
                         'color_code': row['color_code'],
-                        'product_class': row['product_class'],
-                    }))
+                    })
+                    commands.append((0, 0, values))
             commands.extend(
                 (2, line.id)
                 for key, line in existing.items()

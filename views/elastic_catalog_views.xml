@@ -75,9 +75,8 @@
                                 </group>
                             </group>
                             <div class="text-muted mb-2">
-                                Mapping lines are generated from catalog membership.
-                                Drag rows to adjust the catalog sort order — manual
-                                ordering is preserved when lines are regenerated.
+                                Drag rows to set a manual order. Generating mappings keeps the saved order
+                                and appends new lines. Apply Generated Sort to reorder all lines.
                             </div>
                             <div>
                                 <button name="action_generate_mapping_lines"
@@ -85,9 +84,14 @@
                                         string="Generate Mapping"
                                         class="btn-primary me-2"
                                         icon="fa-magic"/>
+                                <button name="action_apply_mapping_sort"
+                                        type="object"
+                                        string="Apply Generated Sort"
+                                        class="btn-secondary"
+                                        confirm="Replace the saved row order with the selected Generated Mapping Sort?"/>
                             </div>
                             <field name="mapping_line_ids">
-                                <list editable="bottom">
+                                <list editable="bottom" default_order="sequence,id">
                                     <field name="sequence" widget="handle"/>
                                     <field name="catalog_position"/>
                                     <field name="item_number"/>

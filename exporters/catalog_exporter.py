@@ -184,7 +184,7 @@ class CatalogMappingExporter(BaseExporter):
             if not catalog.code:
                 continue
 
-            for line in catalog.mapping_line_ids:
+            for line in catalog.mapping_line_ids.sorted(key=lambda line: (line.sequence, line.id)):
                 if not line.item_number:
                     continue
 

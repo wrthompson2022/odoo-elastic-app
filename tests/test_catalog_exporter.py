@@ -398,6 +398,71 @@ class TestCatalogMappingExporter(TransactionCase):
         rows = self._build_exporter()._build_data_rows(catalog)
         self.assertEqual(rows, [['SORTED', 7, 'SORT-BLK', '210']])
 
+    def test_regeneration_appends_new_members_after_saved_sequence(self):
+        first, second, new = self.env['product.product'].create([
+            {'name': 'First', 'default_code': 'MOD-B'},
+            {'name': 'Second', 'default_code': 'MOD-C'},
+            {'name': 'New', 'default_code': 'MOD-A'},
+        ])
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Append Catalog',
+            'code': 'APPEND',
+            'variant_ids': [(6, 0, (first | second).ids)],
+        })
+        catalog.action_generate_mapping_lines()
+        catalog.mapping_line_ids.filtered(lambda line: line.product_id == first).sequence = 3
+
+        new.write({'elastic_catalog_ids': [(4, catalog.id)]})
+
+        self.assertEqual(
+            self._build_exporter()._build_data_rows(catalog),
+            [
+                ['APPEND', 1, 'MOD-C', ''],
+                ['APPEND', 1, 'MOD-B', ''],
+                ['APPEND', 1, 'MOD-A', ''],
+            ],
+        )
+        self.assertEqual(
+            {line.item_number: line.sequence for line in catalog.mapping_line_ids},
+            {'MOD-C': 2, 'MOD-B': 3, 'MOD-A': 4},
+        )
+
+    def test_apply_generated_sort_reorders_existing_lines_in_export(self):
+        accessories, sunglasses = self.env['product.category'].create([
+            {'name': 'Accessories'},
+            {'name': 'Sunglasses'},
+        ])
+        products = self.env['product.product'].create([
+            {'name': 'Readers', 'default_code': 'EGT', 'categ_id': sunglasses.id},
+            {'name': 'Keepers', 'default_code': 'KEEPSIL', 'categ_id': accessories.id},
+        ])
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Sort Catalog',
+            'code': 'SORT',
+            'variant_ids': [(6, 0, products.ids)],
+        })
+        exporter = self._build_exporter()
+        catalog.action_generate_mapping_lines()
+        original_lines = catalog.mapping_line_ids
+        original_lines.write({'sequence': 1})
+        original_lines.filtered(lambda line: line.item_number == 'KEEPSIL').catalog_position = 7
+        catalog.mapping_sort_method = 'product_class_style_color'
+
+        result = catalog.action_apply_mapping_sort()
+
+        self.assertEqual(result['params']['next']['tag'], 'reload')
+        self.assertEqual(set(catalog.mapping_line_ids.ids), set(original_lines.ids))
+        self.assertEqual(
+            exporter._build_data_rows(catalog),
+            [['SORT', 7, 'KEEPSIL', ''], ['SORT', 1, 'EGT', '']],
+        )
+        catalog.mapping_sort_method = 'style_color'
+        catalog.action_apply_mapping_sort()
+        self.assertEqual(
+            exporter._build_data_rows(catalog),
+            [['SORT', 1, 'EGT', ''], ['SORT', 7, 'KEEPSIL', '']],
+        )
+
 
 class TestCatalogMembershipImport(TransactionCase):
 
