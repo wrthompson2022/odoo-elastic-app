@@ -1,5 +1,18 @@
 # -*- coding: utf-8 -*-
 from odoo import _, models, fields, api
+from odoo.exceptions import ValidationError
+
+
+MAPPING_SORT_FIELDS = [
+    ('catalog_position', 'Catalog Position'),
+    ('item_number', 'ItemNumber'),
+    ('color_code', 'ColorCode'),
+    ('product_class', 'Product Class'),
+    ('product_variant', 'Product Variant'),
+]
+MAPPING_SORT_SETTINGS = (
+    'mapping_sort_field_1', 'mapping_sort_field_2', 'mapping_sort_field_3', 'mapping_sort_field_4',
+)
 
 
 class ElasticCatalog(models.Model):
@@ -59,15 +72,18 @@ class ElasticCatalog(models.Model):
     brand = fields.Char(string='Brand')
     catalog_classification = fields.Char(string='Catalog Classification', default='ATS')
     price_group = fields.Char(string='Price Group')
-    mapping_sort_method = fields.Selection(
-        [
-            ('style_color', 'Style, Color'),
-            ('product_class_style_color', 'Product Class, Style, Color'),
-        ],
-        string='Generated Mapping Sort',
-        default='style_color',
+    mapping_manual_order = fields.Boolean(
+        string='Keep Manual Order',
+        copy=False,
+        help='Preserve the saved row order and append new mapping lines.',
+    )
+    mapping_sort_field_1 = fields.Selection(
+        MAPPING_SORT_FIELDS, string='Sort By', default='item_number',
         required=True,
     )
+    mapping_sort_field_2 = fields.Selection(MAPPING_SORT_FIELDS, string='Then By', default='color_code')
+    mapping_sort_field_3 = fields.Selection(MAPPING_SORT_FIELDS, string='Then By')
+    mapping_sort_field_4 = fields.Selection(MAPPING_SORT_FIELDS, string='Then By')
     mapping_line_ids = fields.One2many(
         'elastic.catalog.mapping.line',
         'catalog_id',
@@ -183,16 +199,20 @@ class ElasticCatalog(models.Model):
         # products.csv and product_tags.csv for the same variant.
         return product._get_elastic_color_code()
 
-    def _get_mapping_sort_key(self, product, color_code):
-        self.ensure_one()
-        item_number = product._get_elastic_item_number()
-        product_class = product.product_tmpl_id.categ_id.complete_name or product.product_tmpl_id.categ_id.name or ''
-        if self.mapping_sort_method == 'product_class_style_color':
-            return (product_class.upper(), item_number.upper(), (color_code or '').upper())
-        return (item_number.upper(), (color_code or '').upper())
+    def _get_mapping_sort_fields(self):
+        return [self[field] for field in MAPPING_SORT_SETTINGS if self[field]]
 
-    def _prepare_generated_mapping_rows(self):
+    @api.constrains(*MAPPING_SORT_SETTINGS)
+    def _check_mapping_sort_fields(self):
+        for catalog in self:
+            sort_fields = catalog._get_mapping_sort_fields()
+            if len(sort_fields) != len(set(sort_fields)):
+                raise ValidationError(_('Use each mapping sort field only once.'))
+
+    def _prepare_generated_mapping_rows(self, existing):
         self.ensure_one()
+        sort_fields = self._get_mapping_sort_fields()
+        sort_by_variant = 'product_variant' in sort_fields
         rows = []
         # Mapping rows are style+color grain: all size variants of one
         # ItemNumber/ColorCode combination collapse into a single line.
@@ -200,67 +220,85 @@ class ElasticCatalog(models.Model):
         for product in self._get_exportable_mapping_products():
             item_number = product._get_elastic_item_number()
             color_code = self._get_mapping_color_code(product)
-            key = (item_number, color_code)
+            key = (item_number, color_code or '')
             if key in seen:
                 continue
             seen.add(key)
-            rows.append({
+            line = existing.get(key)
+            category = product.product_tmpl_id.categ_id
+            row = {
                 'product_id': product.id,
                 'item_number': item_number,
                 'color_code': color_code,
-                'product_class': product.product_tmpl_id.categ_id.complete_name or product.product_tmpl_id.categ_id.name or '',
-                'sort_key': self._get_mapping_sort_key(product, color_code),
-            })
+                'product_class': category.complete_name or category.name or '',
+                'catalog_position': line.catalog_position if line else self.catalog_mapping_position or 1,
+            }
+            if sort_by_variant:
+                row['product_variant'] = product.display_name
+            rows.append(row)
 
-        rows.sort(key=lambda row: row['sort_key'])
+        def sort_key(row):
+            selected = tuple(
+                row[field] if field == 'catalog_position' else (row[field] or '').casefold()
+                for field in sort_fields
+            )
+            return selected + (row['item_number'].casefold(), (row['color_code'] or '').casefold(), row['product_id'])
+
+        rows.sort(key=sort_key)
         return rows
 
     def action_apply_mapping_sort(self):
         return self.action_generate_mapping_lines(apply_sort=True)
 
     def action_generate_mapping_lines(self, apply_sort=False):
-        """Regenerate mapping lines from catalog membership.
-
-        Append new lines after the saved order unless the user explicitly
-        applies the generated sort. Keep catalog positions on surviving lines.
-        """
-        catalogs = self.with_context(_elastic_color_cache={})
+        """Refresh membership and maintain the catalog's selected order."""
+        catalogs = self.with_context(_elastic_color_cache={}, _elastic_syncing_mapping=True)
         for catalog in catalogs:
-            rows = catalog._prepare_generated_mapping_rows()
-            existing = {
-                (line.item_number, line.color_code or ''): line
-                for line in catalog.mapping_line_ids
-            }
-            next_sequence = max((line.sequence for line in existing.values()), default=0)
+            lines = catalog.mapping_line_ids
+            existing = {}
+            for line in lines.sorted(key=lambda line: (line.sequence, line.id)):
+                existing.setdefault((line.item_number, line.color_code or ''), line)
+            rows = catalog._prepare_generated_mapping_rows(existing)
+            sort_rows = apply_sort or not catalog.mapping_manual_order
+            next_sequence = max((line.sequence for line in lines), default=0)
             commands = []
-            seen_keys = set()
+            kept_line_ids = set()
             for index, row in enumerate(rows, start=1):
                 key = (row['item_number'], row['color_code'] or '')
-                seen_keys.add(key)
                 line = existing.get(key)
                 values = {
                     'product_id': row['product_id'],
                     'product_class': row['product_class'],
                 }
+                if sort_rows:
+                    values['sequence'] = index
                 if line:
-                    if apply_sort:
-                        values['sequence'] = index
-                    commands.append((1, line.id, values))
+                    kept_line_ids.add(line.id)
+                    current = {
+                        'product_id': line.product_id.id,
+                        'product_class': line.product_class or '',
+                        'sequence': line.sequence,
+                    }
+                    changes = {field: value for field, value in values.items() if current[field] != value}
+                    if changes:
+                        commands.append((1, line.id, changes))
                 else:
                     next_sequence += 1
                     values.update({
-                        'sequence': index if apply_sort else next_sequence,
-                        'catalog_position': catalog.catalog_mapping_position or 1,
+                        'sequence': index if sort_rows else next_sequence,
+                        'catalog_position': row['catalog_position'],
                         'item_number': row['item_number'],
                         'color_code': row['color_code'],
                     })
                     commands.append((0, 0, values))
-            commands.extend(
-                (2, line.id)
-                for key, line in existing.items()
-                if key not in seen_keys
-            )
-            catalog.write({'mapping_line_ids': commands})
+            commands.extend((2, line.id) for line in lines if line.id not in kept_line_ids)
+            values = {}
+            if commands:
+                values['mapping_line_ids'] = commands
+            if apply_sort and catalog.mapping_manual_order:
+                values['mapping_manual_order'] = False
+            if values:
+                catalog.write(values)
         row_count = sum(len(catalog.mapping_line_ids) for catalog in catalogs)
         return catalogs._mapping_notification(
             _('Catalog mappings generated: %s row(s).') % row_count,
@@ -331,3 +369,13 @@ class ElasticCatalogMappingLine(models.Model):
             'A catalog mapping line with this ItemNumber and ColorCode already exists for this catalog.'
         ),
     ]
+
+    def write(self, vals):
+        reordered = self.browse()
+        if 'sequence' in vals and not self.env.context.get('_elastic_syncing_mapping'):
+            reordered = self.filtered(lambda line: line.sequence != vals['sequence'])
+        result = super().write(vals)
+        catalogs = reordered.catalog_id.filtered(lambda catalog: not catalog.mapping_manual_order)
+        if catalogs:
+            catalogs.write({'mapping_manual_order': True})
+        return result

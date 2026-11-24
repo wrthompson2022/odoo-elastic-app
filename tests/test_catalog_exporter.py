@@ -2,6 +2,7 @@
 from datetime import date
 from unittest.mock import patch
 
+from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
 from ..exporters.catalog_exporter import CatalogExporter, CatalogMappingExporter
@@ -446,22 +447,113 @@ class TestCatalogMappingExporter(TransactionCase):
         original_lines = catalog.mapping_line_ids
         original_lines.write({'sequence': 1})
         original_lines.filtered(lambda line: line.item_number == 'KEEPSIL').catalog_position = 7
-        catalog.mapping_sort_method = 'product_class_style_color'
+        catalog.write({
+            'mapping_sort_field_1': 'product_class',
+            'mapping_sort_field_2': 'item_number',
+            'mapping_sort_field_3': 'color_code',
+        })
 
         result = catalog.action_apply_mapping_sort()
 
         self.assertEqual(result['params']['next']['tag'], 'reload')
+        self.assertFalse(catalog.mapping_manual_order)
         self.assertEqual(set(catalog.mapping_line_ids.ids), set(original_lines.ids))
         self.assertEqual(
             exporter._build_data_rows(catalog),
             [['SORT', 7, 'KEEPSIL', ''], ['SORT', 1, 'EGT', '']],
         )
-        catalog.mapping_sort_method = 'style_color'
+        catalog.write({
+            'mapping_sort_field_1': 'item_number',
+            'mapping_sort_field_2': 'color_code',
+            'mapping_sort_field_3': False,
+        })
         catalog.action_apply_mapping_sort()
         self.assertEqual(
             exporter._build_data_rows(catalog),
             [['SORT', 1, 'EGT', ''], ['SORT', 7, 'KEEPSIL', '']],
         )
+
+    def test_generated_sort_inserts_new_members_by_item_number(self):
+        first, last, new = self.env['product.product'].create([
+            {'name': '8th Street', 'default_code': 'EGT220724150'},
+            {'name': 'Hopedale', 'default_code': 'HOP210122'},
+            {'name': '8th Street Green', 'default_code': 'EGT181122150'},
+        ])
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Bajio ATS',
+            'code': 'BAJIO',
+            'variant_ids': [(6, 0, (first | last).ids)],
+        })
+        catalog.action_generate_mapping_lines()
+        catalog.variant_ids = [(4, new.id)]
+        exporter = self._build_exporter()
+        exporter.pre_export_hook(catalog)
+
+        expected = ['EGT181122150', 'EGT220724150', 'HOP210122']
+        self.assertFalse(catalog.mapping_manual_order)
+        display_rows = catalog.web_read({
+            'mapping_line_ids': {'fields': {'item_number': {}}, 'order': 'sequence,id', 'limit': 40},
+        })[0]['mapping_line_ids']
+        self.assertEqual([row['item_number'] for row in display_rows], expected)
+        self.assertEqual([row[2] for row in exporter._build_data_rows(catalog)], expected)
+
+    def test_generated_sort_uses_all_four_selected_fields(self):
+        accessories, eyewear = self.env['product.category'].create([
+            {'name': 'Accessories'}, {'name': 'Eyewear'},
+        ])
+        color = self.env['product.attribute'].create({'name': 'Color'})
+        gray, pink = self.env['product.attribute.value'].create([
+            {'name': 'Gray', 'attribute_id': color.id, 'elastic_color_code': '02A'},
+            {'name': 'Pink', 'attribute_id': color.id, 'elastic_color_code': '99Z'},
+        ])
+        templates = self.env['product.template'].create([
+            {
+                'name': item, 'default_code': sku, 'elastic_product_id': item,
+                'categ_id': category.id,
+                'attribute_line_ids': [(0, 0, {'attribute_id': color.id, 'value_ids': [(6, 0, value.ids)]})],
+            }
+            for item, sku, category, value in [
+                ('A-POSITION', 'A-SKU', accessories, gray),
+                ('B-PINK', 'B-SKU', eyewear, pink),
+                ('C-GRAY', 'D-SKU', eyewear, gray),
+                ('D-GRAY', 'C-SKU', eyewear, gray),
+                ('Z-ACCESSORY', 'Z-SKU', accessories, pink),
+            ]
+        ])
+        catalog = self.env['elastic.catalog'].create({
+            'name': 'Field Priority',
+            'code': 'PRIORITY',
+            'catalog_mapping_position': 2,
+            'product_ids': [(6, 0, templates.ids)],
+            'mapping_sort_field_1': 'catalog_position',
+            'mapping_sort_field_2': 'product_class',
+            'mapping_sort_field_3': 'color_code',
+            'mapping_sort_field_4': 'product_variant',
+        })
+        catalog.action_generate_mapping_lines()
+        catalog.mapping_line_ids.filtered(lambda line: line.item_number == 'A-POSITION').catalog_position = 10
+
+        catalog.action_apply_mapping_sort()
+
+        self.assertEqual(
+            [row[1:] for row in self._build_exporter()._build_data_rows(catalog)],
+            [
+                [2, 'Z-ACCESSORY', '99Z'],
+                [2, 'D-GRAY', '02A'],
+                [2, 'C-GRAY', '02A'],
+                [2, 'B-PINK', '99Z'],
+                [10, 'A-POSITION', '02A'],
+            ],
+        )
+
+    def test_duplicate_generated_sort_fields_are_rejected(self):
+        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+            self.env['elastic.catalog'].create({
+                'name': 'Duplicate Sort',
+                'code': 'DUPLICATE',
+                'mapping_sort_field_1': 'color_code',
+                'mapping_sort_field_2': 'color_code',
+            })
 
 
 class TestCatalogMembershipImport(TransactionCase):
